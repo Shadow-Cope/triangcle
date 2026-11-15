@@ -154,7 +154,8 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0"></script>
+<script>window.supabase || document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"><\/script>');</script>
 <script>
 "use strict";
 
@@ -638,9 +639,9 @@ function sbConnect() {
     .on("broadcast", { event: "died" }, ({ payload }) => {
       if (payload && payload.id && payload.id !== NET.id) remoteDied(String(payload.id));
     })
-    .subscribe(status => {
-      if (status === "SUBSCRIBED") { NET.status = "online"; ch.track(presenceInfo()); }
-      else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") NET.status = "offline – retrying";
+    .subscribe((status, err) => {
+      if (status === "SUBSCRIBED") { NET.status = "online"; NET.err = ""; ch.track(presenceInfo()); }
+      else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") { NET.status = "offline – retrying"; NET.err = err && err.message ? String(err.message).slice(0, 80) : status; }
     });
   NET.channel = ch;
   NET.status = "connecting…";
@@ -1478,7 +1479,7 @@ function frame(now) {
       "speed  " + sp2.toFixed(2) + " studs/s   vy " + player.vel.y.toFixed(1) + "\n" +
       "pos    " + player.pos.x.toFixed(1) + ", " + player.pos.y.toFixed(1) + ", " + player.pos.z.toFixed(1) + "\n" +
       "fps    " + Math.round(fps) + "  (physics " + CFG.PHYSICS_HZ + " Hz)\n" +
-      "net    " + NET.status + "  (" + players.size + " player" + (players.size === 1 ? "" : "s") + ")";
+      "net    " + NET.status + (NET.err ? " [" + NET.err + "]" : "") + "  (" + players.size + " player" + (players.size === 1 ? "" : "s") + ")";
     msg.style.display = "none";
   }
 }
