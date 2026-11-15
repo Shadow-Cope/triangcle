@@ -51,13 +51,23 @@
     display: none; pointer-events: none; opacity: .96; animation: crossIn .2s cubic-bezier(.2,.9,.3,1.3);
   }
   @keyframes crossIn { from { transform: scale(1.7) rotate(-35deg); opacity: 0; } to { transform: none; opacity: .96; } }
-  #climbHint {
-    position: fixed; left: 50%; bottom: 92px; transform: translateX(-50%); display: none; pointer-events: none;
-    padding: 6px 14px; border-radius: 999px; background: rgba(0,0,0,.5); color: #fff; backdrop-filter: blur(4px);
-    font: 600 13px system-ui, sans-serif; letter-spacing: .02em; animation: hintIn .18s ease-out;
-  }
-  @keyframes hintIn { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
-  body.nohud #hud, body.nohud #board, body.nohud #namebox, body.nohud #gfx, body.nohud #hotbar { display: none !important; }
+  body.nohud #hud { display: none !important; }
+  .bubble { position: absolute; left: 0; top: 0; display: none; width: max-content; max-width: 220px; padding: 6px 10px; border-radius: 10px;
+    background: rgba(255,255,255,.96); color: #111; font: 600 14px/1.25 system-ui, sans-serif; text-align: center; word-wrap: break-word;
+    transform-origin: 50% 100%; box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+  .bubble::after { content: ""; position: absolute; left: 50%; bottom: -6px; margin-left: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: rgba(255,255,255,.96); }
+  #chatlog { position: fixed; left: 10px; bottom: 96px; width: 340px; max-height: 190px; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end;
+    pointer-events: none; font: 13px/1.35 system-ui, sans-serif; color: #fff; }
+  #chatlog .line { padding: 1px 6px; border-radius: 4px; background: rgba(0,0,0,.32); margin-top: 2px; width: fit-content; max-width: 100%; word-wrap: break-word;
+    text-shadow: 0 1px 2px rgba(0,0,0,.7); transition: opacity .8s; animation: lineIn .18s ease-out; }
+  #chatlog .line b { margin-right: 5px; }
+  #chatlog .line.old { opacity: 0; }
+  #chatlog.active .line.old { opacity: 1; }
+  @keyframes lineIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  #chatInput { position: fixed; left: 10px; bottom: 56px; width: 340px; box-sizing: border-box; padding: 6px 9px; border-radius: 6px; border: 1px solid rgba(255,255,255,.25);
+    background: rgba(0,0,0,.4); color: #fff; font: 13px system-ui, sans-serif; outline: none; transition: background .15s, border-color .15s; }
+  #chatInput::placeholder { color: rgba(255,255,255,.6); }
+  #chatInput:focus { background: rgba(0,0,0,.65); border-color: #fff; }
   #msg {
     position: fixed; left: 50%; top: 40%; transform: translate(-50%,-50%);
     font: 600 22px system-ui, sans-serif; color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,.6);
@@ -152,7 +162,9 @@
   <button id="authGuest" type="button">Play as guest</button>
 </div>
 <div id="cross"></div>
-<div id="climbHint"></div>
+
+<div id="chatlog"></div>
+<input id="chatInput" maxlength="120" autocomplete="off" spellcheck="false" placeholder="Press Enter to chat">
 <div id="msg"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -538,7 +550,7 @@ function addPlayer(id, name, local) {
 function removePlayer(id) {
   const pl = players.get(id);
   if (!pl || pl.local) return;
-  pl.tag.remove();
+  pl.tag.remove(); if (pl.bubble) pl.bubble.remove();
   for (const pt of userParts.slice()) if (pt.owner === id) removePart(pt, true);
   scene.remove(pl.avatar.group);
   clearDebris(id);
@@ -579,26 +591,69 @@ document.getElementById("nameBtn").addEventListener("click", () => { applyMyName
 
 const _tp = new THREE.Vector3();
 function updateTags() {
-  const w = window.innerWidth, h = window.innerHeight;
+  const w = window.innerWidth, h = window.innerHeight, now = performance.now();
   const tanH = Math.tan(CFG.CAM_FOV * Math.PI / 360);
   for (const pl of players.values()) {
     const g = pl.avatar.group;
-    let show = g.visible;
+    let show = g.visible, sc = 1, px = 0, py = 0;
     if (show) {
       _tp.set(g.position.x, g.position.y + 5.9, g.position.z);
       const dist = _tp.distanceTo(camera.position);
       _tp.project(camera);
       show = _tp.z < 1 && dist <= CFG.NAME_DISTANCE;
       if (show) {
-        pl.tag.style.left = Math.round((_tp.x * 0.5 + 0.5) * w) + "px";
-        pl.tag.style.top  = Math.round((-_tp.y * 0.5 + 0.5) * h) + "px";
-        // world-space size: shrinks/grows with distance like a part (tag box is 20px tall)
-        pl.tag.style.transform = "scale(" + (CFG.TAG_WORLD_H * (h / 2) / (Math.max(dist, 0.1) * tanH) / 20).toFixed(3) + ")";
+        px = Math.round((_tp.x * 0.5 + 0.5) * w); py = Math.round((-_tp.y * 0.5 + 0.5) * h);
+        sc = CFG.TAG_WORLD_H * (h / 2) / (Math.max(dist, 0.1) * tanH) / 20;   // world-space size: shrinks/grows with distance like a part
+        pl.tag.style.left = px + "px"; pl.tag.style.top = py + "px";
+        pl.tag.style.transform = "scale(" + sc.toFixed(3) + ")";
       }
     }
-    pl.tag.style.display = show ? "block" : "none";
+    pl.tag.style.display = (show && !pl.local) ? "block" : "none";   // your own name tag stays hidden
+    if (pl.bubble) {
+      const on = show && now < pl.bubbleEnd;
+      pl.bubble.style.display = on ? "block" : "none";
+      if (on) pl.bubble.style.transform = "translate(" + px + "px," + (py - (pl.local ? 8 : 28) * sc) + "px) translate(-50%,-100%) scale(" + sc.toFixed(3) + ")";
+    }
   }
 }
+
+/* ---- in-game chat: Enter to type, bubbles over heads, log bottom-left ---- */
+const chatLog = document.getElementById("chatlog"), chatInput = document.getElementById("chatInput");
+let lastChat = 0;
+function cleanChat(s) { return String(s == null ? "" : s).replace(/[\u0000-\u001f\u007f<>]/g, "").trim().slice(0, 120); }
+function addChatLine(name, text) {
+  const d = document.createElement("div"); d.className = "line";
+  const b = document.createElement("b"); b.textContent = name + ":"; d.appendChild(b); d.appendChild(document.createTextNode(text));
+  chatLog.appendChild(d);
+  while (chatLog.children.length > 40) chatLog.removeChild(chatLog.firstChild);
+  setTimeout(() => d.classList.add("old"), 12000);
+}
+function showBubble(pl, text) {
+  if (!pl.bubble) { pl.bubble = document.createElement("div"); pl.bubble.className = "bubble"; tagsEl.appendChild(pl.bubble); }
+  pl.bubble.textContent = text;
+  pl.bubbleEnd = performance.now() + Math.min(10000, 4000 + text.length * 70);
+}
+function sendChat(raw) {
+  const text = cleanChat(raw), now = performance.now();
+  if (!text || now - lastChat < 600) return;
+  lastChat = now;
+  addChatLine(myName, text); showBubble(me, text); netSend({ t: "chat", text });
+}
+function onChat(m) {
+  if (!m || !m.id || m.id === NET.id) return;
+  const pl = players.get(String(m.id)), text = cleanChat(m.text);
+  if (!pl || pl.local || !text || performance.now() - (pl.lastChat || 0) < 300) return;
+  pl.lastChat = performance.now();
+  addChatLine(pl.name, text); showBubble(pl, text);
+}
+function openChat() { chatInput.focus(); }
+chatInput.addEventListener("focus", () => { for (const k in keys) keys[k] = false; chatLog.classList.add("active"); });
+chatInput.addEventListener("blur", () => chatLog.classList.remove("active"));
+chatInput.addEventListener("keydown", e => {
+  if (e.key === "Enter") { sendChat(chatInput.value); chatInput.value = ""; chatInput.blur(); }
+  else if (e.key === "Escape") { chatInput.value = ""; chatInput.blur(); }
+  e.stopPropagation();
+});
 
 /* =====================================================================
    Multiplayer client (talks to server.js over WebSocket)
@@ -647,6 +702,7 @@ function sbConnect() {
       if (payload && payload.id && payload.id !== NET.id) remoteState(String(payload.id), payload);
     })
     .on("broadcast", { event: "p" }, ({ payload }) => onPartMsg(payload))
+    .on("broadcast", { event: "c" }, ({ payload }) => onChat(payload))
     .on("broadcast", { event: "died" }, ({ payload }) => {
       if (payload && payload.id && payload.id !== NET.id) remoteDied(String(payload.id));
     })
@@ -681,6 +737,7 @@ function sbSend(o) {
     if (o.t === "s") ch.send({ type: "broadcast", event: "s", payload: Object.assign({}, o, { id: NET.id }) });
     else if (o.t === "died") ch.send({ type: "broadcast", event: "died", payload: { id: NET.id } });
     else if (o.t === "parts" || o.t === "partdel" || o.t === "partreq") ch.send({ type: "broadcast", event: "p", payload: Object.assign({}, o, { id: NET.id }) });
+    else if (o.t === "chat") ch.send({ type: "broadcast", event: "c", payload: { t: "chat", text: o.text, id: NET.id } });
     else if (o.t === "name" || o.t === "colors") ch.track(presenceInfo());
   } catch (_) {}
 }
@@ -718,6 +775,7 @@ function onNetMessage(m) {
     case "s": remoteState(String(m.id), m); break;
     case "died": remoteDied(String(m.id)); break;
     case "parts": case "partdel": case "partreq": onPartMsg(m); break;
+    case "chat": onChat(m); break;
   }
 }
 function remoteJoin(p) {
@@ -785,8 +843,8 @@ window.addEventListener("keydown", e => {
   if (e.repeat) return;
   if (e.code === "ShiftLeft" || e.code === "ShiftRight") toggleShiftLock();
   if (e.code === "KeyR") resetCharacter();
-  if (e.code === "KeyE") player.grabReq = true;
   if (e.code === "Slash") document.body.classList.toggle("nohud");
+  if (e.code === "Enter" || e.code === "NumpadEnter") { e.preventDefault(); openChat(); }
   if (e.code === "Backquote") hitOn = !hitOn;
   if (e.code === "Digit1") toggleBT();
 });
@@ -902,6 +960,13 @@ function resolveHorizontal(axis, delta) {
       p.y = b.maxY;                    // walk up the ledge
       continue;
     }
+    if (!player.onGround && !player.climb && !(player.noGrab > 0) && rise >= 3 && rise <= CFG.AUTOJUMP_MAX && (b.maxY - b.minY) <= CFG.CLIMB_MAX_SIZE && (player.moveX || player.moveZ)) {
+      const dir = delta > 0 ? 1 : -1, t = { x: p.x, y: b.maxY, z: p.z };
+      if (axis === "x") t.x = dir > 0 ? b.minX + h + 0.2 : b.maxX - h - 0.2; else t.z = dir > 0 ? b.minZ + h + 0.2 : b.maxZ - h - 0.2;
+      if (axis === "x" ? (t.z > b.minZ - h * 0.5 && t.z < b.maxZ + h * 0.5) : (t.x > b.minX - h * 0.5 && t.x < b.maxX + h * 0.5)) {
+        if (!solids.some(o => overlaps(t, o))) player.climbReq = { t, b, ax: axis === "x" ? dir : 0, az: axis === "z" ? dir : 0 };
+      }
+    }
     if (axis === "x") {
       if (delta > 0) p.x = b.minX - h; else p.x = b.maxX + h;
       player.vel.x = 0;
@@ -912,68 +977,10 @@ function resolveHorizontal(axis, delta) {
   }
 }
 
-/* ---- manual, smooth climbing: press E near a ladder or a ledge to grab; W/S move, A/D shimmy, Space jumps off, E lets go ---- */
-function findClimb() {
-  const p = player.pos, h = CFG.CHAR_HALF_XZ, fx = Math.cos(facing), fz = -Math.sin(facing);
-  for (const L of LADDERS) if (p.x >= L.x0 && p.x <= L.x1 && p.z >= L.z0 - 0.6 && p.z <= L.z1 + 0.8 && p.y >= L.y0 - 0.5 && p.y <= L.y1 - 1) return { kind: "ladder", L };
-  let best = null, bd = 9;
-  for (const b of solids) {
-    const rise = b.maxY - p.y;
-    if (b.maxY - b.minY > CFG.CLIMB_MAX_SIZE || rise < 2.5 || rise > 6.2) continue;
-    for (const [ax, az] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      if (ax * fx + az * fz < 0.5) continue;                       // must be facing the ledge
-      const gap = ax ? (ax > 0 ? b.minX - (p.x + h) : (p.x - h) - b.maxX) : (az > 0 ? b.minZ - (p.z + h) : (p.z - h) - b.maxZ);
-      const within = ax ? (p.z > b.minZ - h * 0.5 && p.z < b.maxZ + h * 0.5) : (p.x > b.minX - h * 0.5 && p.x < b.maxX + h * 0.5);
-      if (gap < -0.4 || gap > 1.2 || !within) continue;
-      const to = new THREE.Vector3(p.x, b.maxY, p.z);
-      if (ax) to.x = ax > 0 ? b.minX + h + 0.3 : b.maxX - h - 0.3; else to.z = az > 0 ? b.minZ + h + 0.3 : b.maxZ - h - 0.3;
-      if (solids.some(o => overlaps(to, o))) continue;               // no room to stand on top
-      if (gap < bd) { bd = gap; best = { kind: "ledge", b, ax, az, to }; }
-    }
-  }
-  return best;
-}
-function tryGrab() {
-  const t = findClimb(); if (!t) return;
-  if (t.kind === "ladder") { t.nx = t.L.nx; t.nz = t.L.nz; t.face = Math.atan2(t.L.nz, -t.L.nx); }
-  else { t.nx = -t.ax; t.nz = -t.az; t.face = Math.atan2(-t.az, t.ax); t.y0 = Math.max(player.pos.y, t.b.maxY - 5.4); }
-  t.cy = 0; t.sx = 0; t.armed = false; t.mantle = null;
-  player.climb = t; player.vel.set(0, 0, 0); player.onGround = false;
-}
-function climbStep(dt) {
-  const c = player.climb, p = player.pos, v = player.vel, h = CFG.CHAR_HALF_XZ, k = 1 - Math.exp(-dt * 28);
-  v.set(0, 0, 0);
-  if (c.mantle) {                                                       // pull-over: eased, never a teleport
-    const m = c.mantle; m.t += dt;
-    const u = Math.min(1, m.t / m.dur), e = x => x * x * (3 - 2 * x), yu = e(Math.min(1, u / 0.6)), xu = e(Math.max(0, (u - 0.3) / 0.7));
-    p.set(m.from.x + (m.to.x - m.from.x) * xu, m.from.y + (m.to.y - m.from.y) * yu, m.from.z + (m.to.z - m.from.z) * xu);
-    if (u >= 1) { player.climb = null; player.onGround = true; }
-    return;
-  }
-  const up = keys.KeyW || keys.ArrowUp, dn = keys.KeyS || keys.ArrowDown, rgt = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0), lad = c.kind === "ladder";
-  if (!keys.Space) c.armed = true;
-  if (c.armed && keys.Space) { player.climb = null; player.onGround = false; v.set(c.nx * 12, CFG.JUMP_POWER * 0.9, c.nz * 12); return; }
-  // glide onto the wall, then eased up/down speed (no instant start/stop)
-  if (lad) { if (c.L.nz) p.z += (c.L.snapZ - p.z) * k; }
-  else if (c.ax) p.x += ((c.ax > 0 ? c.b.minX - h - 0.2 : c.b.maxX + h + 0.2) - p.x) * k;
-  else p.z += ((c.az > 0 ? c.b.minZ - h - 0.2 : c.b.maxZ + h + 0.2) - p.z) * k;
-  if (!lad && p.y < c.y0) p.y += (c.y0 - p.y) * k;
-  const lo = lad ? c.L.y0 : c.y0, hi = lad ? c.L.y1 - 0.4 : c.b.maxY - 1.7;
-  c.cy += ((((up ? 1 : 0) - (dn ? 1 : 0)) * (lad ? 10 : 6)) - c.cy) * (1 - Math.exp(-dt * 14));
-  p.y += c.cy * dt;
-  const tx = (lad ? c.L.nz : c.az) ? 1 : 0, tgt = rgt ? Math.max(-1, Math.min(1, rgt * (Math.cos(cam.yaw) * tx - Math.sin(cam.yaw) * (1 - tx)))) * 4 : 0;
-  c.sx += (tgt - c.sx) * (1 - Math.exp(-dt * 12));
-  if (tx) p.x = Math.max(lad ? c.L.x0 + h : c.b.minX, Math.min(lad ? c.L.x1 - h : c.b.maxX, p.x + c.sx * dt));
-  else p.z = Math.max(lad ? c.L.z0 + h : c.b.minZ, Math.min(lad ? c.L.z1 - h : c.b.maxZ, p.z + c.sx * dt));
-  if (p.y <= lo) { p.y = lo; c.cy = Math.max(c.cy, 0); if (dn) { player.climb = null; player.onGround = lad; return; } }
-  if (p.y >= hi) {
-    p.y = hi; c.cy = Math.min(c.cy, 0);
-    if (up) {                                                           // holding W at the top = pull yourself over
-      const to = lad ? new THREE.Vector3(p.x - c.nx * 2, c.L.y1, p.z - c.nz * 2) : c.to.clone();
-      if (!lad) { if (c.ax) to.z = p.z; else to.x = p.x; }
-      c.mantle = { t: 0, dur: 0.42, from: p.clone(), to };
-    }
-  }
+function exitClimb(c, ex, bk) {     // leave a climb at the top; if you then stop moving you get put back on it
+  player.climb = null; player.pos.set(ex.x, ex.y, ex.z); player.prev.copy(player.pos);
+  player.vel.set(0, 0, 0); player.onGround = true;
+  player.topExit = { t: 1, climb: c, bk, x0: ex.x, z0: ex.z };
 }
 
 function physicsStep(dt) {
@@ -987,8 +994,66 @@ function physicsStep(dt) {
   const p = player.pos, v = player.vel;
   player.prev.copy(p);
   if (player.noGrab > 0) player.noGrab -= dt;
-  if (player.grabReq) { player.grabReq = false; if (player.climb) { player.climb = null; } else tryGrab(); }
-  if (player.climb) { climbStep(dt); return; }
+  if (player.topExit) {
+    const te = player.topExit; te.t -= dt;
+    const moving = keys.KeyW || keys.KeyA || keys.KeyS || keys.KeyD || keys.ArrowUp || keys.ArrowDown;
+    if (te.t <= 0 || Math.hypot(p.x - te.x0, p.z - te.z0) > 0.6) player.topExit = null;   // you walked off: let go of the climb
+    else if (!moving) { te.climb.armed = false; player.climb = te.climb; p.set(te.bk.x, te.bk.y, te.bk.z); v.set(0, 0, 0); player.topExit = null; }
+  }
+  if (!player.climb && !(player.noGrab > 0) && (keys.KeyW || keys.ArrowUp)) {          // walk into a ladder holding W
+    for (const L of LADDERS) if (p.x >= L.x0 && p.x <= L.x1 && p.z >= L.z0 && p.z <= L.z1 && p.y >= L.y0 - 0.5 && p.y <= L.y1 - 1) {
+      player.climb = { mode: "ladder", L, t: 0, dur: 1, armed: false, face: Math.atan2(L.nz, -L.nx) }; p.z = L.snapZ; v.set(0, 0, 0); break;
+    }
+  }
+  if (player.climb && player.climb.mode === "over") {   // smooth pull-over onto the top (no teleport)
+    const c = player.climb; c.t += dt;
+    const u = Math.min(1, c.t / c.dur), e = x => x * x * (3 - 2 * x);
+    const yu = e(Math.min(1, u / 0.5)), xu = e(Math.max(0, (u - 0.35) / 0.65));
+    p.y = c.from.y + (c.to.y - c.from.y) * yu;
+    p.x = c.from.x + (c.to.x - c.from.x) * xu; p.z = c.from.z + (c.to.z - c.from.z) * xu;
+    v.set(0, 0, 0);
+    if (u >= 1) { p.set(c.to.x, c.to.y, c.to.z); player.climb = null; player.onGround = true; }
+    return;
+  }
+  if (player.climb && player.climb.mode === "ladder") {   // truss-style ladder: W/S up/down, Space hops off backwards
+    const c = player.climb, L = c.L, up = keys.KeyW || keys.ArrowUp, dn = keys.KeyS || keys.ArrowDown;
+    v.set(0, 0, 0);
+    if (!keys.Space) c.armed = true;
+    if (c.armed && keys.Space) { player.climb = null; player.noGrab = 0.3; v.set(L.nx * 10, CFG.JUMP_POWER, L.nz * 10); return; }
+    p.y += ((up ? 1 : 0) - (dn ? 1 : 0)) * 12 * dt;
+    if (p.y <= L.y0) { p.y = L.y0; if (dn) { player.climb = null; player.noGrab = 0.3; player.onGround = true; return; } }
+    if (p.y >= L.y1 - 0.5) { exitClimb(c, { x: p.x - L.nx, y: L.y1, z: p.z - L.nz }, { x: p.x, y: L.y1 - 1, z: p.z }); return; }   // top: step out, no shove forward
+    return;
+  }
+  if (player.climb && player.climb.mode === "hang") {   // hanging off the ledge, Roblox-style
+    const c = player.climb, fw = keys.KeyW || keys.ArrowUp, down = keys.KeyS || keys.ArrowDown;
+    v.set(0, 0, 0);
+    if (down) { player.climb = null; player.noGrab = 0.5; return; }                 // let go
+    if (!keys.Space) c.armed = true;
+    if (c.armed && keys.Space) {                                                    // Space = jump off, like off the floor
+      player.climb = null; player.noGrab = 0.3; v.set(-c.ax * 10, CFG.JUMP_POWER, -c.az * 10); return;   // hops back off the wall a bit
+    }
+    if (fw) p.y += 12 * dt;                                                      // smooth climb
+    const rgt = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);                          // A/D shimmy along the ledge
+    const tx = c.az !== 0 ? 1 : 0, tz = c.ax !== 0 ? 1 : 0;
+    const sh = rgt ? Math.cos(cam.yaw) * rgt * tx - Math.sin(cam.yaw) * rgt * tz : 0;
+    if (Math.abs(sh) > 0.1) {
+      const st = sh * 4 * dt;
+      if (tx) { p.x = Math.max(c.b.minX, Math.min(c.b.maxX, p.x + st)); c.to.x = p.x; }
+      else    { p.z = Math.max(c.b.minZ, Math.min(c.b.maxZ, p.z + st)); c.to.z = p.z; }
+    }
+    if (p.y >= c.b.maxY - 1.0) { exitClimb(c, { x: p.x + c.ax * 0.4, y: c.b.maxY, z: p.z + c.az * 0.4 }, { x: p.x, y: c.b.maxY - 1.2, z: p.z }); return; }   // top: just onto the edge
+    return;
+  }
+  if (player.climb) {                               // mantling a ledge: haul up, then swing over
+    const c = player.climb; c.t += dt;
+    const u = Math.min(1, c.t / c.dur), K = 0.65, e = x => x * x * (3 - 2 * x);
+    if (u < K) p.y = c.from.y + (c.to.y - c.from.y) * e(u / K);
+    else { const w = e((u - K) / (1 - K)); p.y = c.to.y; p.x = c.from.x + (c.to.x - c.from.x) * w; p.z = c.from.z + (c.to.z - c.from.z) * w; }
+    v.set(0, 0, 0);
+    if (u >= 1) { p.set(c.to.x, c.to.y, c.to.z); player.climb = null; player.onGround = true; }
+    return;
+  }
 
   // --- horizontal control ---
   const [mx, mz] = readMoveInput();
@@ -1022,6 +1087,12 @@ function physicsStep(dt) {
     v.y = 0;
   }
   player.onGround = landed;
+  if (player.climbReq) {
+    const q = player.climbReq; player.climbReq = null;
+    player.climb = { t: 0, dur: 0.6, from: p.clone(), to: new THREE.Vector3(q.t.x, q.t.y, q.t.z), face: Math.atan2(-q.az, q.ax), mode: "hang", armed: false, b: q.b, ax: q.ax, az: q.az };
+    v.set(0, 0, 0);
+  }
+
   // --- fell off the world ---
   if (p.y < CFG.FALL_DESTROY_Y) {
     player.alive = false;
@@ -1188,9 +1259,13 @@ function animate(dt) {
   let aL = 0, aR = 0, lL = 0, lR = 0, tb = 0, tl = 0, tr = 0;
   if (c) {
     animState = "Climbing";
-    if (c.mantle) { const u = Math.min(1, c.mantle.t / c.mantle.dur); aL = aR = Math.PI * (0.92 - 0.6 * u); lL = 0.7 * (1 - u); lR = -0.3; tl = 0.18 * u; }
-    else if (c.kind === "ladder") { climbPh += c.cy * dt * 0.8; const s = Math.sin(climbPh), q = Math.cos(climbPh); aL = Math.PI * 0.8 + s * 0.4; aR = Math.PI * 0.8 - s * 0.4; lL = q * 0.5; lR = -q * 0.5; }
-    else { climbPh += (c.cy + c.sx) * dt * 0.8; const s = Math.sin(tAnim * 1.7) * 0.05; aL = aR = Math.PI * 0.97; lL = 0.15 + s + Math.sin(climbPh) * 0.3; lR = -0.1 - s - Math.sin(climbPh) * 0.3; tb = s * 0.5; }
+    const u = c.t / c.dur; walkPhase += dt * 16; const s = Math.sin(walkPhase);
+    if (c.mode === "ladder") {
+      const mv = (keys.KeyW || keys.KeyS || keys.ArrowUp || keys.ArrowDown) ? 1 : 0;
+      aL = Math.PI * 0.85 + s * 0.3 * mv; aR = Math.PI * 0.85 - s * 0.3 * mv; lL = s * 0.6 * mv; lR = -s * 0.6 * mv;
+    } else if (c.mode === "hang") { aL = aR = Math.PI * 0.95; lL = 0.2; lR = -0.2; }
+    else if (u < 0.65) { aL = Math.PI * 0.85 + s * 0.3; aR = Math.PI * 0.85 - s * 0.3; lL = s * 0.7; lR = -s * 0.7; }
+    else { aL = aR = Math.PI * 0.4; lL = 0.5; lR = -0.2; }
   } else if (air > 0.22 && vy < 0) {           // real fall only (a 1-stud step down never gets here)
     animState = "Freefall"; aL = aR = Math.PI * 0.82 + Math.sin(tAnim * 14) * 0.1; lL = 0.35; lR = -0.25; tl = -0.05;
   } else if (!player.onGround && vy > 1) {
@@ -1347,12 +1422,6 @@ function updateHitboxes() {
   for (const L of LADDERS) put((L.x0 + L.x1) / 2, (L.y0 + L.y1) / 2, (L.z0 + L.z1) / 2, L.x1 - L.x0, L.y1 - L.y0, L.z1 - L.z0, 0xffd83c, true);
   for (const pl of players.values()) { const g = pl.avatar.group; if (g.visible) put(g.position.x, g.position.y + CFG.CHAR_HEIGHT / 2, g.position.z, CFG.CHAR_HALF_XZ * 2, CFG.CHAR_HEIGHT, CFG.CHAR_HALF_XZ * 2, pl.local ? 0xff4040 : 0xff9a3c, false); }
   for (let i = n; i < hbPool.length; i++) hbPool[i].visible = false;
-}
-const chEl = document.getElementById("climbHint"); let chTxt = "";
-function updateClimbHint() {
-  const c = player.climb;
-  const t = !player.alive ? "" : c ? (c.mantle ? "" : "W / S climb   ·   Space jump off   ·   E let go") : (findClimb() ? "E   Climb" : "");
-  if (t !== chTxt) { chTxt = t; chEl.textContent = t; chEl.style.display = t ? "block" : "none"; }
 }
 $("btSpawn").addEventListener("click", () => { placing = !placing; canvas.style.cursor = placing ? "crosshair" : ""; updateHint(); });
 $("btDel").addEventListener("click", () => { if (selPart) removePart(selPart); });
@@ -1521,7 +1590,7 @@ function frame(now) {
     }
   }
 
-  updateHitboxes(); updateClimbHint(); flushParts(dt);
+  updateHitboxes(); flushParts(dt);
 
   // sun + shadow follow the player
   sun.position.set(tmp.x + SUN_DIR.x * 80, tmp.y + SUN_DIR.y * 80, tmp.z + SUN_DIR.z * 80);
@@ -1536,7 +1605,7 @@ function frame(now) {
     hudTimer = 0;
     const sp2 = Math.hypot(player.vel.x, player.vel.z);
     hud.textContent =
-      "WASD move  Space jump  RMB-drag/arrows look  wheel zoom\nShift = shift lock   E = climb   R = reset   Tab = player list\n1 = BTools   2 = body colors   ` = hitboxes   / = hide UI\n" +
+      "WASD move  Space jump  RMB-drag/arrows look  wheel zoom\nShift = shift lock   R = reset   Tab = player list\n1 = BTools   2 = body colors   ` = hitboxes   / = hide stats   Enter = chat\n" +
       "state  " + (player.alive ? animState : "Dead") + "\n" +
       "speed  " + sp2.toFixed(2) + " studs/s   vy " + player.vel.y.toFixed(1) + "\n" +
       "pos    " + player.pos.x.toFixed(1) + ", " + player.pos.y.toFixed(1) + ", " + player.pos.z.toFixed(1) + "\n" +
