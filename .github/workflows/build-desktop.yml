@@ -1,0 +1,54 @@
+name: Build desktop app
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            script: dist:win
+            file: desktop/dist/Triancle-Setup.exe
+          - os: macos-latest
+            script: dist:mac
+            file: desktop/dist/Triancle-mac.dmg
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Point the app at your website
+        if: ${{ vars.SITE_URL != '' }}
+        shell: bash
+        run: |
+          node -e 'require("fs").writeFileSync("config.json", JSON.stringify({ siteUrl: process.env.SITE_URL }, null, 2))'
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+      - run: npm run ${{ matrix.script }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: triancle-${{ matrix.os }}
+          path: ${{ matrix.file }}
+          if-no-files-found: error
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
