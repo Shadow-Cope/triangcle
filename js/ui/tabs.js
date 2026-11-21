@@ -7,7 +7,7 @@ function showTab(name) {
   for (const b of document.querySelectorAll("#hTabs button")) b.classList.toggle("on", b.dataset.tab === name);
   $("pageGame").hidden = true; $("pageItem").hidden = true;
   for (const s of document.querySelectorAll(".tabsec")) s.hidden = s.id !== SECID[name];
-  prevOn = name === "avatar";
+  prevOn = name === "avatar"; document.body.classList.toggle("avWide", prevOn);
   ugOn = name === "ugc";
   playIn($(SECID[name]));
   if (prevOn) { openColors(); if (!prevRunning) { prevRunning = true; requestAnimationFrame(prevLoop); } }

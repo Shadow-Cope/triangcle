@@ -1,0 +1,97 @@
+/* ===== Avatar editor (Roblox-style): tabs + grid on the left, your player on the right ===== */
+body.avWide #home main { max-width: 1240px; }
+#tabAvatar #avWrap { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 22px; align-items: start; }
+#tabAvatar #avEdit { width: auto; padding: 0; background: transparent; border: 0; min-width: 0; }
+
+#tabAvatar #avTabs { display: flex; gap: 2px; margin: 0 0 16px; padding: 0 0 0; border-bottom: 1px solid var(--bd); overflow-x: auto; }
+#tabAvatar #avTabs button { flex: none; padding: 10px 16px; margin-bottom: -1px; border: 0; border-bottom: 3px solid transparent; border-radius: 0; background: transparent; color: var(--dim); font-size: 16px; cursor: pointer; }
+#tabAvatar #avTabs button:hover { color: #fff; background: transparent; border-color: transparent; }
+#tabAvatar #avTabs button.on { color: #fff; background: transparent; border-bottom-color: var(--y); }
+
+#avPane { min-height: 420px; }
+#avGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 12px; }
+.avTile { position: relative; display: block; padding: 0; border: 2px solid transparent; border-radius: 12px; background: #241f14; color: #fff; cursor: pointer; overflow: hidden; text-align: left; transition: transform .12s, border-color .12s, background .12s; }
+.avTile:hover { background: #2e2819; transform: translateY(-2px); }
+.avTile img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; background: #2a2418; }
+.avTile .avName { display: block; padding: 6px 9px 8px; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e6dcc2; }
+.avTile .avCheck { position: absolute; top: 7px; right: 7px; width: 22px; height: 22px; border-radius: 50%; background: var(--y); opacity: 0; transform: scale(.6); transition: .12s; }
+.avTile .avCheck::after { content: ""; position: absolute; left: 7px; top: 3px; width: 5px; height: 10px; border: solid #1a1203; border-width: 0 3px 3px 0; transform: rotate(45deg); }
+.avTile.on { border-color: var(--y); background: #2e2819; }
+.avTile.on .avCheck { opacity: 1; transform: none; }
+.avTile.busy { opacity: .55; pointer-events: none; }
+#avEmpty { margin: 6px 0 14px; }
+#avEmpty:empty { display: none; }
+#avMore { margin-top: 18px; }
+#avNote { margin-top: 10px; min-height: 18px; color: #ff7a6b; }
+
+/* body tab */
+#avColors { display: flex; flex-direction: column; gap: 4px; }
+.avSec { margin: 14px 0 8px; font-size: 14px; color: var(--dim); }
+.avSec:first-child { margin-top: 0; }
+#tabAvatar #avBody { display: inline-flex; gap: 0; margin: 0; padding: 3px; border: 1px solid var(--bd); border-radius: 10px; background: #241f14; align-self: flex-start; }
+#tabAvatar #avBody button { flex: none; padding: 8px 22px; border: 0; border-radius: 8px; background: transparent; color: var(--dim); font-size: 15px; cursor: pointer; }
+#tabAvatar #avBody button:hover { color: #fff; border: 0; }
+#tabAvatar #avBody button.on { background: var(--y); color: #1a1203; }
+#tabAvatar #colParts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; max-width: 460px; }
+#tabAvatar #colParts button { display: flex; align-items: center; gap: 9px; padding: 9px 11px; border: 2px solid transparent; border-radius: 10px; background: #241f14; color: #e6dcc2; font-size: 14px; cursor: pointer; }
+#tabAvatar #colParts button:hover { background: #2e2819; }
+#tabAvatar #colParts button.on { border-color: var(--y); background: #2e2819; color: #fff; }
+#tabAvatar #colParts .chip { width: 20px; height: 20px; border-radius: 6px; border: 1px solid rgba(255,255,255,.35); flex: none; }
+#avPick { display: flex; gap: 22px; flex-wrap: wrap; align-items: flex-start; padding: 16px; border-radius: 14px; background: #241f14; max-width: 600px; }
+#tabAvatar #wheel { margin: 0; flex: none; }
+#avPickSide { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 12px; }
+#tabAvatar #valRow { display: flex; align-items: center; gap: 10px; color: var(--dim); font-size: 14px; }
+#tabAvatar #valRow input { flex: 1; }
+#tabAvatar #hexRow { margin: 0; display: flex; align-items: center; gap: 8px; }
+#hexChip { width: 34px; height: 34px; border-radius: 8px; border: 1px solid rgba(255,255,255,.35); flex: none; }
+#tabAvatar #hexIn { width: 110px; height: 34px; box-sizing: border-box; padding: 0 10px; border: 1px solid var(--bd); border-radius: 8px; background: var(--bg); color: #fff; outline: none; }
+#tabAvatar #hexIn:focus { border-color: var(--y); }
+#avPalette { display: grid; grid-template-columns: repeat(10, 1fr); gap: 5px; }
+#avPalette .sw { aspect-ratio: 1; padding: 0; border: 2px solid transparent; border-radius: 6px; cursor: pointer; }
+#avPalette .sw:hover { transform: scale(1.12); }
+#avPalette .sw.on { border-color: #fff; box-shadow: 0 0 0 1px #000 inset; }
+#tabAvatar .gp-row { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+#colSave { color: var(--dim); font-size: 13px; }
+
+/* the player */
+#tabAvatar #prevBox { position: sticky; top: 12px; width: auto; height: min(640px, calc(100vh - 110px)); min-height: 420px; border: 1px solid var(--bd); border-radius: 16px;
+  background: radial-gradient(120% 70% at 50% 22%, #4a3a14 0%, #2a2210 45%, #15110a 100%); overflow: hidden; }
+#tabAvatar #prevBox::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 26%; background: linear-gradient(to top, rgba(255,191,47,.16), transparent); pointer-events: none; }
+#tabAvatar #prevBox em { position: absolute; left: 0; right: 0; bottom: 10px; text-align: center; font-size: 13px; font-style: normal; color: var(--dim); pointer-events: none; z-index: 1; }
+#tabAvatar #prevBox #avWearing { position: absolute; left: 14px; top: 14px; right: auto; bottom: auto; padding: 6px 12px; border-radius: 999px; background: rgba(0,0,0,.5); color: #fff; font-size: 13px; text-align: left; z-index: 1; }
+#avReset { position: absolute; right: 14px; top: 14px; padding: 6px 14px; border: 0; border-radius: 999px; background: rgba(0,0,0,.5); color: #fff; font-size: 13px; cursor: pointer; z-index: 2; }
+#avReset:hover { background: rgba(0,0,0,.75); }
+
+@media (max-width: 880px) {
+  #tabAvatar #avWrap { grid-template-columns: 1fr; }
+  #tabAvatar #prevBox { order: -1; position: relative; top: 0; height: 380px; min-height: 0; }
+  #tabAvatar #colParts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ===== owner: badges + item tools (shared small bits) ===== */
+.owLbl { display: block; font-size: 13px; color: var(--dim); }
+.owLbl input, .owLbl textarea { display: block; box-sizing: border-box; width: 100%; margin-top: 3px; padding: 8px 10px; border: 1px solid var(--bd); border-radius: 8px; background: var(--panel); color: #fff; font-size: 15px; outline: none; }
+.owLbl input { height: 38px; padding: 0 10px; }
+.owLbl textarea { resize: vertical; min-height: 70px; }
+.owLbl input:focus, .owLbl textarea:focus { border-color: var(--y); }
+.chk { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #e6dcc2; cursor: pointer; }
+.chk input { accent-color: var(--y); width: 16px; height: 16px; }
+.bdRow { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; width: 100%; }
+#bdPick { position: relative; display: flex; align-items: center; justify-content: center; width: 112px; height: 112px; border: 2px dashed var(--bd); border-radius: 16px; background: #241f14; color: var(--dim); font-size: 13px; cursor: pointer; overflow: hidden; flex: none; }
+#bdPick:hover { border-color: var(--y); color: #fff; }
+#bdPick img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; }
+#bdPick.has img { display: block; }
+#bdPick.has span { display: none; }
+.bdFields { flex: 1; min-width: 240px; display: flex; flex-direction: column; gap: 10px; }
+.bdFields .btnP { padding: 9px 18px; font-size: 15px; }
+#bdMsg { width: 100%; margin: 0; min-height: 18px; }
+#bdList { display: flex; flex-direction: column; gap: 8px; max-width: 700px; }
+.bdItem { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 12px; }
+.bdItem img { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; background: #2a2418; }
+.bdItem b { font-weight: 400; flex: 1; min-width: 100px; }
+.bdItem .btnG { padding: 5px 12px; font-size: 13px; }
+#ipOwner { margin-top: 22px; padding: 14px; display: flex; flex-direction: column; gap: 10px; max-width: 420px; }
+#ipOwner h4 { margin: 0; font-size: 16px; font-weight: 400; color: var(--y); }
+#ipOwner .ugRow { margin: 4px 0 0; }
+#ioDel { border-color: #6b2f2a; color: #ff9d92; }
+#ioDel:hover { border-color: #ff7a6b; }

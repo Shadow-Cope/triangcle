@@ -22,7 +22,7 @@ for (const n of PART_ORDER) DEFAULT_COLORS[n] = "#" + PART_STYLE[n].toString(16)
 function sanitizeColors(o) {
   const out = {};
   for (const n of PART_ORDER) out[n] = (o && typeof o[n] === "string" && HEX_RE.test(o[n])) ? o[n].toLowerCase() : DEFAULT_COLORS[n];
-  out.face = (o && Number.isInteger(o.face) && o.face >= 0 && o.face < FACE_TEXS.length) ? o.face : 0;
+  out.face = (o && Number.isInteger(o.face) && o.face >= 0 && o.face < 100000) ? o.face : 0;
   out.body = (o && o.body === "female") ? "female" : "male";
   return out;
 }
@@ -49,9 +49,8 @@ function presenceInfo() { return { name: myName, colors: myColors, items: WEAR.m
 const authEl = $("auth");
 function uiAuthOpen() { return authEl.classList.contains("open"); }
 function uiOpen() { return uiAuthOpen() || menuOpen; }
-function freeMouse() {                          // popups need a normal cursor: drop shift lock / pointer lock
+function freeMouse() {                          // popups need a normal cursor: let go of the mouse (shift lock stays ON and comes back after)
   for (const k in keys) keys[k] = false;
-  if (shiftLock) setShiftLock(false);
   if (document.pointerLockElement) document.exitPointerLock();
 }
 

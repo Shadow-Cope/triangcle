@@ -83,3 +83,18 @@ Windows and macOS by `.github/workflows/build-desktop.yml`. Setup steps: `deskto
 
 - `js/core/app-config.js` - installer links and the `REQUIRE_APP` switch.  `js/core/app.js` - app detection, Play gate, prompt, `?join=` links.
 - Share links like `https://yoursite/?join=baseplate` open the app (or the download prompt) for that game.
+
+
+## Catalog faces, owner tools, badges (supabase_catalog.sql)
+
+Run `supabase_catalog.sql` once in the Supabase SQL editor, then log in as the Owner:
+
+1. **Owner tab > Catalog faces > "Add faces to the Catalog"** puts every face from `FACE_BUILTIN` (js/game/character.js)
+   in the Catalog and lets players who already wore an old face keep it. Press it again after adding a face there.
+   To add a new face: drop a 256x256 transparent PNG in `assets/faces/`, add a line to `FACE_BUILTIN`, press the button.
+2. **Any Catalog item page** shows *Owner tools* to the Owner (or a badge with "Can edit and delete Catalog items"):
+   name, description, price, on/off sale, delete.
+3. **Owner tab > Badges** makes new badges (picture + name + what they allow). Give them out from the player list above.
+   "Can upload and sell UGC" works like the Official UGC Creator badge; "Can edit and delete Catalog items" works like Owner for items.
+
+Faces are Catalog items (`ugc_items.attach = 'Face'`) with a number in `face_meta`; the number is what `body_colors.face` stores.

@@ -27,11 +27,12 @@ function ipPaint() {
   $("ipDesc").textContent = IP.desc || "No description yet.";
   $("ipPrice").innerHTML = price ? TRI_SVG + fmtT(price) : "FREE";
   $("ipType").textContent = it.attach === "Head" ? "Hat" : slotName(it.attach);
+  const faceNo = isFace(it.attach) ? faceNoOf(it) : 0;
   const d = IP.created ? new Date(IP.created) : null;
   $("ipCreated").textContent = d && !isNaN(d) ? d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "-";
   $("ipSold").textContent = fmtT(it.sales || 0);
   const g = $("ipGet"); g.disabled = false; g.dataset.armed = ""; g.classList.remove("arm");
-  if (has) { const on = WEAR.mine.includes(it.id); g.dataset.mode = "wear"; g.dataset.on = on ? 0 : 1; g.textContent = on ? "Take off" : "Wear"; g.className = on ? "btnG" : "btnP"; }
+  if (has) { const on = isFace(it.attach) ? (faceNo > 0 && myColors.face === faceNo) : WEAR.mine.includes(it.id); g.dataset.mode = "wear"; g.dataset.on = on ? 0 : 1; g.textContent = on ? "Take off" : "Wear"; g.className = on ? "btnG" : "btnP"; }
   else if (!me) { g.dataset.mode = "login"; g.textContent = "Log in to get"; g.className = "btnP"; }
   else { g.dataset.mode = "buy"; g.textContent = "Get"; g.className = "btnP"; }
 }
@@ -43,16 +44,17 @@ async function ipLoadExtras(id, tok) {                              // descripti
   if (tok !== IP.tok) return;
   const it = ITM.rows.get(id);
   if (row) { IP.desc = String(row.description || "").slice(0, 600); IP.created = row.created_at || (it && it.published_at) || ""; }
-  ipPaint();
+  ipPaint(); if (typeof ioFill === "function") ioFill(id, tok);
 }
-async function ipClothAlone(tok) {                                 // clothes are shown on a plain player (Try On = on your own player)
+async function ipClothAlone(tok) {                                 // clothes and faces are shown on a plain player (Try On = on your own player)
   const S = ipGL(), it = ITM.rows.get(IP.id); if (!S || !it) return;
+  if (isFace(it.attach)) { setAvatarColors(S.av, Object.assign(sanitizeColors(null), { face: faceNoOf(it) })); S.av.itemSig = ""; await applyItemsToAvatar(S.av, []); return; }
   setAvatarColors(S.av, sanitizeColors(null));
   S.av.itemSig = it.id; await applyItemsToAvatar(S.av, [it.id]);
 }
 async function ipBuildItem(tok) {                                   // the item on its own, centred, in the preview
   const S = ipGL(), it = ITM.rows.get(IP.id); if (!S || !it) return;
-  if (isCloth(it.attach)) return ipClothAlone(tok);
+  if (isCloth(it.attach) || isFace(it.attach)) return ipClothAlone(tok);
   while (S.stage.children.length) S.stage.remove(S.stage.children[0]);
   const m = await loadItemModel(it.file_path); if (!m || tok !== IP.tok) return;
   const inner = new THREE.Group(), k = m.k * (2.3 / 1.2);
@@ -62,14 +64,15 @@ async function ipBuildItem(tok) {                                   // the item 
 }
 async function ipTryOn(tok) {                                       // the item on your avatar (plus what you already wear)
   const S = ipGL(), it = ITM.rows.get(IP.id); if (!S || !it) return;
-  setAvatarColors(S.av, myColors);
+  setAvatarColors(S.av, isFace(it.attach) ? Object.assign({}, myColors, { face: faceNoOf(it) }) : myColors);
+  if (isFace(it.attach)) { S.av.itemSig = WEAR.mine.join(","); await applyItemsToAvatar(S.av, WEAR.mine.slice()); return; }
   const ids = WEAR.mine.includes(it.id) ? WEAR.mine.slice() : WEAR.mine.concat([it.id]).slice(-MAX_WORN);
   S.av.itemSig = ids.join(","); await applyItemsToAvatar(S.av, ids);
   if (tok !== IP.tok) return;
 }
 function ipMode() {
   const S = IP.S; if (!S) return;
-  const cl = isCloth((ITM.rows.get(IP.id) || {}).attach);
+  const a0 = (ITM.rows.get(IP.id) || {}).attach, cl = isCloth(a0) || isFace(a0);
   S.stage.visible = !IP.tryOn && !cl; S.av.group.visible = IP.tryOn || cl;
   $("ipTry").classList.toggle("on", IP.tryOn); $("ipTry").textContent = IP.tryOn ? "Take Off" : "Try On";
 }
@@ -80,9 +83,9 @@ function ipLoop(now) {
   if (w && (cv.width !== Math.round(w * pr) || cv.height !== Math.round(h * pr))) { S.r.setPixelRatio(pr); S.r.setSize(w, h, false); S.cam.aspect = w / h; S.cam.updateProjectionMatrix(); }
   if (!IP.lock && !IP.drag) IP.yaw += 0.008;
   const it = ITM.rows.get(IP.id);
-  if (IP.tryOn || (it && isCloth(it.attach))) {
-    const v = (it && UG_VIEW[it.attach]) || [4.6, 8];
-    S.av.group.rotation.y = -Math.PI / 2 + IP.yaw; S.av.group.position.y = 0;
+  if (IP.tryOn || (it && (isCloth(it.attach) || isFace(it.attach)))) {
+    const v = (it && UG_VIEW[it.attach]) || [4.6, 8], fc = it && isFace(it.attach);
+    S.av.group.rotation.y = -Math.PI / 2 + (fc ? Math.sin(IP.yaw) * 0.55 : IP.yaw); S.av.group.position.y = 0;
     S.cam.position.set(0, v[0] + 0.5, v[1] + 1); S.cam.lookAt(0, v[0], 0);
   } else {
     S.stage.rotation.y = IP.yaw; S.stage.rotation.x = IP.pitch; S.stage.position.y = 0;
@@ -95,10 +98,12 @@ async function openItem(id) {
   ITM.rows.set(id, Object.assign({}, ITM.rows.get(id) || {}, it));
   IP.id = id; const tok = ++IP.tok;
   IP.desc = ""; IP.created = it.published_at || ""; IP.tryOn = false; IP.lock = false; IP.yaw = 0.6; IP.pitch = 0.12;
-  prevOn = false;
+  prevOn = false; document.body.classList.remove("avWide");
   for (const x of document.querySelectorAll("#hTabs button")) x.classList.toggle("on", x.dataset.tab === "shop");
   for (const x of document.querySelectorAll(".tabsec")) x.hidden = true;
   $("pageGame").hidden = true; $("pageItem").hidden = false; playIn($("pageItem"));
+  if (isFace(it.attach)) await loadFaceMeta();
+  if (tok !== IP.tok) return;
   ipNote(""); ipLockUI(); ipPaint(); ipLoadExtras(id, tok);
   if (!ipGL()) { ipNote("3D preview isn't available on this device.", true); return; }
   ipMode();
@@ -117,7 +122,7 @@ $("ipLock").addEventListener("click", () => { IP.lock = !IP.lock; ipLockUI(); })
 $("ipTry").addEventListener("click", async () => {
   IP.tryOn = !IP.tryOn; ipMode();
   if (IP.tryOn) await ipTryOn(IP.tok);
-  else { const it = ITM.rows.get(IP.id); if (it && isCloth(it.attach)) await ipClothAlone(IP.tok); }
+  else { const it = ITM.rows.get(IP.id); if (it && (isCloth(it.attach) || isFace(it.attach))) await ipClothAlone(IP.tok); }
 });
 $("ipBack").addEventListener("click", () => showTab("shop"));
 $("ipGet").addEventListener("click", async () => {
@@ -125,6 +130,7 @@ $("ipGet").addEventListener("click", async () => {
   const mode = b.dataset.mode;
   if (mode === "login") { openAuth("login"); return; }
   if (mode === "wear") {
+    if (isFace(it.attach)) { const no = faceNoOf(it); myColors.face = b.dataset.on === "1" ? no : 0; colorsChanged(); ipNote(""); ipPaint(); if (IP.tryOn) ipTryOn(IP.tok); return; }
     b.disabled = true; const err = await equipItem(it.id, b.dataset.on === "1"); ipNote(err, !!err); ipPaint();
     if (IP.tryOn) ipTryOn(IP.tok);
     return;
@@ -140,7 +146,7 @@ $("ipGet").addEventListener("click", async () => {
     const r = await sb.rpc("buy_ugc_item", { p_item: it.id, p_expected_price: price });
     if (r.error) throw r.error;
     WAL.bal = Number(r.data); walletUI(); INV.owned.add(it.id);
-    ipNote("It's yours! Press Wear to put it on.");
+    ipNote(isFace(it.attach) ? "It's yours! Press Wear to use it as your face." : "It's yours! Press Wear to put it on.");
     loadInventory(); paintShop();
   } catch (err) {
     const m = String(err && err.message || "");

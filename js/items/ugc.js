@@ -8,14 +8,14 @@ var ugOn = false, ugRun = false;
 const UGC_ROLES = ["ugc"];
 const UG_SLOTS = [["Head", "Head (hat)"], ["Torso", "Torso"], ["LeftArm", "Left arm"], ["RightArm", "Right arm"], ["LeftLeg", "Left leg"], ["RightLeg", "Right leg"]];
 const UG_ANCHOR = { Head: [0, 5.05, 0], Torso: [0, 3, 0], LeftArm: [0, 3, -1.5], RightArm: [0, 3, 1.5], LeftLeg: [0, 1, -0.5], RightLeg: [0, 1, 0.5] };
-const UG_VIEW = { Head: [4.6, 8], Torso: [3, 12], LeftArm: [3, 12], RightArm: [3, 12], LeftLeg: [1.4, 12], RightLeg: [1.4, 12], Shirt: [3, 10], Pants: [2, 10] };
+const UG_VIEW = { Head: [4.6, 8], Torso: [3, 12], LeftArm: [3, 12], RightArm: [3, 12], LeftLeg: [1.4, 12], RightLeg: [1.4, 12], Shirt: [3, 10], Pants: [2, 10], Face: [4.6, 4.6] };
 const CLOTH_SLOTS = [["Shirt", "Shirt"], ["Pants", "Pants"]];       // clothes: a PNG on the 512x512 template instead of a GLB
 const isCloth = a => a === "Shirt" || a === "Pants";
 const UG_KINDS = [["model", "3D accessory (GLB)"], ["Shirt", "Shirt (PNG)"], ["Pants", "Pants (PNG)"]];
 const UG_DEFS = [["pos", 0, "Forward / back", -4, 4, 0.01], ["pos", 1, "Up / down", -4, 4, 0.01], ["pos", 2, "Left / right", -4, 4, 0.01],
   ["rot", 0, "Roll", -180, 180, 1], ["rot", 1, "Turn", -180, 180, 1], ["rot", 2, "Tilt", -180, 180, 1], ["scale", 0, "Size", 0.05, 5, 0.01]];
 function canUgc() {
-  try { if (!acct.user) return false; if (isOwner()) return true; return badgeList(acct.user.id).some(k => UGC_ROLES.includes(k)); } catch (_) { return false; }
+  try { if (!acct.user) return false; if (isOwner()) return true; return badgeList(acct.user.id).some(k => UGC_ROLES.includes(k)) || hasBadgePerm("can_ugc"); } catch (_) { return false; }
 }
 function updateUgcBtn() { $("ugcTabBtn").hidden = !canUgc(); }
 
@@ -211,7 +211,7 @@ async function ugSave() {
 async function renderUgcList() {
   const sb = getSB(), box = $("ugList"); if (!sb || !acct.user) return;
   try {
-    let r = await sb.from("ugc_items").select("id, name, attach, file_path, pos, rot, scale, published, price, sales").eq("creator", acct.user.id).order("created_at", { ascending: false });
+    let r = await sb.from("ugc_items").select("id, name, attach, file_path, pos, rot, scale, published, price, sales").eq("creator", acct.user.id).neq("attach", "Face").order("created_at", { ascending: false });
     if (r.error) r = await sb.from("ugc_items").select("id, name, attach, file_path, pos, rot, scale").eq("creator", acct.user.id).order("created_at", { ascending: false });
     if (r.error) throw r.error;
     const rows = r.data || []; box._rows = rows;

@@ -14,7 +14,7 @@ const ITM = { models: new Map(), thumbs: new Map(), rows: new Map(), q: Promise.
 const WAL = { bal: null };
 const INV = { owned: new Set(), ok: true, loaded: false };
 const SHOP = { rows: [], busy: false };
-const slotName = k => (UG_SLOTS.concat(CLOTH_SLOTS).find(x => x[0] === k) || [0, k])[1];
+const slotName = k => (UG_SLOTS.concat(CLOTH_SLOTS, [["Face", "Face"]]).find(x => x[0] === k) || [0, k])[1];
 const arr3 = a => (Array.isArray(a) && a.length === 3) ? a.map(x => +x || 0) : [0, 0, 0];
 
 /* ---- wallet ---- */

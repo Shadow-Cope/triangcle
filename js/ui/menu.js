@@ -3,7 +3,7 @@
 /* =====================================================================
    In-game menu (Esc): Players / Settings / Controls / Stats
    ===================================================================== */
-var menuOpen = false, shiftLockEnabled = true;
+var menuOpen = false, shiftLockEnabled = true, menuOpenedAt = 0;
 var gmStatsEl = $("gmStats");
 const SET_KEY = "tri_settings";
 function loadSettings() {
@@ -40,7 +40,7 @@ function gmShow(tab) {
 }
 function openMenu() {
   if (menuOpen || !inGame) return;
-  menuOpen = true; freeMouse(); syncSettings(); gm.classList.add("open"); gmShow(gmTab);
+  menuOpen = true; menuOpenedAt = performance.now(); freeMouse(); syncSettings(); gm.classList.add("open"); gmShow(gmTab);
   loadSocial().then(() => renderMenuPlayers(true));
   gmTimer = setInterval(() => { if (gmTab === "players") renderMenuPlayers(); }, 600);
 }
@@ -48,6 +48,7 @@ function closeMenu() {
   if (!menuOpen) return;
   menuOpen = false; clearInterval(gmTimer); gm.classList.remove("open"); saveSettings();
   if (document.activeElement) document.activeElement.blur();
+  lockErrAt = performance.now() - 900; setTimeout(ensureLock, 450);   // shift lock grabs the mouse again right after the menu closes
 }
 function toggleMenu() { menuOpen ? closeMenu() : openMenu(); }
 function leaveGame() { freeMouse(); flushSave().then(() => location.reload(), () => location.reload()); }

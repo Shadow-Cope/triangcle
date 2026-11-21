@@ -65,8 +65,9 @@ function frame(now) {
   firstPerson = cam.zoom < 0.6;
   charGroup.visible = player.alive;
   rig.Head.visible = !firstPerson;               // first person: see your body, not the inside of your head
-  crossEl.style.display = ((shiftLock || firstPerson) && player.alive) ? "block" : "none";
-  if (!wantLock() && !rmbDown && document.pointerLockElement) document.exitPointerLock();
+  crossEl.style.display = ((shiftLock || firstPerson) && player.alive && !uiOpen() && hasLock()) ? "block" : "none";
+  canvas.style.cursor = (shiftLock && !uiOpen()) ? "none" : "";
+  if (!wantLock() && !rmbDown && hasLock()) document.exitPointerLock();
   lockTry += dt; if (lockTry > 0.4) { lockTry = 0; ensureLock(); }
   if (player.ff > 0) player.ff -= dt;
   FF_MAT.opacity = 0.32 + 0.14 * Math.sin(now / 90);

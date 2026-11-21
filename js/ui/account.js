@@ -46,6 +46,7 @@ async function onSignedIn(user) {
   } catch (_) { failed = true; }
   acct.username = cleanName(username) || "Player";
   setPlayerName(acct.username);
+  await loadBadgeDefs();
   await getBadges([user.id]);
   acctUI();
   loadWallet(); loadInventory();

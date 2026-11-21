@@ -15,6 +15,7 @@ function ownerRow(id) {
 }
 async function renderOwner() {
   if (!isOwner()) return;
+  if (typeof renderBadgeAdmin === "function") renderBadgeAdmin();
   const sb = getSB(), msg = $("owMsg"); if (!sb) return;
   msg.textContent = "Loading…";
   try {

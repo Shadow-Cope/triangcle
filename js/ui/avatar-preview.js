@@ -15,7 +15,7 @@ const prev = (function () {                                       // live avatar
 let prevOn = false, prevRunning = false, prevT = 0, dragX = null;
 (function () {
   const pb = $("prevBox"), end = () => { dragX = null; };
-  pb.addEventListener("pointerdown", e => { dragX = e.clientX; pb.setPointerCapture(e.pointerId); });
+  pb.addEventListener("pointerdown", e => { if (e.target.closest("button")) return; dragX = e.clientX; pb.setPointerCapture(e.pointerId); });
   pb.addEventListener("pointermove", e => { if (dragX !== null && prev) { prev.yaw += (e.clientX - dragX) * 0.012; dragX = e.clientX; } });
   pb.addEventListener("pointerup", end); pb.addEventListener("pointercancel", end);
 })();

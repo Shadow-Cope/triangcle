@@ -92,18 +92,44 @@ function partGeometry(name) {
 }
 
 // One avatar = group + rig (name -> pivot group; rotate .rotation.z to swing, + = forward)
-const FACE_NAMES = ["Classic", "Content", "Worried", "Happy", "Silly", "Angry", "Smirk"];
-const FACE_SRC = [""].concat(["assets/faces/content.png", "assets/faces/worried.png", "assets/faces/happy.png", "assets/faces/silly.png", "assets/faces/angry.png", "assets/faces/smirk.png"]);
-const FACE_IMGS = FACE_SRC.map((src, k) => { if (!k) return IMG_FACE; const im = new Image(); im.src = src; return im; });
-FACE_SRC[0] = IMG_FACE.src;
-const FACE_TEXS = FACE_IMGS.map((im, k) => {
+/* Faces. 0 = Classic (everyone has it). The rest are Catalog items: the number is the face_no stored in body_colors.face.
+   Built-ins ship with the site so every player can always draw them; the database (face_meta) can add more later. */
+const FACE_BUILTIN = [
+  { no: 1,  name: "Content",  file: "content.png",  price: 0,  desc: "A calm, happy little face." },
+  { no: 2,  name: "Worried",  file: "worried.png",  price: 0,  desc: "Something doesn't look right." },
+  { no: 3,  name: "Happy",    file: "happy.png",    price: 0,  desc: "Big smile, good day." },
+  { no: 4,  name: "Silly",    file: "silly.png",    price: 0,  desc: "Tongue out, no worries." },
+  { no: 5,  name: "Angry",    file: "angry.png",    price: 0,  desc: "Do not make it mad." },
+  { no: 6,  name: "Smirk",    file: "smirk.png",    price: 0,  desc: "Up to something." },
+  { no: 7,  name: "Sad",      file: "sad.png",      price: 25, desc: "A big frown." },
+  { no: 8,  name: "Blank",    file: "blank.png",    price: 25, desc: "No expression at all." },
+  { no: 9,  name: "Fangs",    file: "fangs.png",    price: 25, desc: "Sharp little fangs." },
+  { no: 10, name: "Whiskers", file: "whiskers.png", price: 25, desc: "Cat whiskers and a cat smile." },
+  { no: 11, name: "Snout",    file: "snout.png",    price: 25, desc: "A black nose and a soft smile." },
+  { no: 12, name: "Curious",  file: "curious.png",  price: 25, desc: "Wide open eyes and a little smile." },
+];
+const FACE_NAMES = ["Classic"], FACE_SRC = [IMG_FACE.src], FACE_IMGS = [IMG_FACE], FACE_TEXS = [];   // all indexed by face number (sparse)
+function registerFace(no, name, src) {
+  no = +no; if (!Number.isInteger(no) || no < 1 || FACE_TEXS[no]) return;
+  const im = new Image(); im.crossOrigin = "anonymous"; im.src = src;
+  FACE_NAMES[no] = name; FACE_SRC[no] = src; FACE_IMGS[no] = im;
   const cv = document.createElement("canvas"); cv.width = cv.height = 256;
-  const tex = new THREE.CanvasTexture(cv); tex.anisotropy = 4;
+  const tex = new THREE.CanvasTexture(cv); tex.anisotropy = 4; FACE_TEXS[no] = tex;
   const paint = () => { const g = cv.getContext("2d"); g.clearRect(0, 0, 256, 256); g.drawImage(im, 0, 0, 256, 256); tex.needsUpdate = true;
-    try { thumbs.cache.clear(); } catch (_) {} };
+    try { thumbs.cache.clear(); } catch (_) {} refreshFaceUsers(); };
   if (im.complete && im.naturalWidth) paint(); else im.addEventListener("load", paint);
-  return tex;
-});
+}
+function refreshFaceUsers() {                                     // a face texture just finished loading: redraw anyone wearing it
+  try { if (typeof myColors === "object") setAvatarFace(localAvatar, myColors.face | 0); } catch (_) {}
+  try { for (const pl of players.values()) if (pl.colors && pl.avatar) setAvatarFace(pl.avatar, pl.colors.face | 0); } catch (_) {}
+}
+(function () {                                                     // Classic first, then the built-ins
+  const cv = document.createElement("canvas"); cv.width = cv.height = 256;
+  const tex = new THREE.CanvasTexture(cv); tex.anisotropy = 4; FACE_TEXS[0] = tex;
+  const paint = () => { const g = cv.getContext("2d"); g.clearRect(0, 0, 256, 256); g.drawImage(IMG_FACE, 0, 0, 256, 256); tex.needsUpdate = true; try { thumbs.cache.clear(); } catch (_) {} };
+  if (IMG_FACE.complete && IMG_FACE.naturalWidth) paint(); else IMG_FACE.addEventListener("load", paint);
+  for (const f of FACE_BUILTIN) registerFace(f.no, f.name, "assets/faces/" + f.file);
+})();
 function setAvatarFace(av, k) {
   const h = av.rig.Head && av.rig.Head.children[0];
   if (h && h.material.userData.faceU) h.material.userData.faceU.value = FACE_TEXS[FACE_TEXS[k] ? k : 0];

@@ -6,6 +6,7 @@ acctUI();
 (async function initAuth() {            // restore a saved login; without one you only ever see the login page
   const sb = getSB();
   try {
+    if (sb) await loadBadgeDefs();
     if (sb) { const { data } = await sb.auth.getUser(); if (data && data.user) await onSignedIn(data.user); }
   } catch (_) {}
   document.body.classList.remove("boot");

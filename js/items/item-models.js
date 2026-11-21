@@ -129,6 +129,7 @@ function setMyItems(ids) {
 
 /* ---- little picture of an item on the player (shop + items list) ---- */
 function itemThumb(it) {
+  if (isFace(it.attach)) return faceThumb(faceImgSrc(it.file_path), "#f5cd30");
   const key = it.id + "|" + it.file_path + "|" + JSON.stringify([it.pos, it.rot, it.scale]);
   if (ITM.thumbs.has(key)) return Promise.resolve(ITM.thumbs.get(key));
   ITM.q = ITM.q.then(async () => {

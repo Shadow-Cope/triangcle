@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="css/chat.css">
 <link rel="stylesheet" href="css/social.css">
 <link rel="stylesheet" href="css/shop.css">
+<link rel="stylesheet" href="css/avatar.css">
 <link rel="stylesheet" href="css/app.css">
 </head>
 <body class="home boot">
@@ -68,7 +69,7 @@
 <div id="home">
   <header id="hTop">
     <img id="hLogo" alt="Triancle" src="assets/img/logo.png">
-    <nav id="hTabs"><button class="on" data-tab="home" type="button"><svg class="ico" viewBox="0 0 96.162567 97.000008" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M 16.816406 41.148438 L 25.527344 41.148438 C 29.355469 41.148438 32.457031 44.25 32.457031 48.074219 L 32.457031 89.082031 C 32.457031 92.90625 29.355469 96.011719 25.527344 96.011719 L 16.816406 96.011719 C 12.992188 96.011719 9.890625 92.90625 9.890625 89.082031 L 9.890625 48.074219 C 9.890625 44.25 12.992188 41.148438 16.816406 41.148438 Z M 16.816406 41.148438 "/><path fill="currentColor" d="M 68.824219 39.320312 L 78.515625 39.320312 C 82.34375 39.320312 85.445312 42.421875 85.445312 46.246094 L 85.445312 89.082031 C 85.445312 92.90625 82.34375 96.011719 78.515625 96.011719 L 68.824219 96.011719 C 64.996094 96.011719 61.894531 92.90625 61.894531 89.082031 L 61.894531 46.246094 C 61.894531 42.421875 64.996094 39.320312 68.824219 39.320312 Z M 68.824219 39.320312 "/><path fill="currentColor" d="M 42.433594 6.035156 C 45.195312 2.847656 50.136719 2.847656 52.902344 6.035156 L 85.308594 43.394531 C 89.199219 47.878906 86.015625 54.863281 80.074219 54.863281 L 15.257812 54.863281 C 9.320312 54.863281 6.132812 47.878906 10.023438 43.394531 Z M 42.433594 6.035156 "/><path fill="currentColor" d="M 35.765625 53.277344 C 36.488281 53.527344 36.695312 54.441406 36.144531 54.941406 L 31.785156 58.894531 C 31.222656 59.402344 30.300781 59.101562 30.128906 58.355469 L 28.777344 52.441406 C 28.609375 51.695312 29.320312 51.070312 30.054688 51.320312 Z M 35.765625 53.277344 "/><path fill="currentColor" d="M 63.96875 51.800781 C 64.714844 51.6875 65.335938 52.347656 65.121094 53.023438 L 63.390625 58.460938 C 63.160156 59.175781 62.175781 59.371094 61.640625 58.804688 L 57.363281 54.261719 C 56.828125 53.695312 57.167969 52.808594 57.960938 52.691406 Z M 63.96875 51.800781 "/></svg> Home</button><button data-tab="avatar" type="button"><svg class="ico" viewBox="0 0 105 92" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M 44.328125 17.59375 C 48.308594 11.945312 56.691406 11.945312 60.671875 17.59375 L 86.855469 54.738281 C 91.527344 61.363281 86.789062 70.5 78.683594 70.5 L 26.316406 70.5 C 18.210938 70.5 13.472656 61.363281 18.144531 54.738281 Z M 44.328125 17.59375 "/><path fill="currentColor" d="M 70 19 C 70 29.492188 62.164062 38 52.5 38 C 42.835938 38 35 29.492188 35 19 C 35 8.507812 42.835938 0 52.5 0 C 62.164062 0 70 8.507812 70 19 Z M 70 19 "/></svg> Avatar</button><button data-tab="shop" type="button"><svg class="ico" viewBox="0 0 82 76" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M 9.914062 20.570312 L 18.714844 20.570312 C 22.582031 20.570312 25.714844 23.707031 25.714844 27.570312 L 25.714844 69 C 25.714844 72.867188 22.582031 76 18.714844 76 L 9.914062 76 C 6.046875 76 2.914062 72.867188 2.914062 69 L 2.914062 27.570312 C 2.914062 23.707031 6.046875 20.570312 9.914062 20.570312 Z M 9.914062 20.570312 "/><path fill="currentColor" d="M 62.457031 18.722656 L 72.25 18.722656 C 76.113281 18.722656 79.25 21.859375 79.25 25.722656 L 79.25 69 C 79.25 72.867188 76.113281 76 72.25 76 L 62.457031 76 C 58.589844 76 55.457031 72.867188 55.457031 69 L 55.457031 25.722656 C 55.457031 21.859375 58.589844 18.722656 62.457031 18.722656 Z M 62.457031 18.722656 "/><path fill="currentColor" d="M 8 0 L 74 0 C 78.417969 0 82 3.582031 82 8 L 82 34 C 82 38.417969 78.417969 42 74 42 L 8 42 C 3.582031 42 0 38.417969 0 34 L 0 8 C 0 3.582031 3.582031 0 8 0 Z M 8 0 "/></svg> Shop</button><button data-tab="friends" type="button">Friends <span id="reqBadge"></span></button><button data-tab="profile" type="button">Profile</button><button data-tab="players" type="button"><svg class="ico" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="9" cy="8" r="3.6" fill="currentColor"/><path fill="currentColor" d="M2 20c0-3.9 3.1-6.5 7-6.5s7 2.6 7 6.5z"/><circle cx="17.2" cy="9" r="2.8" fill="currentColor"/><path fill="currentColor" d="M17.5 13.6c3 .2 5.5 2.2 5.5 5.4h-4.4c0-2-.4-3.9-1.1-5.4z"/></svg>Players</button><button data-tab="ugc" id="ugcTabBtn" type="button" hidden><svg class="ico" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M12 2 3 7v10l9 5 9-5V7zm0 2.3 5.9 3.3L12 10.9 6.1 7.6zM5 9.3l6 3.4v6.6l-6-3.4zm14 0v6.6l-6 3.4v-6.6z"/></svg>UGC</button><button data-tab="owner" id="ownerTabBtn" type="button" hidden><img class="ico" alt="" src="assets/badges/owner.png">Owner</button></nav>
+    <nav id="hTabs"><button class="on" data-tab="home" type="button"><svg class="ico" viewBox="0 0 96.162567 97.000008" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M 16.816406 41.148438 L 25.527344 41.148438 C 29.355469 41.148438 32.457031 44.25 32.457031 48.074219 L 32.457031 89.082031 C 32.457031 92.90625 29.355469 96.011719 25.527344 96.011719 L 16.816406 96.011719 C 12.992188 96.011719 9.890625 92.90625 9.890625 89.082031 L 9.890625 48.074219 C 9.890625 44.25 12.992188 41.148438 16.816406 41.148438 Z M 16.816406 41.148438 "/><path fill="currentColor" d="M 68.824219 39.320312 L 78.515625 39.320312 C 82.34375 39.320312 85.445312 42.421875 85.445312 46.246094 L 85.445312 89.082031 C 85.445312 92.90625 82.34375 96.011719 78.515625 96.011719 L 68.824219 96.011719 C 64.996094 96.011719 61.894531 92.90625 61.894531 89.082031 L 61.894531 46.246094 C 61.894531 42.421875 64.996094 39.320312 68.824219 39.320312 Z M 68.824219 39.320312 "/><path fill="currentColor" d="M 42.433594 6.035156 C 45.195312 2.847656 50.136719 2.847656 52.902344 6.035156 L 85.308594 43.394531 C 89.199219 47.878906 86.015625 54.863281 80.074219 54.863281 L 15.257812 54.863281 C 9.320312 54.863281 6.132812 47.878906 10.023438 43.394531 Z M 42.433594 6.035156 "/><path fill="currentColor" d="M 35.765625 53.277344 C 36.488281 53.527344 36.695312 54.441406 36.144531 54.941406 L 31.785156 58.894531 C 31.222656 59.402344 30.300781 59.101562 30.128906 58.355469 L 28.777344 52.441406 C 28.609375 51.695312 29.320312 51.070312 30.054688 51.320312 Z M 35.765625 53.277344 "/><path fill="currentColor" d="M 63.96875 51.800781 C 64.714844 51.6875 65.335938 52.347656 65.121094 53.023438 L 63.390625 58.460938 C 63.160156 59.175781 62.175781 59.371094 61.640625 58.804688 L 57.363281 54.261719 C 56.828125 53.695312 57.167969 52.808594 57.960938 52.691406 Z M 63.96875 51.800781 "/></svg> Home</button><button data-tab="avatar" type="button"><svg class="ico" viewBox="0 0 105 92" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M 44.328125 17.59375 C 48.308594 11.945312 56.691406 11.945312 60.671875 17.59375 L 86.855469 54.738281 C 91.527344 61.363281 86.789062 70.5 78.683594 70.5 L 26.316406 70.5 C 18.210938 70.5 13.472656 61.363281 18.144531 54.738281 Z M 44.328125 17.59375 "/><path fill="currentColor" d="M 70 19 C 70 29.492188 62.164062 38 52.5 38 C 42.835938 38 35 29.492188 35 19 C 35 8.507812 42.835938 0 52.5 0 C 62.164062 0 70 8.507812 70 19 Z M 70 19 "/></svg> Avatar</button><button data-tab="shop" type="button"><svg class="ico" viewBox="0 0 82 76" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M 9.914062 20.570312 L 18.714844 20.570312 C 22.582031 20.570312 25.714844 23.707031 25.714844 27.570312 L 25.714844 69 C 25.714844 72.867188 22.582031 76 18.714844 76 L 9.914062 76 C 6.046875 76 2.914062 72.867188 2.914062 69 L 2.914062 27.570312 C 2.914062 23.707031 6.046875 20.570312 9.914062 20.570312 Z M 9.914062 20.570312 "/><path fill="currentColor" d="M 62.457031 18.722656 L 72.25 18.722656 C 76.113281 18.722656 79.25 21.859375 79.25 25.722656 L 79.25 69 C 79.25 72.867188 76.113281 76 72.25 76 L 62.457031 76 C 58.589844 76 55.457031 72.867188 55.457031 69 L 55.457031 25.722656 C 55.457031 21.859375 58.589844 18.722656 62.457031 18.722656 Z M 62.457031 18.722656 "/><path fill="currentColor" d="M 8 0 L 74 0 C 78.417969 0 82 3.582031 82 8 L 82 34 C 82 38.417969 78.417969 42 74 42 L 8 42 C 3.582031 42 0 38.417969 0 34 L 0 8 C 0 3.582031 3.582031 0 8 0 Z M 8 0 "/></svg> Catalog</button><button data-tab="friends" type="button">Friends <span id="reqBadge"></span></button><button data-tab="profile" type="button">Profile</button><button data-tab="players" type="button"><svg class="ico" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="9" cy="8" r="3.6" fill="currentColor"/><path fill="currentColor" d="M2 20c0-3.9 3.1-6.5 7-6.5s7 2.6 7 6.5z"/><circle cx="17.2" cy="9" r="2.8" fill="currentColor"/><path fill="currentColor" d="M17.5 13.6c3 .2 5.5 2.2 5.5 5.4h-4.4c0-2-.4-3.9-1.1-5.4z"/></svg>Players</button><button data-tab="ugc" id="ugcTabBtn" type="button" hidden><svg class="ico" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M12 2 3 7v10l9 5 9-5V7zm0 2.3 5.9 3.3L12 10.9 6.1 7.6zM5 9.3l6 3.4v6.6l-6-3.4zm14 0v6.6l-6 3.4v-6.6z"/></svg>UGC</button><button data-tab="owner" id="ownerTabBtn" type="button" hidden><img class="ico" alt="" src="assets/badges/owner.png">Owner</button></nav>
     <div id="hAcctBox"><a id="hGetApp" class="webonly" href="download.html">Get the app</a><span id="hBal" class="bal" title="Your Triangcles" hidden><svg class="tcI" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 15 14H1z"/></svg><b id="hBalN" style="font-weight:400">0</b></span><span id="hWho"></span><button id="hAcct" type="button">Log out</button></div>
   </header>
   <main>
@@ -98,8 +99,8 @@
       <h2>Games</h2>
     </section>
     <section id="tabShop" class="tabsec" hidden>
-      <h2>Shop</h2>
-      <div id="shopBar"><input id="shSearch" placeholder="Search items" autocomplete="off" spellcheck="false" maxlength="40"><select id="shType" class="plSel" title="Type"><option value="all">All types</option><option value="acc">Accessories</option><option value="Shirt">Shirts</option><option value="Pants">Pants</option></select><select id="shSort" class="plSel" title="Sort by"><option value="new">Newest</option><option value="top">Best selling</option><option value="low">Price: low to high</option><option value="high">Price: high to low</option></select><span id="shBalBox" class="bal" hidden><svg class="tcI" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 15 14H1z"/></svg><b id="shBalN" style="font-weight:400">0</b><span class="muted">Triangcles</span></span></div><div id="shopList" class="grid"></div><div id="shopBox" hidden><svg class="ico" viewBox="0 0 82 76" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M 9.914062 20.570312 L 18.714844 20.570312 C 22.582031 20.570312 25.714844 23.707031 25.714844 27.570312 L 25.714844 69 C 25.714844 72.867188 22.582031 76 18.714844 76 L 9.914062 76 C 6.046875 76 2.914062 72.867188 2.914062 69 L 2.914062 27.570312 C 2.914062 23.707031 6.046875 20.570312 9.914062 20.570312 Z M 9.914062 20.570312 "/><path fill="currentColor" d="M 62.457031 18.722656 L 72.25 18.722656 C 76.113281 18.722656 79.25 21.859375 79.25 25.722656 L 79.25 69 C 79.25 72.867188 76.113281 76 72.25 76 L 62.457031 76 C 58.589844 76 55.457031 72.867188 55.457031 69 L 55.457031 25.722656 C 55.457031 21.859375 58.589844 18.722656 62.457031 18.722656 Z M 62.457031 18.722656 "/><path fill="currentColor" d="M 8 0 L 74 0 C 78.417969 0 82 3.582031 82 8 L 82 34 C 82 38.417969 78.417969 42 74 42 L 8 42 C 3.582031 42 0 38.417969 0 34 L 0 8 C 0 3.582031 3.582031 0 8 0 Z M 8 0 "/></svg><div>Nothing for sale yet. Check back soon.</div></div><div id="shopNote" class="note"></div>
+      <h2>Catalog</h2>
+      <div id="shopBar"><input id="shSearch" placeholder="Search items" autocomplete="off" spellcheck="false" maxlength="40"><select id="shType" class="plSel" title="Type"><option value="all">All types</option><option value="acc">Accessories</option><option value="Shirt">Shirts</option><option value="Pants">Pants</option><option value="Face">Faces</option></select><select id="shSort" class="plSel" title="Sort by"><option value="new">Newest</option><option value="top">Best selling</option><option value="low">Price: low to high</option><option value="high">Price: high to low</option></select><span id="shBalBox" class="bal" hidden><svg class="tcI" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 15 14H1z"/></svg><b id="shBalN" style="font-weight:400">0</b><span class="muted">Triangcles</span></span></div><div id="shopList" class="grid"></div><div id="shopBox" hidden><svg class="ico" viewBox="0 0 82 76" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M 9.914062 20.570312 L 18.714844 20.570312 C 22.582031 20.570312 25.714844 23.707031 25.714844 27.570312 L 25.714844 69 C 25.714844 72.867188 22.582031 76 18.714844 76 L 9.914062 76 C 6.046875 76 2.914062 72.867188 2.914062 69 L 2.914062 27.570312 C 2.914062 23.707031 6.046875 20.570312 9.914062 20.570312 Z M 9.914062 20.570312 "/><path fill="currentColor" d="M 62.457031 18.722656 L 72.25 18.722656 C 76.113281 18.722656 79.25 21.859375 79.25 25.722656 L 79.25 69 C 79.25 72.867188 76.113281 76 72.25 76 L 62.457031 76 C 58.589844 76 55.457031 72.867188 55.457031 69 L 55.457031 25.722656 C 55.457031 21.859375 58.589844 18.722656 62.457031 18.722656 Z M 62.457031 18.722656 "/><path fill="currentColor" d="M 8 0 L 74 0 C 78.417969 0 82 3.582031 82 8 L 82 34 C 82 38.417969 78.417969 42 74 42 L 8 42 C 3.582031 42 0 38.417969 0 34 L 0 8 C 0 3.582031 3.582031 0 8 0 Z M 8 0 "/></svg><div>Nothing for sale yet. Check back soon.</div></div><div id="shopNote" class="note"></div>
     </section>
     <section id="tabFriends" class="tabsec" hidden>
       <h2>Friends</h2>
@@ -151,6 +152,25 @@
       <input id="owSearch" placeholder="Find a player" autocomplete="off" spellcheck="false" maxlength="20">
       <div id="owMsg" class="note" style="margin:10px 0"></div>
       <div id="owList" style="margin-top:8px"></div>
+      <h3 style="margin:34px 0 6px">Badges</h3>
+      <p class="note" style="margin:0 0 14px">Make a new badge: pick a picture, give it a name, and choose what it lets people do. Then give it to players from the list above.</p>
+      <div id="owBadges" class="owGame box">
+        <div class="bdRow">
+          <label id="bdPick" title="Choose a picture"><img id="bdPrev" alt=""><span>Add picture</span><input type="file" id="bdFile" accept="image/png,image/jpeg,image/webp" hidden></label>
+          <div class="bdFields">
+            <label class="owLbl">Badge name<input id="bdName" maxlength="30" autocomplete="off" spellcheck="false" placeholder="e.g. Tester"></label>
+            <label class="chk"><input type="checkbox" id="bdUgc"> Can upload and sell UGC</label>
+            <label class="chk"><input type="checkbox" id="bdEdit"> Can edit and delete Catalog items</label>
+            <div><button type="button" class="btnP" id="bdCreate">Create badge</button></div>
+          </div>
+        </div>
+        <div id="bdMsg" class="note"></div>
+      </div>
+      <div id="bdList"></div>
+      <h3 style="margin:34px 0 6px">Catalog faces</h3>
+      <p class="note" style="margin:0 0 14px">Puts every built-in face in the Catalog (the old ones are free, the new ones cost Triangcles). Players who already wear an old face keep it. Safe to press again. Change a face's name, price or description on its Catalog page.</p>
+      <div class="owBtnRow"><button type="button" class="btnP" id="fcImport">Add faces to the Catalog</button></div>
+      <div id="fcMsg" class="note" style="margin:10px 0"></div>
       <h3 style="margin:34px 0 6px">Games</h3>
       <p class="note" style="margin:0 0 14px">Change a game's name, who it is made by, and its thumbnail and icon. Everyone sees the changes once supabase_game_settings.sql has been run in Supabase.</p>
       <div id="owGames"></div>
@@ -170,33 +190,43 @@
       <div id="pBody"></div>
     </section>
     <section id="tabAvatar" class="tabsec" hidden>
-      <h2>Avatar</h2>
       <div id="avWrap">
-        <div id="prevBox"><canvas id="prevCv"></canvas><span>drag to turn</span></div>
         <div id="avEdit">
-          <div class="note" style="margin:0 0 6px">Body type</div>
-          <div id="avBody"><button type="button" class="on" data-body="male">Male</button><button type="button" data-body="female">Female</button></div>
-          <div id="avTabs"><button type="button" class="on" data-av="colors">Body colors</button><button type="button" data-av="faces">Faces</button><button type="button" data-av="items">Items</button></div>
-          <div id="avColors">
-          <div id="colParts"></div>
-          <canvas id="wheel" width="200" height="200"></canvas>
-          <label id="valRow">Light <input id="valSlider" type="range" min="0" max="100" value="100"></label>
-          <div id="hexRow"><span id="hexChip"></span><input id="hexIn" maxlength="7" spellcheck="false" autocomplete="off"></div>
-          <div class="gp-row"><button class="pxbtn" id="colReset" type="button">Reset all</button><span id="colSave"></span></div>
+          <div id="avTabs"><button type="button" class="on" data-av="all">All</button><button type="button" data-av="body">Body</button><button type="button" data-av="faces">Faces</button><button type="button" data-av="clothing">Clothing</button><button type="button" data-av="acc">Accessories</button></div>
+          <div id="avPane">
+            <div id="avColors" hidden>
+              <div class="avSec">Body type</div>
+              <div id="avBody"><button type="button" class="on" data-body="male">Male</button><button type="button" data-body="female">Female</button></div>
+              <div class="avSec">Body part</div>
+              <div id="colParts"></div>
+              <div class="avSec">Colour</div>
+              <div id="avPick">
+                <canvas id="wheel" width="200" height="200"></canvas>
+                <div id="avPickSide">
+                  <label id="valRow">Light <input id="valSlider" type="range" min="0" max="100" value="100"></label>
+                  <div id="hexRow"><span id="hexChip"></span><input id="hexIn" maxlength="7" spellcheck="false" autocomplete="off"></div>
+                  <div id="avPalette"></div>
+                </div>
+              </div>
+              <div class="gp-row"><button class="pxbtn" id="colReset" type="button">Reset colours</button><span id="colSave"></span></div>
+            </div>
+            <div id="avItems">
+              <div id="avGrid"></div>
+              <div id="avEmpty" class="note"></div>
+              <button id="avMore" class="btnG" type="button" hidden>Browse the Catalog</button>
+              <div id="avNote" class="note"></div>
+            </div>
           </div>
-          <div id="avFaces" hidden>
-            <div id="faceGrid"></div>
-            <div id="faceNote" class="note">Pick a face. It shows up on your avatar in games and everywhere else.</div>
-          </div>
-          <div id="avItems" hidden>
-            <div id="itList"></div>
-            <div id="itNote" class="note" style="margin-top:10px"></div>
-          </div>
+        </div>
+        <div id="prevBox"><canvas id="prevCv"></canvas>
+          <span id="avWearing"></span>
+          <button id="avReset" type="button" title="Reset body colours">Reset</button>
+          <em>drag to turn</em>
         </div>
       </div>
     </section>
     <section id="pageItem" hidden>
-      <button id="ipBack" type="button">&larr; Shop</button>
+      <button id="ipBack" type="button">&larr; Catalog</button>
       <div id="ipWrap">
         <div id="ipView"><canvas id="ipCv"></canvas>
           <button id="ipLock" type="button" title="Lock / unlock rotation"></button>
@@ -209,6 +239,15 @@
           <div id="ipPriceRow"><span>Price</span><b id="ipPrice"></b></div>
           <button id="ipGet" class="btnP" type="button">Get</button>
           <div id="ipNote" class="note"></div>
+          <div id="ipOwner" class="box" hidden>
+            <h4>Owner tools</h4>
+            <label class="owLbl">Name<input id="ioName" maxlength="40" autocomplete="off" spellcheck="false"></label>
+            <label class="owLbl">Description<textarea id="ioDesc" maxlength="600" rows="3" spellcheck="false"></textarea></label>
+            <label class="owLbl">Price in Triangcles (0 = free)<input id="ioPrice" type="number" min="0" max="1000000" step="1"></label>
+            <label class="chk"><input type="checkbox" id="ioSale"> On sale in the Catalog</label>
+            <div class="ugRow"><button class="btnP" id="ioSave" type="button">Save changes</button><button class="btnG" id="ioDel" type="button">Delete item</button></div>
+            <div id="ioMsg" class="note"></div>
+          </div>
         </div>
       </div>
       <div id="ipMeta"><span>Type<b id="ipType"></b></span><span>Created<b id="ipCreated"></b></span><span>Sold<b id="ipSold"></b></span></div>
@@ -327,16 +366,19 @@
 <script src="js/social/social.js"></script>
 <script src="js/ui/menu.js"></script>
 <script src="js/ui/chat-ui.js"></script>
-<script src="js/ui/faces.js"></script>
 <script src="js/ui/players.js"></script>
 <script src="js/social/owner.js"></script>
+<script src="js/social/owner-tools.js"></script>
 <script src="js/items/ugc.js"></script>
 <script src="js/items/wallet.js"></script>
+<script src="js/items/faces-catalog.js"></script>
 <script src="js/items/item-models.js"></script>
 <script src="js/items/inventory.js"></script>
 <script src="js/items/shop.js"></script>
 <script src="js/items/item-page.js"></script>
+<script src="js/items/item-owner.js"></script>
 <script src="js/items/ugc-selling.js"></script>
+<script src="js/ui/avatar-editor.js"></script>
 <script src="js/core/main.js"></script>
 </body>
 </html>
