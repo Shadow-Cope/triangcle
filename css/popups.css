@@ -1,0 +1,118 @@
+/* ---- in-game popups (login + body colours) ---- */
+.gpop { position: fixed; display: none; z-index: 20; padding: 10px 12px; border-radius: 8px; background: rgba(0,0,0,.74);
+  color: #fff; font: 13px system-ui, sans-serif; user-select: none; box-shadow: 0 6px 24px rgba(0,0,0,.45); }
+.gpop.open { display: block; }
+.gp-hd { display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 14px; margin-bottom: 8px; }
+.gp-x { width: 24px; height: 24px; border: 0; border-radius: 4px; background: rgba(255,255,255,.2); color: #fff; font-size: 16px; line-height: 1; cursor: pointer; }
+.gp-x:hover { background: rgba(255,255,255,.35); }
+:root { --bg: #120f09; --panel: #1b1710; --bd: #3a3322; --fg: #f3ecd8; --dim: #a79b80; --y: #ffbf2f; --px: "Pixelify Sans", "Press Start 2P", monospace; }
+body.home { background: var(--bg); }
+body.home > *:not(#home):not(#auth):not(#veil):not(script) { visibility: hidden; }
+body:not(.home) #home { display: none; }
+body.boot #home, body.boot #auth { display: none !important; }
+#home, #auth { font-family: var(--px); font-weight: 500; letter-spacing: .02em; color: var(--fg); -webkit-font-smoothing: none; }
+#home button, #auth button, #auth input { letter-spacing: .02em; }
+#home { position: fixed; inset: 0; z-index: 15; overflow: auto; background: var(--bg); }
+#hTop { display: flex; align-items: center; gap: 24px; padding: 14px 28px; }
+#hLogo { display: block; height: 38px; }
+#hTabs { display: flex; gap: 6px; }
+.pxbtn, #hTabs button, #hAcct { font: 500 20px var(--px); padding: 6px 16px; border: 1px solid var(--bd); border-radius: 8px; background: var(--panel); color: var(--fg); cursor: pointer; }
+.pxbtn:hover, #hAcct:hover, #hTabs button:hover { border-color: var(--y); }
+#hTabs button.on { background: var(--y); border-color: var(--y); color: #1a1203; }
+#hAcctBox { margin-left: auto; display: flex; align-items: center; gap: 12px; font-size: 20px; color: var(--dim); }
+#home main { max-width: 900px; margin: 0 auto; padding: 28px 28px 60px; }
+#home h2 { margin: 0 0 18px; font-size: 32px; font-weight: 700; }
+#gameGrid { display: flex; flex-wrap: wrap; gap: 24px; }
+.gcard { width: 200px; padding: 0; border: 0; background: none; color: inherit; text-align: left; font-family: inherit; cursor: pointer; }
+.gimg { display: block; width: 200px; height: 200px; border: 1px solid var(--bd); border-radius: 12px; overflow: hidden; }
+.gimg img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.gcard:hover .gimg { border-color: var(--y); }
+.gname { display: block; margin-top: 10px; font-size: 24px; font-weight: 600; }
+.gby { display: block; font-size: 16px; color: var(--dim); }
+#avWrap { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+#prevBox { position: relative; width: 320px; height: 420px; overflow: hidden; background: var(--panel); border: 1px solid var(--bd); border-radius: 12px; cursor: grab; touch-action: none; }
+#prevCv { display: block; width: 100%; height: 100%; }
+#prevBox span { position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; font-size: 14px; color: var(--dim); pointer-events: none; }
+#avEdit { width: 290px; padding: 16px; background: var(--panel); border: 1px solid var(--bd); border-radius: 12px; }
+#avEdit h3 { margin: 0 0 12px; font-size: 24px; font-weight: 700; }
+#homeBtn { position: fixed; left: 50%; top: 10px; transform: translateX(-50%); padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,.3);
+  background: rgba(0,0,0,.5); color: #fff; font: 600 13px system-ui, sans-serif; cursor: pointer; }
+#homeBtn:hover { background: rgba(255,255,255,.2); }
+#colParts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+#colParts button { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border: 1px solid var(--bd); border-radius: 8px; background: transparent; color: var(--fg); font: 16px var(--px); cursor: pointer; }
+#colParts button.on { border-color: var(--y); }
+#colParts .chip { width: 16px; height: 16px; border-radius: 4px; border: 1px solid rgba(255,255,255,.5); flex: none; }
+#wheel { display: block; width: 200px; height: 200px; margin: 14px auto 10px; cursor: crosshair; touch-action: none; }
+#valRow { display: flex; align-items: center; gap: 10px; font-size: 16px; color: var(--dim); }
+#valSlider { flex: 1; accent-color: var(--y); }
+#hexRow { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+#hexChip { width: 34px; height: 34px; border: 1px solid var(--bd); border-radius: 8px; flex: none; }
+#hexIn { width: 100%; box-sizing: border-box; padding: 5px 10px; border: 1px solid var(--bd); border-radius: 8px; background: var(--bg); color: var(--fg); font: 18px var(--px); outline: none; }
+#hexIn:focus { border-color: var(--y); }
+.gp-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 14px; font-size: 14px; color: var(--dim); }
+#auth { position: fixed; inset: 0; z-index: 30; display: none; align-items: center; justify-content: center; background: var(--bg); overflow: hidden; }
+#auth.open { display: flex; animation: fadeIn .25s ease-out both; }
+#auth.leaving { animation: fadeOut .2s ease-in both; }
+#authBg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.tri { fill: none; stroke: var(--y); stroke-width: 2; opacity: .16; transform-box: fill-box; transform-origin: center; animation: triSpin 48s linear infinite; }
+.tri.b { animation-duration: 31s; animation-direction: reverse; }
+.tri.c { animation-duration: 62s; fill: var(--y); fill-opacity: .05; }
+.tri.d { animation-duration: 26s; animation-direction: reverse; }
+.tri.e { animation-duration: 38s; }
+.tri.f { animation-duration: 54s; animation-direction: reverse; }
+#authCard { position: relative; z-index: 1; width: 360px; max-width: 90vw; }
+#authLogo { display: block; width: 280px; max-width: 80%; margin: 0 auto 38px; }
+#auth.open #authLogo { animation: logoIn .5s cubic-bezier(.2, .9, .3, 1.2) both; }
+#authTitle { display: flex; align-items: center; margin: 0 0 22px; font-size: 32px; font-weight: 700; }
+#authTitle::before { content: ""; border-left: 15px solid var(--y); border-top: 9px solid transparent; border-bottom: 9px solid transparent; margin-right: 12px; }
+#auth label { display: block; margin: 0 0 6px; font-size: 18px; color: var(--dim); }
+#auth input { display: block; box-sizing: border-box; width: 100%; height: 48px; margin: 0 0 16px; padding: 0 12px; border: 1px solid var(--bd); border-radius: 6px; background: var(--panel); color: var(--fg); font: 500 20px var(--px); outline: none; transition: border-color .15s, box-shadow .15s; }
+#auth input:focus { border-color: var(--y); box-shadow: -5px 0 0 var(--y); }
+#authMsg { min-height: 22px; margin: -4px 0 12px; font-size: 17px; line-height: 1.3; color: var(--dim); }
+#authMsg.err { color: #ff7a6b; animation: shake .3s; }
+#authGo { display: block; width: 100%; height: 52px; padding: 0 30px 0 0; border: 0; background: var(--y); color: #1a1203; font: 700 22px var(--px); cursor: pointer;
+  clip-path: polygon(0 0, calc(100% - 26px) 0, 100% 50%, calc(100% - 26px) 100%, 0 100%); transition: background .15s, padding .15s; }
+#authGo:hover { background: #ffd25e; padding-right: 40px; }
+#authGo:disabled { opacity: .5; cursor: default; }
+#authSwap { margin-top: 18px; font-size: 18px; color: var(--dim); }
+#authSwap a { color: var(--fg); text-decoration: underline; cursor: pointer; }
+#pageGame { max-width: 860px; }
+#gpBack { margin: 0 0 14px; padding: 0; border: 0; background: none; color: var(--dim); font: 500 20px var(--px); cursor: pointer; }
+#gpBack:hover { color: var(--y); }
+#gpBanner { overflow: hidden; border: 1px solid var(--bd); border-radius: 12px; aspect-ratio: 21 / 9; }
+#gpBanner img { display: block; width: 100%; height: 100%; object-fit: cover; }
+#gpHead { display: flex; align-items: center; flex-wrap: wrap; gap: 18px; margin-top: 18px; }
+#gpIcon { width: 96px; height: 96px; border: 1px solid var(--bd); border-radius: 12px; flex: none; }
+#gpInfo { flex: 1; min-width: 180px; }
+#home #gpTitle { margin: 0; font-size: 36px; }
+#gpBy { margin: 2px 0 10px; color: var(--dim); font-size: 18px; }
+#gpBy b { color: var(--fg); font-weight: 600; }
+#gpChips { display: flex; gap: 8px; }
+.chip2 { padding: 3px 14px; border: 1px solid var(--bd); border-radius: 999px; background: transparent; color: var(--fg); font: 500 17px var(--px); cursor: pointer; }
+.chip2:hover { border-color: var(--y); }
+.chip2.on { background: var(--y); border-color: var(--y); color: #1a1203; }
+#gpPlay { flex: none; width: 200px; height: 56px; border: 0; border-radius: 8px; background: var(--y); color: #1a1203; font: 700 24px var(--px); cursor: pointer; transition: background .15s; }
+#gpPlay:hover { background: #ffd25e; }
+#gpStats { display: flex; gap: 36px; margin: 20px 0 6px; }
+#gpStats span { display: block; color: var(--dim); font-size: 17px; }
+#gpStats b { font-size: 22px; font-weight: 600; }
+#gpTabs { display: flex; gap: 6px; margin-top: 18px; border-bottom: 1px solid var(--bd); }
+#gpTabs button { margin-bottom: -1px; padding: 8px 18px; border: 0; border-bottom: 3px solid transparent; background: none; color: var(--dim); font: 600 20px var(--px); cursor: pointer; }
+#gpTabs button.on { color: var(--fg); border-bottom-color: var(--y); }
+.gpbody { max-width: 640px; padding-top: 18px; font-size: 20px; line-height: 1.45; }
+.gpbody p { margin: 0 0 10px; }
+.gpbody table { border-collapse: collapse; }
+.gpbody td { padding: 5px 20px 5px 0; vertical-align: middle; }
+.kc { display: inline-block; min-width: 26px; padding: 1px 8px; border: 1px solid var(--bd); border-bottom-width: 3px; border-radius: 6px; background: var(--panel); text-align: center; font-size: 18px; }
+#veil { position: fixed; inset: 0; z-index: 40; background: var(--bg); opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+#veil.on { opacity: 1; }
+.enter { animation: pgIn .22s ease-out both; }
+@keyframes pgIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeOut { to { opacity: 0; } }
+@keyframes logoIn { from { opacity: 0; transform: translateY(-14px) rotate(-4deg) scale(.92); } to { opacity: 1; transform: none; } }
+@keyframes shake { 20% { transform: translateX(-5px); } 50% { transform: translateX(5px); } 80% { transform: translateX(-3px); } }
+@keyframes triSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { #home *, #auth *, #auth, #home, #veil { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+#acctWho { display: none; font: 700 14px "Courier Prime", monospace; max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+#acctBtn { padding: 4px 10px; border: 0; border-radius: 4px; background: #fff; color: #000; font-weight: 600; cursor: pointer; }

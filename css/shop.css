@@ -1,0 +1,29 @@
+/* ===== Triangcles: wallet, shop, selling, wearing ===== */
+.bal { display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px; border: 1px solid var(--bd); border-radius: 999px; background: var(--panel); color: #fff; font-size: 15px; }
+.bal[hidden] { display: none; }
+.tcI { width: 14px; height: 14px; fill: var(--y); flex: none; vertical-align: -1px; }
+#shopBar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 0 0 16px; }
+#shSearch { display: block; box-sizing: border-box; width: 100%; max-width: 280px; height: 42px; padding: 0 12px; border: 1px solid var(--bd); border-radius: 8px; background: var(--panel); color: #fff; font-size: 16px; outline: none; }
+#shSearch:focus { border-color: var(--y); }
+#shBalBox { margin-left: auto; }
+#shopList { gap: 16px; }
+#shopBox[hidden] { display: none; }
+.itCard { width: 190px; padding: 12px; display: flex; flex-direction: column; gap: 6px; box-sizing: border-box; }
+.itImg { display: block; width: 100%; aspect-ratio: 1; border-radius: 10px; background: #2a2418; object-fit: cover; }
+.itCard b { display: block; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.itBy { color: var(--dim); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.itMeta { display: flex; justify-content: space-between; gap: 8px; color: var(--dim); font-size: 13px; }
+.itMeta .pr { color: #fff; display: inline-flex; align-items: center; gap: 5px; font-size: 15px; }
+.itCard .btnP, .itCard .btnG { width: 100%; padding: 8px 10px; font-size: 14px; }
+.itCard .btnP.arm { background: #ffd25e; }
+#shopNote { margin-top: 14px; min-height: 20px; }
+#ugSale { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--bd); }
+#ugSale h4 { margin: 0 0 10px; font-size: 16px; font-weight: 400; }
+#ugSaleNote { margin-top: 2px; }
+.ugCard .note.ugSt { margin: -6px 0 10px; color: var(--y); }
+#avTabs button { padding: 8px 6px; font-size: 14px; }
+.itRow { display: flex; align-items: center; gap: 10px; padding: 6px; margin: 0 0 8px; border: 1px solid var(--bd); border-radius: 10px; }
+.itRow img { width: 48px; height: 48px; border-radius: 8px; background: #2a2418; flex: none; }
+.itRow .itT { flex: 1; min-width: 0; }
+.itRow .itT b { display: block; font-weight: 400; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.itRow .itT small { color: var(--dim); font-size: 12px; }

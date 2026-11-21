@@ -1,0 +1,80 @@
+html, body { margin: 0; height: 100%; overflow: hidden; background: #8fb8f0; }
+canvas { display: block; width: 100%; height: 100%; }
+#hud {
+  position: fixed; left: 10px; top: 10px; padding: 8px 10px; border-radius: 6px;
+  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: #fff; background: rgba(0,0,0,.45); pointer-events: none; white-space: pre;
+  user-select: none;
+}
+#tags { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+.tag {
+  transform-origin: 50% 100%;
+  position: absolute; left: 0; top: 0; display: none; white-space: nowrap;
+  width: 240px; height: 20px; margin: -22px 0 0 -120px; text-align: center; overflow: visible;
+  font: 700 15px/20px "Courier Prime", "Courier New", monospace;
+  -webkit-text-size-adjust: none; text-size-adjust: none; font-size-adjust: none;
+  color: #fff;
+  text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 0 0 5px rgba(0,0,0,.8);
+}
+#board {
+  position: fixed; right: 10px; top: 10px; width: 190px; border-radius: 6px; overflow: hidden;
+  background: rgba(0,0,0,.4); color: #fff; font: 13px/1.4 system-ui, sans-serif; user-select: none;
+}
+#board .hd { display: flex; justify-content: space-between; padding: 5px 10px; background: rgba(0,0,0,.35); font-weight: 600; }
+#rows { max-height: 55vh; overflow-y: auto; }
+#rows .row { padding: 4px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#rows .row.me { background: rgba(255,255,255,.14); font-weight: 600; }
+#namebox {
+  position: fixed; left: 10px; bottom: 10px; display: flex; gap: 6px; align-items: center;
+  padding: 6px 8px; border-radius: 6px; background: rgba(0,0,0,.45); color: #fff;
+  font: 12px system-ui, sans-serif;
+}
+#namebox input {
+  width: 150px; padding: 4px 6px; border-radius: 4px; border: 1px solid rgba(255,255,255,.35);
+  background: rgba(0,0,0,.35); color: #fff; font: 700 14px "Courier Prime", monospace; outline: none;
+}
+#namebox input:focus { border-color: #fff; }
+#namebox button { padding: 4px 10px; border: 0; border-radius: 4px; background: #fff; color: #000; font-weight: 600; cursor: pointer; }
+#cross {
+  position: fixed; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px;
+  background: url(../assets/img/crosshair.png) center / contain no-repeat;
+  display: none; pointer-events: none; opacity: .96; animation: crossIn .2s cubic-bezier(.2,.9,.3,1.3);
+}
+@keyframes crossIn { from { transform: scale(1.7) rotate(-35deg); opacity: 0; } to { transform: none; opacity: .96; } }
+body.nohud #hud { display: none !important; }
+.bubble { position: absolute; left: 0; top: 0; display: none; width: max-content; max-width: 220px; padding: 6px 10px; border-radius: 10px;
+  background: rgba(255,255,255,.96); color: #111; font: 600 14px/1.25 system-ui, sans-serif; text-align: center; word-wrap: break-word;
+  transform-origin: 50% 100%; box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+.bubble::after { content: ""; position: absolute; left: 50%; bottom: -6px; margin-left: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: rgba(255,255,255,.96); }
+#chatlog { position: fixed; left: 10px; bottom: 96px; width: 340px; max-height: 190px; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end;
+  pointer-events: none; font: 13px/1.35 system-ui, sans-serif; color: #fff; }
+#chatlog .line { padding: 1px 6px; border-radius: 4px; background: rgba(0,0,0,.32); margin-top: 2px; width: fit-content; max-width: 100%; word-wrap: break-word;
+  text-shadow: 0 1px 2px rgba(0,0,0,.7); transition: opacity .8s; animation: lineIn .18s ease-out; }
+#chatlog .line b { margin-right: 5px; }
+#chatlog .line.old { opacity: 0; }
+#chatlog.active .line.old { opacity: 1; }
+@keyframes lineIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+#chatInput { position: fixed; left: 10px; bottom: 56px; width: 340px; box-sizing: border-box; padding: 6px 9px; border-radius: 6px; border: 1px solid rgba(255,255,255,.25);
+  background: rgba(0,0,0,.4); color: #fff; font: 13px system-ui, sans-serif; outline: none; transition: background .15s, border-color .15s; }
+#chatInput::placeholder { color: rgba(255,255,255,.6); }
+#chatInput:focus { background: rgba(0,0,0,.65); border-color: #fff; }
+#msg {
+  position: fixed; left: 50%; top: 40%; transform: translate(-50%,-50%);
+  font: 600 22px system-ui, sans-serif; color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,.6);
+  display: none; pointer-events: none;
+}
+#gfx {
+  position: fixed; right: 10px; bottom: 10px; display: flex; gap: 4px; align-items: center;
+  padding: 6px 8px; border-radius: 6px; background: rgba(0,0,0,.45); color: #fff; font: 12px system-ui, sans-serif; user-select: none;
+}
+#gfx button { width: 24px; height: 24px; border: 0; border-radius: 4px; background: rgba(255,255,255,.2); color: #fff; font-weight: 700; cursor: pointer; }
+#gfx button.on { background: #fff; color: #000; }
+#hotbar { position: fixed; left: 50%; bottom: 10px; transform: translateX(-50%); display: flex; gap: 6px; }
+#hotbar .slot { width: 56px; height: 56px; border-radius: 8px; background: rgba(0,0,0,.5); border: 2px solid rgba(255,255,255,.3);
+  color: #fff; font: 11px system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; user-select: none; }
+#hotbar .slot.on { border-color: #fff; background: rgba(255,255,255,.25); }
+#bt { position: fixed; left: 10px; top: 50%; transform: translateY(-50%); width: 236px; display: none; padding: 8px 10px; border-radius: 6px;
+  background: rgba(0,0,0,.65); color: #fff; font: 12px system-ui, sans-serif; user-select: none; }
+#bt label { display: flex; justify-content: space-between; align-items: center; margin: 4px 0; }
+#bt input[type=number] { width: 44px; } #bt select { width: 90px; }
+#bt button { padding: 4px 8px; border: 0; border-radius: 4px; background: #fff; color: #000; font-weight: 600; cursor: pointer; }

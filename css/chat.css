@@ -1,0 +1,47 @@
+/* ===== icons, chat window, player actions ===== */
+.ico { display: inline-block; width: 18px; height: 18px; vertical-align: -3px; margin-right: 7px; }
+#hTabs button { display: inline-flex; align-items: center; }
+#hTabs button .ico { margin-right: 7px; vertical-align: 0; }
+#tbLogo .ico, #tbMenu .ico, #tbChat .ico { width: 22px; height: 22px; margin: 0; }
+#tbLogo .ico { width: 28px; height: 28px; }
+#tbChat { position: relative; }
+#tbChat.dot::after { content: ""; position: absolute; right: 6px; top: 8px; width: 10px; height: 10px; border-radius: 50%; background: var(--y); border: 2px solid #1b1710; }
+#gmHead .ico.gearI { width: 30px; height: 30px; margin: 0; color: #e8dfc6; }
+#gmClose .ico { width: 40px; height: 40px; margin: 0; }
+#gmClose:hover .ico { filter: brightness(1.2); }
+#shopBox { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 60px 0; color: var(--dim); font-size: 17px; }
+#shopBox .ico { width: 80px; height: 80px; margin: 0; color: #3a3322; }
+#gameRow { margin-top: 6px; }
+
+#chatlog { left: 12px; top: 68px; bottom: auto; width: 420px; height: 270px; max-height: none; display: none; overflow-y: auto; box-sizing: border-box; padding: 10px 14px;
+  background: rgba(27,23,16,.92); border: 1px solid #3a3322; border-bottom: 0; border-radius: 14px 14px 0 0; pointer-events: auto; z-index: 5;
+  font: 15px/1.45 "Capriola", system-ui, sans-serif; color: #fff; }
+body.chatopen #chatlog { display: block; }
+#chatlog .line { padding: 2px 0; margin: 0; background: none; opacity: 1 !important; width: auto; max-width: none; text-shadow: none; animation: none; }
+#chatlog .line b { color: var(--y); font-weight: 400; margin-right: 6px; }
+#chatInput { left: 12px; top: 338px; bottom: auto; width: 420px; height: 44px; padding: 0 14px; border-radius: 0 0 14px 14px; display: none; z-index: 5;
+  font: 15px "Capriola", system-ui, sans-serif; background: #241f14; border: 1px solid #3a3322; color: #fff; }
+body.chatopen #chatInput { display: block; }
+#chatInput:focus { background: #2a2418; border-color: var(--y); }
+@media (max-width: 480px) { #chatlog, #chatInput { width: calc(100vw - 24px); } }
+
+#gmPlayers .pr { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 10px; }
+#gmPlayers .pr img { width: 46px; height: 46px; border-radius: 10px; background: #2a2418; flex: none; }
+#gmPlayers .pr b { flex: 1; font-weight: 400; font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#gmPlayers .pr small { color: var(--dim); font-size: 13px; margin-left: 6px; }
+.pacts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.pbtn { padding: 6px 11px; border: 1px solid #3a3322; border-radius: 8px; background: #241f14; color: #fff; font: 13px "Capriola", system-ui, sans-serif; cursor: pointer; }
+.pbtn:hover { border-color: var(--y); }
+.pbtn.on { background: var(--y); border-color: var(--y); color: #1a1203; }
+.pbtn:disabled { opacity: .6; cursor: default; }
+#rpt { position: fixed; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.6); }
+#rpt.open { display: flex; }
+#rpt, #rpt * { font-family: "Capriola", system-ui, sans-serif; font-weight: 400; }
+#rptBox { width: 380px; max-width: 92vw; padding: 20px; background: #1b1710; border: 1px solid #3a3322; border-radius: 14px; color: #fff; }
+#rptBox h3 { margin: 0 0 14px; font-size: 22px; }
+#rptBox label { display: block; margin: 10px 0 6px; font-size: 14px; color: #a79b80; }
+#rptBox select, #rptBox textarea { box-sizing: border-box; width: 100%; padding: 9px 10px; border: 1px solid #3a3322; border-radius: 8px; background: #120f09; color: #fff; font-size: 15px; outline: none; }
+#rptBox textarea { min-height: 80px; resize: vertical; }
+#rptBox select:focus, #rptBox textarea:focus { border-color: var(--y); }
+#rptMsg { min-height: 20px; margin: 10px 0 0; font-size: 14px; color: #a79b80; }
+#rptBox .rrow { display: flex; gap: 8px; margin-top: 8px; }

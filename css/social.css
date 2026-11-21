@@ -1,0 +1,122 @@
+/* ===== faces, players, badges ===== */
+#pageItem { max-width: 1000px; }
+#ipBack { margin: 0 0 14px; padding: 0; border: 0; background: none; color: var(--dim); font: 500 20px var(--px); cursor: pointer; }
+#ipBack:hover { color: var(--y); }
+#ipWrap { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start; }
+#ipView { position: relative; width: 440px; max-width: 100%; aspect-ratio: 1; background: var(--panel); border: 1px solid var(--bd); border-radius: 14px; overflow: hidden; touch-action: none; cursor: grab; }
+#ipView:active { cursor: grabbing; }
+#ipCv { display: block; width: 100%; height: 100%; }
+#ipLock { position: absolute; left: 14px; bottom: 14px; width: 44px; height: 44px; border: 0; border-radius: 10px; background: var(--y); color: #1a1203; display: grid; place-items: center; cursor: pointer; }
+#ipLock svg { width: 22px; height: 22px; }
+#ipLock.locked { background: #2a2418; color: #fff; border: 1px solid var(--bd); }
+#ipTry { position: absolute; right: 14px; bottom: 14px; padding: 10px 18px; }
+#ipTry.on { background: var(--y); border-color: var(--y); color: #1a1203; }
+#ipInfo { flex: 1; min-width: 260px; }
+#ipName { margin: 0 0 6px; font-size: 36px; line-height: 1.1; overflow-wrap: anywhere; }
+#ipBy { color: var(--dim); font-size: 18px; }
+#ipBy u { cursor: pointer; text-underline-offset: 3px; } #ipBy u:hover { color: var(--y); }
+#ipDesc { margin: 22px 0 24px; color: var(--dim); font-size: 19px; line-height: 1.45; overflow-wrap: anywhere; }
+#ipPriceRow { display: flex; justify-content: space-between; align-items: center; padding: 18px 0; border-top: 1px solid var(--bd); color: var(--dim); font-size: 20px; }
+#ipPrice { color: #fff; font-size: 28px; display: inline-flex; align-items: center; gap: 8px; }
+#ipPrice .tcI { width: 22px; height: 22px; }
+#ipGet { width: 100%; padding: 15px 10px; font-size: 19px; }
+#ipGet.arm { background: #ffd25e; }
+#ipNote { margin-top: 12px; min-height: 22px; }
+#ipMeta { margin-top: 26px; display: flex; flex-wrap: wrap; gap: 8px 32px; color: var(--dim); font-size: 18px; }
+#ipMeta b { color: #fff; margin-left: 6px; }
+.itCard { cursor: pointer; } .itCard:hover { border-color: var(--y); }
+.itTag { align-self: flex-start; padding: 3px 9px; border-radius: 999px; background: #2a2418; border: 1px solid var(--bd); color: var(--dim); font-size: 12px; }
+#avBody { display: flex; gap: 4px; margin: 0 0 14px; }
+#avBody button { flex: 1; padding: 8px 10px; border: 1px solid var(--bd); border-radius: 8px; background: transparent; color: var(--dim); font-size: 15px; cursor: pointer; }
+#avBody button:hover { color: #fff; border-color: var(--y); }
+#avBody button.on { background: var(--y); border-color: var(--y); color: #1a1203; }
+#avTabs { display: flex; gap: 4px; margin: 0 0 14px; }
+#avTabs button { flex: 1; padding: 8px 10px; border: 1px solid var(--bd); border-radius: 8px; background: transparent; color: var(--dim); font-size: 15px; cursor: pointer; }
+#avTabs button:hover { color: #fff; border-color: var(--y); }
+#avTabs button.on { background: var(--y); border-color: var(--y); color: #1a1203; }
+#faceGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.faceBtn { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px; border: 2px solid var(--bd); border-radius: 10px; background: transparent; color: var(--fg); font-size: 13px; cursor: pointer; }
+.faceBtn:hover { border-color: #6b5a30; }
+.faceBtn.on { border-color: var(--y); background: #241f14; }
+.faceTile { display: block; width: 72px; height: 72px; border-radius: 12px; overflow: hidden; background: #f2f3f3; }
+.faceTile img { display: block; width: 100%; height: 100%; }
+#faceNote { margin-top: 12px; }
+.pcard.box { width: 120px; padding: 8px; border: 1px solid var(--bd); border-radius: 14px; background: var(--panel); gap: 8px; }
+.pcard.box:hover { border-color: var(--y); }
+.pcard.box .pface { width: 102px; height: 102px; border-radius: 10px; border: 0; background: #2a2418; }
+.pcard.box:hover .pface { border: 0; }
+.pcard.box .pn { width: 100%; text-align: center; }
+.pcard.box .pbd { justify-content: center; flex-wrap: wrap; }
+.pnrow { display: flex; align-items: center; justify-content: center; gap: 5px; max-width: 100%; }
+.pnrow .pn { min-width: 0; }
+.pnrow .pbd { flex: none; }
+.pcard.box .ps { margin-top: -4px; }
+#pNameRow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 6px; }
+#pNameRow #pName { margin: 0; }
+#pNameRow .bdgs { margin: 0; gap: 8px; flex-wrap: nowrap; }
+#pNameRow .bdg { width: 28px; height: 28px; }
+.pbd { display: flex; gap: 3px; min-height: 0; }
+.pbd img { width: 16px; height: 16px; }
+.bdgs { display: flex; gap: 8px; margin: 0 0 10px; flex-wrap: wrap; }
+.bdg { position: relative; display: inline-flex; width: 30px; height: 30px; cursor: default; outline: none; }
+.bdg img { width: 100%; height: 100%; display: block; }
+.bdg::after { content: attr(data-name); position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%) translateY(4px); padding: 5px 10px; border-radius: 8px;
+  background: #000; border: 1px solid var(--bd); color: #fff; font-size: 14px; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .12s, transform .12s; z-index: 5; }
+.bdg:hover::after, .bdg:focus::after { opacity: 1; transform: translateX(-50%); }
+#plBar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+#plSearch, #owSearch { display: block; box-sizing: border-box; width: 100%; max-width: 360px; height: 42px; padding: 0 12px; border: 1px solid var(--bd); border-radius: 8px; background: var(--panel); color: #fff; font-size: 16px; outline: none; }
+#plSearch:focus, #owSearch:focus { border-color: var(--y); }
+.plSel { height: 42px; padding: 0 10px; border: 1px solid var(--bd); border-radius: 8px; background: var(--panel); color: #fff; font-size: 15px; outline: none; cursor: pointer; }
+.plSel:focus { border-color: var(--y); }
+#plMore { margin-top: 18px; }
+#hLogo { cursor: pointer; }
+.gimg { position: relative; }
+.gimg img.gico { position: absolute; left: 8px; bottom: 8px; width: 46px; height: 46px; border: 2px solid rgba(0,0,0,.55); border-radius: 11px; background: #2a2418; box-shadow: 0 2px 8px rgba(0,0,0,.45); }
+#owImport { display: block; }
+#owImport .owRow2 { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+#owImport label { flex: 1; min-width: 180px; }
+.owGame { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; padding: 14px; margin-bottom: 14px; max-width: 700px; }
+.owGame .owPrev { display: flex; gap: 10px; align-items: flex-end; }
+.owGame .owThumb { width: 160px; height: 90px; border-radius: 10px; border: 1px solid var(--bd); object-fit: cover; background: #2a2418; }
+.owGame .owIcon { width: 64px; height: 64px; border-radius: 12px; border: 1px solid var(--bd); object-fit: cover; background: #2a2418; }
+.owGame .owFields { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 8px; }
+.owGame label { display: block; font-size: 13px; color: var(--dim); }
+.owGame input[type=text] { display: block; box-sizing: border-box; width: 100%; margin-top: 3px; height: 38px; padding: 0 10px; border: 1px solid var(--bd); border-radius: 8px; background: var(--panel); color: #fff; font-size: 15px; outline: none; }
+.owGame input[type=text]:focus { border-color: var(--y); }
+.owGame .owBtnRow { display: flex; gap: 8px; flex-wrap: wrap; }
+.owGame .btnG, .owGame .btnP { padding: 7px 12px; font-size: 14px; }
+.owRow { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 10px 12px; margin-bottom: 10px; max-width: 700px; }
+.owRow > img { width: 56px; height: 56px; border-radius: 12px; background: #2a2418; cursor: pointer; }
+.owRow > b { flex: 1; min-width: 120px; font-size: 17px; cursor: pointer; }
+.owBtns { display: flex; gap: 6px; flex-wrap: wrap; }
+.owB { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--bd); border-radius: 8px; background: transparent; color: var(--dim); font-size: 13px; cursor: pointer; }
+.owB img { width: 18px; height: 18px; opacity: .45; }
+.owB:hover { border-color: var(--y); color: #fff; }
+.owB.on { background: #2a2418; border-color: var(--y); color: #fff; }
+.owB.on img { opacity: 1; }
+.owB:disabled { opacity: .5; cursor: default; }
+#hTabs button[hidden] { display: none; }
+#ugWrap { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+#ugView { position: relative; width: 520px; max-width: 100%; height: 480px; overflow: hidden; background: var(--panel); border: 1px solid var(--bd); border-radius: 12px; cursor: grab; touch-action: none; user-select: none; }
+#ugView.move { cursor: move; }
+#ugCv { display: block; width: 100%; height: 100%; }
+#ugModes { position: absolute; left: 10px; top: 10px; display: flex; gap: 4px; }
+#ugModes button { padding: 6px 12px; border: 1px solid var(--bd); border-radius: 8px; background: rgba(18,15,9,.85); color: var(--dim); font-size: 14px; cursor: pointer; }
+#ugModes button.on { background: var(--y); border-color: var(--y); color: #1a1203; }
+#ugHint { position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; font-size: 13px; color: var(--dim); pointer-events: none; }
+#ugPanel { width: 340px; max-width: 100%; box-sizing: border-box; padding: 14px; }
+.ugRow { display: flex; gap: 8px; margin: 0 0 12px; flex-wrap: wrap; }
+.ugLbl { display: block; margin: 0 0 12px; font-size: 14px; color: var(--dim); }
+.ugLbl input, .ugLbl select { display: block; box-sizing: border-box; width: 100%; height: 38px; margin-top: 4px; padding: 0 10px; border: 1px solid var(--bd); border-radius: 8px; background: var(--bg); color: #fff; font-size: 15px; outline: none; }
+.ugLbl input:focus, .ugLbl select:focus { border-color: var(--y); }
+#ugInfo { margin: 0 0 12px; font-size: 14px; }
+.ugS { display: grid; grid-template-columns: 96px 1fr 62px; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 14px; color: var(--dim); }
+.ugS input[type=range] { width: 100%; accent-color: var(--y); }
+.ugS input[type=number] { width: 62px; box-sizing: border-box; padding: 4px 6px; border: 1px solid var(--bd); border-radius: 6px; background: var(--bg); color: #fff; font-size: 13px; outline: none; }
+#ugSliders { margin: 0 0 12px; }
+#ugMsg { min-height: 20px; }
+.ugCard { width: 190px; padding: 12px; }
+.ugCard b { display: block; font-size: 16px; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ugCard .note { margin: 2px 0 10px; font-size: 13px; }
+.ugCard .ugRow { margin: 0; }
+.ugCard .ugRow button { padding: 5px 12px; font-size: 13px; }

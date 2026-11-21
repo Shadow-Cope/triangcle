@@ -1,0 +1,80 @@
+/* ===== basic purple look, Capriola ===== */
+:root { --bg: #120f09; --panel: #1b1710; --bd: #3a3322; --fg: #ffffff; --dim: #a79b80; --y: #ffbf2f; --px: "Capriola", system-ui, sans-serif; }
+#home, #home *, #auth, #auth * { font-family: "Capriola", system-ui, sans-serif !important; font-weight: 400 !important; letter-spacing: 0 !important; -webkit-font-smoothing: antialiased; }
+#home button, #auth button { font-size: 15px; }
+#hTop { padding: 12px 28px; }
+#hTabs { gap: 4px; }
+.pxbtn, #hTabs button, #hAcct { font-size: 15px; padding: 7px 14px; border: 0; background: transparent; color: var(--dim); border-radius: 8px; }
+#hAcct { border: 1px solid var(--bd); color: var(--fg); }
+.pxbtn:hover, #hAcct:hover, #hTabs button:hover { border-color: var(--y); color: #fff; background: #2a2418; }
+#hTabs button.on { background: var(--y); color: #fff; }
+#hAcctBox { font-size: 15px; }
+#hWho { color: var(--fg); }
+#home main { max-width: 900px; }
+#home h2 { font-size: 26px; margin: 0 0 14px; }
+#home h3 { margin: 28px 0 12px; font-size: 20px; }
+.gname { font-size: 17px; } .gby { font-size: 14px; }
+.gcard:hover .gimg { border-color: var(--y); }
+#avEdit h3 { font-size: 20px; margin: 0 0 12px; }
+#colParts button { font-size: 15px; } #colParts button.on { border-color: var(--y); }
+#valRow, .gp-row { font-size: 14px; }
+#hexIn { font-size: 16px; }
+#prevBox span { font-size: 13px; }
+#authTitle { font-size: 28px; }
+#authTitle::before { display: none; }
+#auth label { font-size: 15px; } #auth input { font-size: 16px; } #authMsg, #authSwap { font-size: 15px; }
+#auth input:focus { box-shadow: none; border-color: var(--y); }
+#authGo { clip-path: none; border-radius: 8px; padding: 0; color: #fff; font-size: 17px; height: 46px; }
+#authGo:hover { background: #ffd25e; padding: 0; }
+.tri { opacity: .1; }
+#gpBack { font-size: 16px; }
+#gpBy { font-size: 16px; } #home #gpTitle { font-size: 30px; }
+.chip2 { font-size: 15px; } .chip2.on { background: var(--y); border-color: var(--y); color: #fff; }
+#gpPlay { background: var(--y); color: #fff; font-size: 19px; } #gpPlay:hover { background: #ffd25e; }
+#gpStats span { font-size: 14px; } #gpStats b { font-size: 19px; }
+#gpTabs button { font-size: 16px; } #gpTabs button.on { border-bottom-color: var(--y); }
+.gpbody { font-size: 16px; } .kc { font-size: 14px; }
+#valSlider { accent-color: var(--y); }
+
+.btnP { padding: 10px 20px; border: 0; border-radius: 8px; background: var(--y); color: #fff; cursor: pointer; }
+.btnP:hover { background: #ffd25e; }
+.btnG { padding: 9px 16px; border: 1px solid var(--bd); border-radius: 8px; background: #2a2418; color: #fff; cursor: pointer; }
+.btnG:hover { border-color: var(--y); }
+.btnP:disabled, .btnG:disabled { opacity: .5; cursor: default; }
+.box { background: var(--panel); border: 1px solid var(--bd); border-radius: 12px; }
+.muted { color: var(--dim); }
+.note { color: var(--dim); font-size: 15px; line-height: 1.5; }
+
+#welcome { display: flex; align-items: center; gap: 20px; }
+#wImg { width: 96px; height: 96px; border-radius: 16px; background: #2a2418; flex: none; }
+#home #wName { margin: 0 0 4px; font-size: 32px; }
+#wSub { color: var(--dim); font-size: 15px; margin-bottom: 12px; }
+.shelf { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 6px; }
+.grid { display: flex; flex-wrap: wrap; gap: 12px; }
+.pcard { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 92px; flex: none; padding: 0; border: 0; background: none; color: #fff; font-size: 14px; cursor: pointer; }
+.pcard img { width: 84px; height: 84px; border-radius: 14px; background: #2a2418; border: 2px solid transparent; }
+.pcard:hover img { border-color: var(--y); }
+.pcard .pn { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pcard .ps { font-size: 12px; color: var(--dim); margin-top: -4px; }
+.moreCard { justify-content: center; height: 84px; width: 84px; border-radius: 14px; background: #2a2418; font-size: 20px; color: var(--dim); }
+
+#fSearch { display: block; box-sizing: border-box; width: 100%; max-width: 360px; height: 42px; padding: 0 12px; border: 1px solid var(--bd); border-radius: 8px; background: var(--panel); color: #fff; font-size: 16px; outline: none; }
+#fSearch:focus { border-color: var(--y); }
+.reqRow { display: flex; align-items: center; gap: 12px; padding: 8px 12px; margin-bottom: 8px; max-width: 460px; }
+.reqRow img { width: 44px; height: 44px; border-radius: 10px; background: #2a2418; cursor: pointer; }
+.reqRow b { flex: 1; font-size: 16px; cursor: pointer; }
+
+#pHead { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+#pFace { width: 110px; height: 110px; border-radius: 18px; background: #2a2418; flex: none; }
+#pInfo { flex: 1; min-width: 200px; }
+#home #pName { margin: 0 0 6px; font-size: 34px; }
+#pStats { display: flex; gap: 22px; color: var(--dim); font-size: 15px; }
+#pStats b { display: block; color: #fff; font-size: 22px; }
+#pActs { display: flex; gap: 8px; flex-wrap: wrap; }
+#pAbout { margin-top: 22px; padding: 16px 18px; }
+#pAbout h4 { margin: 0 0 8px; font-size: 18px; display: flex; justify-content: space-between; }
+#pAbout p { margin: 0; font-size: 16px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+#pAbout textarea { box-sizing: border-box; width: 100%; min-height: 80px; padding: 8px 10px; border: 1px solid var(--y); border-radius: 8px; background: var(--bg); color: #fff; font-size: 16px; resize: vertical; outline: none; }
+.editRow { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+.linkBtn { border: 0; background: none; color: var(--dim); font-size: 15px; cursor: pointer; padding: 0; }
+.linkBtn:hover { color: #fff; }
