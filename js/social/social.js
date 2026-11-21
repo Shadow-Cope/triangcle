@@ -76,7 +76,7 @@ async function renderProfile(id) {
       <img id="pFace" alt="" data-tu="${esc(id)}" src="${thumb(colors, "face", id)}">
       <div id="pInfo">
         <div id="pNameRow"><h2 id="pName">${esc(p.username)}</h2>${badgeList(id).length ? `<span class="bdgs" id="pBadges">${bigBadges(id)}</span>` : ""}</div>
-        <div id="pStats">${p.player_number ? `<div><b>#${esc(p.player_number)}</b>Player ID</div>` : ""}<div><b>${theirFriends.length}</b>Friends</div><div><b>${esc(joinedTxt)}</b>Joined</div></div>
+        <div id="pStats"><div><b>${theirFriends.length}</b>Friends</div></div>
       </div>
       <div id="pActs">${acts}</div>
     </div>
@@ -85,8 +85,9 @@ async function renderProfile(id) {
       <div id="pItemsWrap"><div id="pItems" aria-label="Items worn"></div></div>
     </div>
     <div id="pAbout" class="box"><h4>Bio ${mine ? '<button class="linkBtn" id="pEdit" type="button">Edit</button>' : ""}</h4><div id="pAboutBody"><p>${about}</p></div></div>
-    <div id="pFriends" class="box"><h4>Friends</h4><div id="pFrRow"></div></div>`;
-  profileFriends(theirFriends, false);
+    <div id="pFriends" class="box"><h4><button class="pFrTitle" type="button" data-go="friends">Friends</button></h4><div id="pFrRow"></div></div>
+    <div id="pJoined" class="box"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 2h2v2h6V2h2v2h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2zM5 9v11h14V9z"/></svg><div><span>Joined</span><b>${esc(joinedTxt)}</b></div></div>`;
+  profileFriends(theirFriends);
   profileStage(id, colors, wornP);
   if (!mine) addSafetyBtns(p);
   if (mine) {

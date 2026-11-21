@@ -21,7 +21,7 @@ function pvInit() {                                                  // one rend
   PV.sc = new THREE.Scene(); PV.cam = new THREE.PerspectiveCamera(30, 1, 0.1, 100); PV.av = createAvatar();
   PV.sc.add(new THREE.HemisphereLight(0xffffff, 0x556070, 1.1));
   const dl = new THREE.DirectionalLight(0xffffff, 1.0); dl.position.set(4, 8, 6); PV.sc.add(dl);
-  PV.sc.add(PV.av.group); PV.cam.position.set(0, 3, 14); PV.cam.lookAt(0, 2.5, 0);
+  PV.sc.add(PV.av.group); PV.cam.position.set(0, 2.85, 12); PV.cam.lookAt(0, 2.8, 0);
   return true;
 }
 
@@ -72,12 +72,16 @@ async function profileStage(id, colors, wornP) {
   fillThumbs(list);
 }
 
-function profileFriends(list, all) {
+const PF = { list: [] };
+function profileFriends(list) {                                      // as many cards as fit the row; the last slot becomes "more" when some don't
+  PF.list = list || PF.list;
   const row = $("pFrRow"); if (!row) return;
-  if (!list.length) { row.innerHTML = '<div class="note">No friends yet.</div>'; return; }
-  const shown = all ? list : list.slice(0, PF_SHOW), rest = list.length - shown.length;
-  row.innerHTML = shown.map(f => pcard(f)).join("")
-    + (rest > 0 ? `<button class="pMore" type="button"><b>+${rest}</b><span>more</span></button>`
-      : all && list.length > PF_SHOW ? '<button class="pMore" type="button"><span>show less</span></button>' : "");
-  const b = row.querySelector(".pMore"); if (b) b.addEventListener("click", () => profileFriends(list, !all));
+  if (!PF.list.length) { row.innerHTML = '<div class="note">No friends yet.</div>'; return; }
+  const CARD = 120, GAP = 14, W = row.clientWidth || row.parentElement.clientWidth || 0;
+  const slots = Math.max(1, Math.floor((W + GAP) / (CARD + GAP)));
+  const all = PF.list.length <= slots, n = all ? PF.list.length : Math.max(0, slots - 1), rest = PF.list.length - n;
+  row.innerHTML = PF.list.slice(0, n).map(f => pcard(f)).join("")
+    + (all ? "" : `<button class="pMore" type="button" data-go="friends"><b>+${rest}</b><span>more</span></button>`);
 }
+let pfT = 0;
+window.addEventListener("resize", () => { cancelAnimationFrame(pfT); pfT = requestAnimationFrame(() => { if ($("pFrRow") && !$("tabProfile").hidden) profileFriends(); }); });
