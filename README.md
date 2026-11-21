@@ -105,3 +105,10 @@ Run `supabase_account.sql` once in the Supabase SQL editor (check the wallet tab
 
 - **Settings tab**: change your display name (free) or your username (150 Triangcles each time, charged inside Supabase by `change_username()`). Old usernames are kept in `username_history` and shown on the player's profile. Nobody can take an old username, and you log in with your current one (`login_email_for()`).
 - **Building tools per game**: Owner tab > each game > *Building tools*: Everyone / Admins & Owner only / Off. Stored in `game_settings.btools`; checked in `js/game/btools.js` (`canBuild()`).
+
+
+## Owner tools (update)
+- Anyone with the **Owner** badge can use the Owner tab, not just the Owen account (Owen still works). Run `supabase_owner_tools.sql` once in Supabase so the database agrees.
+- **Upload a new face** (Owner tab): pick a picture, name, price and description. It becomes a Catalog face automatically.
+- **Edit Catalog items** (Owner tab): search any item, clothing or face and change its name, description, price and on-sale status.
+- **Games** now have an editable description (shown on the game's About tab).

@@ -7,15 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Capriola&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/base.css">
-<link rel="stylesheet" href="css/popups.css">
-<link rel="stylesheet" href="css/theme.css">
-<link rel="stylesheet" href="css/menu.css">
-<link rel="stylesheet" href="css/chat.css">
-<link rel="stylesheet" href="css/social.css">
-<link rel="stylesheet" href="css/shop.css">
-<link rel="stylesheet" href="css/avatar.css">
-<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/style.css">
 </head>
 <body class="home boot">
 <canvas id="c"></canvas>
@@ -148,7 +140,7 @@
     </section>
     <section id="tabOwner" class="tabsec" hidden>
       <h2>Owner</h2>
-      <p class="note" style="margin:0 0 14px">Only you can give out badges. Search for a player, then click a badge to give it or take it away.</p>
+      <p class="note" style="margin:0 0 14px">Only Owners can give out badges. Search for a player, then click a badge to give it or take it away.</p>
       <input id="owSearch" placeholder="Find a player" autocomplete="off" spellcheck="false" maxlength="20">
       <div id="owMsg" class="note" style="margin:10px 0"></div>
       <div id="owList" style="margin-top:8px"></div>
@@ -170,9 +162,25 @@
       <h3 style="margin:34px 0 6px">Catalog faces</h3>
       <p class="note" style="margin:0 0 14px">Puts every built-in face in the Catalog (the old ones are free, the new ones cost Triangcles). Players who already wear an old face keep it. Safe to press again. Change a face's name, price or description on its Catalog page.</p>
       <div class="owBtnRow"><button type="button" class="btnP" id="fcImport">Add faces to the Catalog</button></div>
+      <h3 style="margin:26px 0 6px">Upload a new face</h3>
+      <p class="note" style="margin:0 0 14px">Pick a picture, name it, set a price and a description. It goes straight into the Catalog as a new face anyone can get.</p>
+      <div id="fcNew" class="owGame box fcRow">
+        <label id="fcPick" title="Choose a face picture"><img id="fcPrev" alt=""><span>Add picture</span><input type="file" id="fcFile" accept="image/png,image/jpeg,image/webp" hidden></label>
+        <div class="owFields">
+          <label class="owLbl">Face name<input id="fcName" maxlength="40" autocomplete="off" spellcheck="false" placeholder="e.g. Grumpy"></label>
+          <label class="owLbl">Description<textarea id="fcDesc" maxlength="600" rows="2" spellcheck="false"></textarea></label>
+          <label class="owLbl">Price in Triangcles (0 = free)<input id="fcPrice" type="number" min="0" max="1000000" step="1" value="0"></label>
+          <div class="owBtnRow"><button type="button" class="btnP" id="fcUpload">Upload face</button></div>
+        </div>
+      </div>
       <div id="fcMsg" class="note" style="margin:10px 0"></div>
+      <h3 style="margin:34px 0 6px">Edit Catalog items</h3>
+      <p class="note" style="margin:0 0 14px">Search any item or face (including ones that are off sale) and change its name, description, price or whether it is on sale.</p>
+      <input id="oiSearch" placeholder="Search items and faces" autocomplete="off" spellcheck="false" maxlength="40">
+      <div id="oiMsg" class="note" style="margin:10px 0"></div>
+      <div id="oiList"></div>
       <h3 style="margin:34px 0 6px">Games</h3>
-      <p class="note" style="margin:0 0 14px">Change a game's name, who it is made by, and its thumbnail and icon. Everyone sees the changes once supabase_game_settings.sql has been run in Supabase.</p>
+      <p class="note" style="margin:0 0 14px">Change a game's name, who it is made by, its description, thumbnail and icon. Everyone sees the changes once supabase_game_settings.sql and supabase_owner_tools.sql have been run in Supabase.</p>
       <div id="owGames"></div>
       <h3 style="margin:26px 0 6px">New game from a Roblox file</h3>
       <div id="owImport" class="owGame box">
@@ -339,51 +347,10 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0"></script>
 <script>window.supabase || document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"><\/script>');</script>
 
-<!-- game code: order matters (files share one global scope, like the old single <script>) -->
-<script src="js/data/model-parts.js"></script>
-<script src="js/data/sharknado-map.js"></script>
+<!-- game code is bundled in order: data.bundle.js, config.js, app-config.js, game.bundle.js (edit config.js for Supabase settings) -->
+<script src="js/data.bundle.js"></script>
 <script src="js/core/config.js"></script>
 <script src="js/core/app-config.js"></script>
-<script src="js/core/app.js"></script>
-<script src="js/core/renderer.js"></script>
-<script src="js/game/world.js"></script>
-<script src="js/game/character.js"></script>
-<script src="js/game/names.js"></script>
-<script src="js/core/network.js"></script>
-<script src="js/core/input.js"></script>
-<script src="js/core/camera.js"></script>
-<script src="js/game/physics.js"></script>
-<script src="js/game/reset.js"></script>
-<script src="js/game/animation.js"></script>
-<script src="js/game/btools.js"></script>
-<script src="js/core/loop.js"></script>
-<script src="js/ui/colors.js"></script>
-<script src="js/ui/account.js"></script>
-<script src="js/ui/home.js"></script>
-<script src="js/ui/custom-games.js"></script>
-<script src="js/ui/owner-games.js"></script>
-<script src="js/ui/avatar-preview.js"></script>
-<script src="js/ui/tabs.js"></script>
-<script src="js/social/social-core.js"></script>
-<script src="js/social/badges.js"></script>
-<script src="js/social/social.js"></script>
-<script src="js/social/profile-view.js"></script>
-<script src="js/ui/settings.js"></script>
-<script src="js/ui/menu.js"></script>
-<script src="js/ui/chat-ui.js"></script>
-<script src="js/ui/players.js"></script>
-<script src="js/social/owner.js"></script>
-<script src="js/social/owner-tools.js"></script>
-<script src="js/items/ugc.js"></script>
-<script src="js/items/wallet.js"></script>
-<script src="js/items/faces-catalog.js"></script>
-<script src="js/items/item-models.js"></script>
-<script src="js/items/inventory.js"></script>
-<script src="js/items/shop.js"></script>
-<script src="js/items/item-page.js"></script>
-<script src="js/items/item-owner.js"></script>
-<script src="js/items/ugc-selling.js"></script>
-<script src="js/ui/avatar-editor.js"></script>
-<script src="js/core/main.js"></script>
+<script src="js/game.bundle.js"></script>
 </body>
 </html>
