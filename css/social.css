@@ -133,8 +133,8 @@
 #pStats { margin-top: 10px; gap: 30px; font-size: 18px; }
 #pStats b { font-size: 30px; }
 #pActs { margin-left: auto; }
-#pStage { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 22px; margin-top: 26px; padding: 22px; background: var(--panel); border: 1px solid var(--bd); border-radius: 18px; }
-#pvBox { position: relative; width: 100%; height: clamp(460px, calc(100vh - 200px), 760px); border: 1px solid var(--bd); border-radius: 16px; overflow: hidden; cursor: grab; touch-action: none; user-select: none;
+#pStage { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 22px; margin-top: 26px; padding: 22px; background: var(--panel); border: 1px solid var(--bd); border-radius: 18px; }
+#pvBox { position: relative; width: 100%; height: 480px; border: 1px solid var(--bd); border-radius: 16px; overflow: hidden; cursor: grab; touch-action: none; user-select: none;
   background: radial-gradient(90% 70% at 50% 30%, #4a3a14 0%, #2a2210 50%, #15110a 100%); }
 #pvBox:active { cursor: grabbing; }
 #pvBox::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 24%; background: linear-gradient(to top, rgba(255,191,47,.16), transparent); pointer-events: none; }
@@ -146,7 +146,7 @@
 #pvBox em { position: absolute; left: 0; right: 0; bottom: 12px; text-align: center; font-size: 14px; font-style: normal; color: var(--dim); pointer-events: none; z-index: 1; }
 .pvNo { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 20px; }
 #pItemsWrap { position: relative; min-height: 0; }
-#pItems { position: absolute; inset: 0; display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: min-content; gap: 12px; overflow-y: auto; padding-right: 8px; scrollbar-width: thin; scrollbar-color: #6b5a30 transparent; }
+#pItems { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); grid-auto-rows: min-content; gap: 12px; overflow-y: auto; padding-right: 8px; scrollbar-width: thin; scrollbar-color: #6b5a30 transparent; }
 .pItem { position: relative; display: block; width: 100%; aspect-ratio: 1; padding: 0; border: 2px solid transparent; border-radius: 12px; background: #241f14; overflow: hidden; cursor: pointer; }
 .pItem img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .pItem:hover, .pItem:focus-visible { border-color: var(--y); outline: none; }
@@ -172,7 +172,7 @@
   #pHead { gap: 18px; } #pFace { width: 120px; height: 120px; } #home #pName { font-size: 34px; }
   #pActs { margin-left: 0; }
   #pStage { grid-template-columns: 1fr; padding: 14px; }
-  #pvBox { height: 460px; }
+  #pvBox { height: 440px; }
   #pItemsWrap { order: 2; height: 130px; }
   #pItems { display: flex; flex-direction: row; overflow-x: auto; overflow-y: hidden; padding: 0 0 8px; }
   .pItem { flex: none; width: 110px; height: 110px; }
