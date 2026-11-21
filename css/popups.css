@@ -22,8 +22,8 @@ body.boot #home, body.boot #auth { display: none !important; }
 #hAcctBox { margin-left: auto; display: flex; align-items: center; gap: 12px; font-size: 20px; color: var(--dim); }
 #home main { max-width: 900px; margin: 0 auto; padding: 28px 28px 60px; }
 #home h2 { margin: 0 0 18px; font-size: 32px; font-weight: 700; }
-#gameGrid { display: flex; flex-wrap: wrap; gap: 24px; }
-.gcard { width: 200px; padding: 0; border: 0; background: none; color: inherit; text-align: left; font-family: inherit; cursor: pointer; }
+#gameGrid { display: flex; flex-wrap: nowrap; gap: 24px; overflow-x: auto; overflow-y: hidden; padding-bottom: 12px; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+.gcard { flex: none; scroll-snap-align: start; width: 200px; padding: 0; border: 0; background: none; color: inherit; text-align: left; font-family: inherit; cursor: pointer; }
 .gimg { display: block; width: 200px; height: 200px; border: 1px solid var(--bd); border-radius: 12px; overflow: hidden; }
 .gimg img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .gcard:hover .gimg { border-color: var(--y); }

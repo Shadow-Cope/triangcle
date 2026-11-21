@@ -80,7 +80,9 @@
           
         </div>
       </div>
-      <h3>Game</h3>
+      <h3 id="wTitle">Friends</h3>
+      <div id="wFriends" class="shelf"></div>
+      <h3>Games</h3>
       <div id="gameRow">
       <div id="gameGrid">
         <button class="gcard" id="playBase" type="button">
@@ -90,8 +92,6 @@
         </button>
       </div>
       </div>
-      <h3 id="wTitle">Friends</h3>
-      <div id="wFriends" class="shelf"></div>
     </section>
     <section id="tabGames" class="tabsec" hidden>
       <h2>Games</h2>
@@ -112,7 +112,7 @@
       <h2>Players</h2>
       <div id="plBar"><input id="plSearch" placeholder="Search for a player" autocomplete="off" spellcheck="false" maxlength="20">
         <select id="plSort" class="plSel" title="Sort by"><option value="new">Newest</option><option value="old">Oldest</option><option value="az">Name A to Z</option><option value="za">Name Z to A</option></select>
-        <select id="plFilter" class="plSel" title="Show"><option value="all">Everyone</option><option value="friends">Friends</option><option value="any">Any badge</option><option value="owner">Owner</option><option value="admin">Admin</option><option value="mod">Moderator</option><option value="ugc">Official UGC Creator</option></select></div>
+        <select id="plFilter" class="plSel" title="Show"><option value="all">Everyone</option><option value="friends">Friends</option><option value="any">Any badge</option><option value="owner">Owner</option><option value="admin">Admin</option><option value="mod">Moderator</option><option value="ugc">Official UGC Creator</option><option value="bugfinder">Bug Finder</option></select></div>
       <div id="plList" class="grid" style="margin-top:16px"></div>
       <div id="plNote" class="note" style="margin-top:12px"></div>
       <button id="plMore" class="btnG" type="button" hidden>Load more</button>

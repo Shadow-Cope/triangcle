@@ -1,9 +1,9 @@
 "use strict";
 
 /* ---- badges: given out only by the Owner (enforced in Supabase, see supabase_badges.sql) ---- */
-const BADGES = { owner: "Owner", admin: "Admin", mod: "Moderator", ugc: "Official UGC Creator" };
-const BADGE_ORDER = ["owner", "admin", "mod", "ugc"];
-const BADGE_IMG = {"owner": "assets/badges/owner.png", "admin": "assets/badges/admin.png", "mod": "assets/badges/mod.png", "ugc": "assets/badges/ugc.png"};
+const BADGES = { owner: "Owner", admin: "Admin", mod: "Moderator", ugc: "Official UGC Creator", bugfinder: "Bug Finder" };
+const BADGE_ORDER = ["owner", "admin", "mod", "ugc", "bugfinder"];
+const BADGE_IMG = {"owner": "assets/badges/owner.png", "admin": "assets/badges/admin.png", "mod": "assets/badges/mod.png", "ugc": "assets/badges/ugc.png", "bugfinder": "assets/badges/bugfinder.png"};
 async function getBadges(ids) {
   const sb = getSB(); ids = [...new Set(ids)]; if (!sb || !ids.length) return;
   try {
