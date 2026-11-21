@@ -2047,8 +2047,8 @@ authPass.addEventListener("focus", () => { for (const k in keys) keys[k] = false
 
 /* ---- home screen: Games + Avatar tabs ---- */
 let starting = false;
-function startGame() {
-  if (APP.required && !APP.in) { showAppPrompt(curGame && curGame.id); return; }   // games run in the desktop app
+function startGame(web) {
+  if (APP.required && !APP.in && web !== true) { showAppPrompt(curGame && curGame.id); return; }   // games run in the desktop app
   if (!acct.user) { openAuth("login"); return; }
   if (starting) return; starting = true;
   const veil = $("veil"); veil.classList.add("on");                  // quick fade to black, swap to the game, fade back in
@@ -2102,6 +2102,7 @@ function fillGamePage() {
   $("gpAbout").querySelector("p").textContent = gv(g, "about") || "";
   if (window.refreshFav) window.refreshFav();
   if (window.refreshGameEdit) window.refreshGameEdit();
+  $("gpPlayWeb").hidden = !(APP.required && !APP.in);                // only needed when games normally open in the desktop app
 }
 $("gameGrid").addEventListener("click", e => { const c = e.target.closest("[data-game]"); if (c) openGamePage(c.dataset.game); });
 try { const saved = JSON.parse(localStorage.getItem(GAME_LS) || "{}"); for (const id in saved) applyGameRow(id, saved[id]); } catch (_) {}
@@ -2366,7 +2367,8 @@ $("owGames").addEventListener("change", async e => {
   } catch (_) { msg.textContent = "Couldn't read that picture."; }
   inp.value = "";
 });
-$("gpPlay").addEventListener("click", startGame);
+$("gpPlay").addEventListener("click", () => startGame());
+$("gpPlayWeb").addEventListener("click", () => startGame(true));
 $("gpBack").addEventListener("click", () => showTab("home"));
 for (const b of document.querySelectorAll("#gpTabs button")) b.addEventListener("click", () => {
   for (const x of document.querySelectorAll("#gpTabs button")) x.classList.toggle("on", x === b);
