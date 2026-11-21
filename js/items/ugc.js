@@ -9,7 +9,7 @@ const UGC_ROLES = ["ugc"];
 const UG_SLOTS = [["Head", "Head (hat)"], ["Torso", "Torso"], ["LeftArm", "Left arm"], ["RightArm", "Right arm"], ["LeftLeg", "Left leg"], ["RightLeg", "Right leg"]];
 const UG_ANCHOR = { Head: [0, 5.05, 0], Torso: [0, 3, 0], LeftArm: [0, 3, -1.5], RightArm: [0, 3, 1.5], LeftLeg: [0, 1, -0.5], RightLeg: [0, 1, 0.5] };
 const UG_VIEW = { Head: [4.6, 8], Torso: [3, 12], LeftArm: [3, 12], RightArm: [3, 12], LeftLeg: [1.4, 12], RightLeg: [1.4, 12], Shirt: [3, 10], Pants: [2, 10] };
-const CLOTH_SLOTS = [["Shirt", "Shirt"], ["Pants", "Pants"]];       // clothes: a PNG on the 640x512 template instead of a GLB
+const CLOTH_SLOTS = [["Shirt", "Shirt"], ["Pants", "Pants"]];       // clothes: a PNG on the 512x512 template instead of a GLB
 const isCloth = a => a === "Shirt" || a === "Pants";
 const UG_KINDS = [["model", "3D accessory (GLB)"], ["Shirt", "Shirt (PNG)"], ["Pants", "Pants (PNG)"]];
 const UG_DEFS = [["pos", 0, "Forward / back", -4, 4, 0.01], ["pos", 1, "Up / down", -4, 4, 0.01], ["pos", 2, "Left / right", -4, 4, 0.01],
@@ -41,7 +41,11 @@ function ugSet(d, v) { v = ugClamp(+v || 0, d[3], d[4]); if (d[0] === "scale") U
   const ks = $("ugKind");
   for (const [k, l] of UG_KINDS) { const o = document.createElement("option"); o.value = k; o.textContent = l; ks.appendChild(o); }
   ks.addEventListener("change", () => { if (ks.value !== (isCloth(UG.attach) ? UG.attach : "model")) ugClear(ks.value); });
-  $("ugTpl").addEventListener("click", ugTemplate);
+  $("ugTpl").addEventListener("click", e => {                        // template downloads: normal / transparent / labelled guide
+    const b = e.target.closest("[data-tpl]"); if (!b || !isCloth(UG.attach)) return;
+    const a = document.createElement("a"); a.href = "assets/templates/" + UG.attach.toLowerCase() + "-" + b.dataset.tpl + ".png";
+    a.download = UG.attach.toLowerCase() + "-" + b.dataset.tpl + ".png"; document.body.appendChild(a); a.click(); a.remove();
+  });
   const sel = $("ugAttach");
   for (const [k, l] of UG_SLOTS) { const o = document.createElement("option"); o.value = k; o.textContent = l; sel.appendChild(o); }
   const box = $("ugSliders");
@@ -108,31 +112,13 @@ async function ugPickCloth(f) {
     if (!UG.name.trim()) { UG.name = f.name.replace(/\.png$/i, "").slice(0, 40); $("ugName").value = UG.name; }
     $("ugInfo").textContent = f.name; ugMsg(""); ugApply(); ugSync();
   } catch (e) {
-    ugMsg(e && e.message === "shape" ? "That image isn't the right shape. Download the template and keep its size (640 × 512, or exactly 2× that)." : "Couldn't read that PNG.", true);
+    ugMsg(e && e.message === "shape" ? "That image isn't the right shape. Download a template and keep its size (512 × 512)." : "Couldn't read that PNG.", true);
   }
 }
 function ugClothApply() {
   if (UG.holder && UG.holder.parent) UG.holder.parent.remove(UG.holder);
   ugv.clothOn = true;
   setAvatarCloth(ugv.av, UG.attach === "Shirt" ? UG.cloth : null, UG.attach === "Pants" ? UG.cloth : null);
-}
-function ugTemplate() {                                              // a labelled guide the creator can paint over
-  const cv = document.createElement("canvas"); cv.width = CLOTH_W; cv.height = CLOTH_H;
-  const g = cv.getContext("2d"); g.font = "bold 13px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
-  const block = (x, y, cols, title) => {
-    const rows = [64, 128, 64]; let cx = x;
-    const cell = (c, r, rx, ry, w, h, label) => { g.fillStyle = (c + r) % 2 ? "rgba(255,255,255,.55)" : "rgba(210,215,225,.55)"; g.fillRect(rx, ry, w, h); g.strokeStyle = "#3a3f4a"; g.strokeRect(rx + .5, ry + .5, w - 1, h - 1); g.fillStyle = "#222"; g.fillText(label, rx + w / 2, ry + h / 2); };
-    const xs = [0], names = ["RIGHT", "FRONT", "LEFT", "BACK"]; for (let i = 0; i < 3; i++) xs.push(xs[i] + cols[i]);
-    for (let i = 0; i < 4; i++) cell(i, 1, x + xs[i], y + 64, cols[i], 128, names[i]);
-    cell(1, 0, x + xs[1], y, cols[1], 64, "TOP"); cell(1, 2, x + xs[1], y + 192, cols[1], 64, "BOTTOM");
-    g.fillStyle = "#222"; g.fillText(title, x + (xs[3] + cols[3]) / 2 + (cols.length > 4 ? 0 : 0), y + 12);
-  };
-  block(0, 0, [64, 128, 64, 128], "TORSO");
-  block(384, 0, [64, 64, 64, 64], "RIGHT ARM / RIGHT LEG");
-  block(384, 256, [64, 64, 64, 64], "LEFT ARM / LEFT LEG");
-  g.fillStyle = "#222"; g.font = "12px sans-serif"; g.textAlign = "left";
-  g.fillText("Pants use the legs + the bottom strip of the torso. Delete this guide layer before you export.", 8, 300);
-  cv.toBlob(b => { if (!b) return; const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "clothing-template.png"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }, "image/png");
 }
 function ugSync(skip) {
   ugKindUI();
@@ -193,7 +179,7 @@ function ugClear(kind) {
   if (UG.holder && UG.holder.parent) UG.holder.parent.remove(UG.holder);
   Object.assign(UG, { name: "", attach: kind === "model" ? "Head" : kind, pos: [0, 0, 0], rot: [0, 0, 0], scale: 1, file: null, path: null, editId: null, price: 0, published: false, holder: null, inner: null, cloth: null });
   $("ugInfo").textContent = kind === "model" ? "Pick a .glb file (up to 10 MB) to see it on the player."
-    : "Pick a .png file (up to 2 MB) made on the template. Press Template to download the guide.";
+    : "Pick a .png file (up to 2 MB) made on the template. Download a template below to start.";
   ugView(); ugSync(); ugApply(); ugMsg("");
 }
 async function ugSave() {

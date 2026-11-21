@@ -126,8 +126,9 @@
           <span id="ugHint">drag to look around &middot; scroll to zoom</span>
         </div>
         <div id="ugPanel" class="box">
-          <div class="ugRow"><button class="btnP" id="ugPick" type="button">Upload GLB</button><button class="btnG" id="ugNew" type="button">New item</button><button class="btnG" id="ugTpl" type="button" hidden>Template</button><input type="file" id="ugFile" accept=".glb,model/gltf-binary" hidden></div>
+          <div class="ugRow"><button class="btnP" id="ugPick" type="button">Upload GLB</button><button class="btnG" id="ugNew" type="button">New item</button><input type="file" id="ugFile" accept=".glb,model/gltf-binary" hidden></div>
           <div id="ugInfo" class="note">Pick a .glb file (up to 10 MB) to see it on the player.</div>
+          <div id="ugTpl" class="ugRow" hidden><button class="btnG" data-tpl="template" type="button">Template</button><button class="btnG" data-tpl="transparent" type="button">Transparent</button><button class="btnG" data-tpl="guide" type="button">Labeled guide</button></div>
           <label class="ugLbl">Type<select id="ugKind"></select></label>
           <label class="ugLbl">Name<input id="ugName" maxlength="40" autocomplete="off" spellcheck="false" placeholder="Item name"></label>
           <label class="ugLbl" id="ugAttachLbl">Wear it on<select id="ugAttach"></select></label>

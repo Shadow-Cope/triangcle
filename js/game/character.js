@@ -6,73 +6,67 @@
 const GEO_CACHE = {};
 
 /* ---- clothing (Shirt / Pants) ----
-   Clothes are a PNG on a 640x512 template. Every body part (except the head) gets box-style UVs laid out as a
-   "cross" (right | front | left | back, with top above and bottom below the front), and the part's own little canvas
-   is built from the matching region of the template. The shader then lays that canvas over the body colour.
-   Template regions:  Torso (0,0,384,256)   Right arm/leg (384,0,256,256)   Left arm/leg (384,256,256,256).
-   "Right"/"Left" are the avatar's own sides. */
-const CLOTH_W = 640, CLOTH_H = 512;
-const CLOTH_REG = { T: [0, 0, 384, 256], R: [384, 0, 256, 256], L: [384, 256, 256, 256] };
-const CLOTH_PARTS = { Torso: ["T", 512, 256], RightArm: ["R", 256, 256], LeftArm: ["L", 256, 256], RightLeg: ["R", 256, 256], LeftLeg: ["L", 256, 256] };
-function clothUV(d, torso) {
-  const P = d.pos, n = P.length / 3, mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9];
+   Clothes are a 512x512 PNG made on the Triangle templates (assets/templates). Each body part (except the head) gets
+   UVs that point straight at its own cells of that template, and the shader lays the shirt / pants over the body colour.
+   Cells are [x, y, w, h] in template pixels; F front (+X), B back (-X), R avatar's right side (+Z), L left side (-Z), U top, D bottom.
+   Torso: T.  Right arm / right leg: A.  Left arm / left leg: C. */
+const CLOTH_W = 512, CLOTH_H = 512;
+const CLOTH_CELLS = {
+  T: { U: [167, 79, 86, 54], R: [102, 135, 54, 106], F: [158, 135, 104, 106], L: [264, 135, 54, 106], B: [320, 135, 104, 106], D: [158, 243, 104, 54] },
+  A: { U: [66, 261, 54, 54], R: [10, 317, 54, 106], F: [66, 317, 54, 106], L: [122, 317, 54, 106], B: [178, 317, 54, 106], D: [66, 425, 54, 54] },
+  C: { U: [390, 261, 54, 54], B: [278, 317, 54, 106], R: [334, 317, 54, 106], F: [390, 317, 54, 106], L: [446, 317, 54, 106], D: [390, 425, 54, 54] },
+};
+const CLOTH_SET = { Torso: "T", FemaleTorso: "T", RightArm: "A", RightLeg: "A", LeftArm: "C", LeftLeg: "C" };
+function clothUV(d, set) {
+  const cells = CLOTH_CELLS[set], P = d.pos, n = P.length / 3, mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9];
   for (let i = 0; i < n; i++) for (let a = 0; a < 3; a++) { const v = P[i * 3 + a]; if (v < mn[a]) mn[a] = v; if (v > mx[a]) mx[a] = v; }
-  const ext = [0, 1, 2].map(a => (mx[a] - mn[a]) || 1);
-  const cs = torso ? [0, 1 / 6, 3 / 6, 4 / 6] : [0, 0.25, 0.5, 0.75], cw = torso ? [1 / 6, 2 / 6, 1 / 6, 2 / 6] : [0.25, 0.25, 0.25, 0.25];
-  const rs = [0, 0.25, 0.75], rh = [0.25, 0.5, 0.25], cl = v => v < 0 ? 0 : v > 1 ? 1 : v;
+  const ext = [0, 1, 2].map(a => (mx[a] - mn[a]) || 1), cl = v => v < 0 ? 0 : v > 1 ? 1 : v;
   const uv = new Float32Array(n * 2);
   for (let t = 0; t < n; t += 3) {                                  // one face per triangle (picked from the triangle's own normal)
     const e1 = [0, 1, 2].map(a => P[(t + 1) * 3 + a] - P[t * 3 + a]), e2 = [0, 1, 2].map(a => P[(t + 2) * 3 + a] - P[t * 3 + a]);
     const nr = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
     const ax = Math.abs(nr[0]) >= Math.abs(nr[1]) && Math.abs(nr[0]) >= Math.abs(nr[2]) ? 0 : Math.abs(nr[1]) >= Math.abs(nr[2]) ? 1 : 2;
-    const pos = nr[ax] >= 0;
+    const pos = nr[ax] >= 0, face = ax === 0 ? (pos ? "F" : "B") : ax === 2 ? (pos ? "R" : "L") : (pos ? "U" : "D"), c = cells[face];
     for (let k = 0; k < 3; k++) {
       const x = P[(t + k) * 3], y = P[(t + k) * 3 + 1], z = P[(t + k) * 3 + 2];
       const nx = (x - mn[0]) / ext[0], ny = (y - mn[1]) / ext[1], nz = (z - mn[2]) / ext[2];
-      let col, row, u, v;
-      if (ax === 0) { row = 1; v = 1 - ny; if (pos) { col = 1; u = 1 - nz; } else { col = 3; u = nz; } }   // +X front, -X back
-      else if (ax === 2) { row = 1; v = 1 - ny; if (pos) { col = 0; u = nx; } else { col = 2; u = 1 - nx; } } // +Z right side, -Z left side
-      else if (pos) { col = 1; row = 0; u = 1 - nz; v = nx; }                                                 // top
-      else { col = 1; row = 2; u = 1 - nz; v = 1 - nx; }                                                      // bottom
-      uv[(t + k) * 2] = cs[col] + cl(u) * cw[col];
-      uv[(t + k) * 2 + 1] = 1 - (rs[row] + cl(v) * rh[row]);
+      let u, v;
+      if (face === "F") { u = 1 - nz; v = 1 - ny; } else if (face === "B") { u = nz; v = 1 - ny; }
+      else if (face === "R") { u = nx; v = 1 - ny; } else if (face === "L") { u = 1 - nx; v = 1 - ny; }
+      else if (face === "U") { u = 1 - nz; v = nx; } else { u = 1 - nz; v = 1 - nx; }
+      uv[(t + k) * 2] = (c[0] + 0.5 + cl(u) * (c[2] - 1)) / CLOTH_W;                // half a pixel in from the cell edge
+      uv[(t + k) * 2 + 1] = 1 - (c[1] + 0.5 + cl(v) * (c[3] - 1)) / CLOTH_H;
     }
   }
   return uv;
 }
 const CLOTH_NONE = new THREE.DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1, THREE.RGBAFormat); CLOTH_NONE.needsUpdate = true;
-function clothify(mat) {
-  mat.userData.clothU = { value: CLOTH_NONE };
+function clothify(mat, name) {
+  mat.userData.clothU = { shirt: { value: CLOTH_NONE }, pants: { value: CLOTH_NONE }, band: { value: name === "Torso" ? 2.5 : 1000 } };  // pants only reach the bottom of the torso
   mat.onBeforeCompile = sh => {
-    sh.uniforms.clothMap = mat.userData.clothU;
+    const U = mat.userData.clothU; sh.uniforms.shirtMap = U.shirt; sh.uniforms.pantsMap = U.pants; sh.uniforms.pantsBand = U.band;
     sh.vertexShader = sh.vertexShader
-      .replace("#include <common>", "#include <common>\nvarying vec2 vCU;")
-      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvCU = uv;");
+      .replace("#include <common>", "#include <common>\nvarying vec2 vCU; varying float vCY;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvCU = uv; vCY = position.y;");
     sh.fragmentShader = sh.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec2 vCU; uniform sampler2D clothMap;")
-      .replace("#include <map_fragment>", "#include <map_fragment>\n{ vec4 cc = texture2D(clothMap, vCU); diffuseColor.rgb = mix(diffuseColor.rgb, cc.rgb, cc.a); }");
+      .replace("#include <common>", "#include <common>\nvarying vec2 vCU; varying float vCY; uniform sampler2D shirtMap; uniform sampler2D pantsMap; uniform float pantsBand;")
+      .replace("#include <map_fragment>", "#include <map_fragment>\n{ vec4 pc = texture2D(pantsMap, vCU); diffuseColor.rgb = mix(diffuseColor.rgb, pc.rgb, pc.a * step(vCY, pantsBand));\n  vec4 sc = texture2D(shirtMap, vCU); diffuseColor.rgb = mix(diffuseColor.rgb, sc.rgb, sc.a); }");
   };
   mat.customProgramCacheKey = () => "clothpart";
 }
-/* shirt / pants are 640x512 canvases (or null). Shirt covers torso + arms; pants cover legs + the bottom of the torso; shirt sits on top. */
+function clothTex(cv) {                                             // one texture per loaded clothing image, shared by every avatar wearing it
+  if (!cv) return CLOTH_NONE;
+  if (!cv._tex) { cv._tex = new THREE.CanvasTexture(cv); cv._tex.anisotropy = 4; }
+  return cv._tex;
+}
+/* shirt / pants are 512x512 canvases (or null). Shirt covers torso + arms, pants cover legs + the bottom of the torso; shirt sits on top. */
 function setAvatarCloth(av, shirt, pants) {
-  for (const name in CLOTH_PARTS) {
+  const st = clothTex(shirt), pt = clothTex(pants);
+  for (const name in CLOTH_SET) {
     const pv = av.rig[name]; if (!pv) continue;
-    const mat = pv.children[0].material, u = mat.userData.clothU; if (!u) continue;
-    const info = CLOTH_PARTS[name], reg = CLOTH_REG[info[0]], cw = info[1], ch = info[2], layers = [];
-    if (pants && (name === "Torso" || name.endsWith("Leg"))) layers.push([pants, name === "Torso"]);
-    if (shirt && (name === "Torso" || name.endsWith("Arm"))) layers.push([shirt, false]);
-    if (!layers.length) { if (mat.userData.clothTex) { mat.userData.clothTex.dispose(); mat.userData.clothTex = null; } u.value = CLOTH_NONE; continue; }
-    let tex = mat.userData.clothTex;
-    if (!tex) { const cv = document.createElement("canvas"); cv.width = cw; cv.height = ch; tex = mat.userData.clothTex = new THREE.CanvasTexture(cv); tex.anisotropy = 4; }
-    const g = tex.image.getContext("2d"); g.clearRect(0, 0, cw, ch);
-    for (const L of layers) {
-      g.save();
-      if (L[1]) { g.beginPath(); g.rect(0, 160, cw, 32); g.clip(); }   // pants on the torso: just the lowest quarter of the sides
-      g.drawImage(L[0], reg[0], reg[1], reg[2], reg[3], 0, 0, cw, ch);
-      g.restore();
-    }
-    tex.needsUpdate = true; u.value = tex;
+    const U = pv.children[0].material.userData.clothU; if (!U) continue;
+    U.shirt.value = (name === "Torso" || name.endsWith("Arm")) ? st : CLOTH_NONE;
+    U.pants.value = (name === "Torso" || name.endsWith("Leg")) ? pt : CLOTH_NONE;
   }
 }
 
@@ -89,7 +83,7 @@ function partGeometry(name) {
         else { uv[k * 2] = -1; uv[k * 2 + 1] = -1; }
       }
       geo.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
-    } else geo.setAttribute("uv", new THREE.BufferAttribute(clothUV(d, name === "Torso" || name === "FemaleTorso"), 2));
+    } else geo.setAttribute("uv", new THREE.BufferAttribute(clothUV(d, CLOTH_SET[name]), 2));
     geo.computeBoundingSphere();
     geo.computeBoundingBox();
     GEO_CACHE[name] = geo;
@@ -142,7 +136,7 @@ function createAvatar() {
       color: PART_STYLE[name] || 0xcccccc, roughness: 0.55, metalness: 0,
     }));
     mesh.castShadow = true;
-    if (name === "Head") faceify(mesh.material); else clothify(mesh.material);
+    if (name === "Head") faceify(mesh.material); else clothify(mesh.material, name);
     const pivot = new THREE.Group();
     pivot.position.set(d.pivot[0], d.pivot[1], d.pivot[2]);
     pivot.add(mesh);

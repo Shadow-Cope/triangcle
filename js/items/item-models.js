@@ -23,7 +23,7 @@ function loadItemModel(path) {
   ITM.models.set(path, p);
   return p;
 }
-/* ---- clothing images (PNG on the 640x512 template) ---- */
+/* ---- clothing images (PNG on the 512x512 template) ---- */
 function decodePng(buf) {
   return new Promise((res, rej) => {
     const url = URL.createObjectURL(new Blob([buf], { type: "image/png" })), im = new Image();
@@ -32,11 +32,11 @@ function decodePng(buf) {
     im.src = url;
   });
 }
-async function clothFromBuffer(buf) {                             // -> 640x512 canvas, or throws Error("png" | "shape")
+async function clothFromBuffer(buf) {                             // -> 512x512 canvas, or throws Error("png" | "shape")
   const u8 = new Uint8Array(buf);
   if (!(u8[0] === 0x89 && u8[1] === 0x50 && u8[2] === 0x4e && u8[3] === 0x47)) throw new Error("png");
   const im = await decodePng(buf), w = im.naturalWidth, h = im.naturalHeight;
-  if (!w || !h || Math.abs(w / h - CLOTH_W / CLOTH_H) > 0.01 || w < 320 || w > 2560) throw new Error("shape");
+  if (!w || !h || Math.abs(w / h - CLOTH_W / CLOTH_H) > 0.01 || w < 256 || w > 2048) throw new Error("shape");
   const cv = document.createElement("canvas"); cv.width = CLOTH_W; cv.height = CLOTH_H;
   const g = cv.getContext("2d"); g.imageSmoothingQuality = "high"; g.drawImage(im, 0, 0, CLOTH_W, CLOTH_H);
   return cv;
