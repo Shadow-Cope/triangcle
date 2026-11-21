@@ -909,9 +909,11 @@ const crossEl = document.getElementById("cross");
 const hasLock = () => document.pointerLockElement === canvas;
 let firstPerson = false, lockTry = 0, lockErrAt = 0;
 function wantLock() { return !uiOpen() && (shiftLock || firstPerson); }
-function ensureLock() {                                 // (re)grab the mouse whenever shift lock / first person wants it
+function ensureLock(gesture) {                          // (re)grab the mouse whenever shift lock / first person wants it
   if (!inGame || !wantLock() || hasLock()) return;
-  if (performance.now() - lockErrAt < 1300) return;     // browsers refuse for ~1 s after Esc / an error; don't spam
+  /* A real click / key press ("gesture") may always try: browsers only allow pointer lock from those, and a failed try
+     (e.g. the Shift key itself not counting as a click) must never block the next click. Background retries wait a bit. */
+  if (!gesture && performance.now() - lockErrAt < 1300) return;
   try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (_) {}
 }
 function setShiftLock(on) {
@@ -920,11 +922,11 @@ function setShiftLock(on) {
   if (on) ensureLock(); else if (hasLock() && !rmbDown && !firstPerson) document.exitPointerLock();
 }
 function toggleShiftLock() { setShiftLock(!shiftLock); }
-window.addEventListener("wheel", ensureLock, { passive: true });
-window.addEventListener("mousemove", ensureLock);
-window.addEventListener("pointerdown", ensureLock);
-window.addEventListener("keydown", () => { if (!isTyping()) ensureLock(); });
-document.addEventListener("pointerlockerror", () => { lockErrAt = performance.now(); });
+window.addEventListener("wheel", () => ensureLock(false), { passive: true });
+window.addEventListener("mousemove", () => ensureLock(false));
+window.addEventListener("pointerdown", () => ensureLock(true));
+window.addEventListener("keydown", () => { if (!isTyping()) ensureLock(true); });
+document.addEventListener("pointerlockerror", () => { lockErrAt = performance.now() - 1000; });      // short retry delay only
 document.addEventListener("pointerlockchange", () => {
   if (hasLock()) return;
   /* The mouse was released. If nothing of ours did it (Esc, or the browser), it was the player pressing Esc: browsers swallow
@@ -934,7 +936,7 @@ document.addEventListener("pointerlockchange", () => {
 canvas.addEventListener("contextmenu", e => e.preventDefault());
 canvas.addEventListener("mousedown", e => {
   if (isTyping()) document.activeElement.blur();
-  ensureLock();
+  ensureLock(true);
   if (e.button === 2) {
     rmbDown = true;
     if (!hasLock()) { try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (_) {} }
@@ -947,7 +949,10 @@ window.addEventListener("mouseup", e => {
   }
 });
 window.addEventListener("mousemove", e => {
-  if (!(rmbDown || (hasLock() && (shiftLock || firstPerson)))) return;    // a free cursor never steers the camera
+  /* Shift lock steers the camera with the mouse even if the browser has not handed over the mouse yet (it needs a click
+     first in some browsers) - as long as the pointer is over the game. First person still needs the real lock. */
+  const steer = rmbDown || (hasLock() && (shiftLock || firstPerson)) || (shiftLock && inGame && !uiOpen() && e.target === canvas);
+  if (!steer) return;
   if (Math.abs(e.movementX) > 400 || Math.abs(e.movementY) > 400) return;   // ignore lock-jump spikes
   cam.yaw   -= e.movementX * CFG.CAM_SENS;
   cam.pitch += e.movementY * CFG.CAM_SENS;
@@ -989,6 +994,8 @@ const player = {
   ff: CFG.FF_TIME,           // spawn forcefield seconds left
   climb: null, climbReq: null, topExit: null, // ledge-climb state
   stepOff: 0,                // visual-only vertical offset that smooths ledge step-ups
+  groundT: 0,                // seconds since feet last touched something (small grace so steps still work)
+  lastStep: null,            // where the last big step-up happened { x, z, t }, so a wall of rungs can't be 'stair-stepped' for free
 };
 
 function readMoveInput() {
@@ -1015,14 +1022,55 @@ function overlaps(p, b) {
          p.y + CFG.CHAR_HEIGHT > b.minY && p.y < b.maxY;
 }
 
+/* ---- ladders made of parts: 3+ thin parts stacked up the same wall face (with gaps) are climbed like a real ladder ---- */
+function detectPartLadder(axis, dir, b) {
+  const p = player.pos, h = CFG.CHAR_HALF_XZ;
+  const faceOf = s => axis === "x" ? (dir > 0 ? s.minX : s.maxX) : (dir > 0 ? s.minZ : s.maxZ), face = faceOf(b);
+  const pc = axis === "x" ? p.z : p.x, chain = [];
+  for (const s of solids) {
+    if (s.maxY - s.minY > CFG.CLIMB_MAX_SIZE) continue;                       // only thin rungs, never a thick block
+    if (Math.abs(faceOf(s) - face) > 0.75) continue;                           // same wall face
+    const lo = axis === "x" ? s.minZ : s.minX, hi = axis === "x" ? s.maxZ : s.maxX;
+    if (hi < pc - h + 0.3 || lo > pc + h - 0.3) continue;                      // in front of the player
+    if (s.maxY < p.y - 0.5 || s.minY > p.y + 200) continue;
+    chain.push(s);
+  }
+  if (chain.length < 3) return null;
+  chain.sort((a, c) => a.maxY - c.maxY);
+  if (chain[0].minY > p.y + CFG.CHAR_HEIGHT) return null;                      // first rung has to be within reach
+  let gap = false, n = 1, top = chain[0];
+  for (let i = 1; i < chain.length; i++) {
+    const g = chain[i].minY - chain[i - 1].maxY;
+    if (g > 3.5) break;                                                         // rungs too far apart: not a ladder
+    if (g > 0.4) gap = true;                                                    // a solid stack of plates is a wall, not a ladder
+    n++; top = chain[i];
+  }
+  return n >= 3 && gap ? { top, face } : null;
+}
+function startPartLadder(axis, dir, pl) {
+  const p = player.pos, h = CFG.CHAR_HALF_XZ + 0.1;
+  const L = { y0: p.y, y1: pl.top.maxY, nx: axis === "x" ? -dir : 0, nz: axis === "z" ? -dir : 0 };
+  if (axis === "x") { L.snapX = pl.face + L.nx * h; p.x = L.snapX; } else { L.snapZ = pl.face + L.nz * h; p.z = L.snapZ; }
+  player.climb = { mode: "ladder", L, t: 0, dur: 1, armed: false, face: Math.atan2(L.nz, -L.nx) };
+  player.vel.set(0, 0, 0); player.stepOff = 0;
+}
+
 function resolveHorizontal(axis, delta) {
   const p = player.pos, h = CFG.CHAR_HALF_XZ;
   for (const b of solids) {
     if (!overlaps(p, b)) continue;
     const rise = b.maxY - p.y;
-    if ((player.onGround || player.vel.y > -10) && rise > 0 && rise <= CFG.STEP_HEIGHT + 1e-4) {
+    const mv = axis === "x" ? player.moveX : player.moveZ;
+    if (!player.climb && !(player.noGrab > 0) && mv && (b.maxY - b.minY) <= CFG.CLIMB_MAX_SIZE && rise > 0.3) {   // walked into a ladder made of parts
+      const pl = detectPartLadder(axis, mv > 0 ? 1 : -1, b);
+      if (pl) { startPartLadder(axis, mv > 0 ? 1 : -1, pl); return; }
+    }
+    const big = rise > 0.75, ls = player.lastStep;
+    const stuck = big && ls && ls.t < 0.5 && Math.hypot(p.x - ls.x, p.z - ls.z) < 0.8;       // no sideways progress since the last big step: it's a wall, not stairs
+    if (rise > 0 && rise <= CFG.STEP_HEIGHT + 1e-4 && !stuck && (big ? player.groundT > 0 : (player.groundT > 0 || player.vel.y > -10))) {
       player.stepOff -= (b.maxY - p.y); // physics snaps up, visuals ease up
       p.y = b.maxY;                    // walk up the ledge
+      if (big) player.lastStep = { x: p.x, z: p.z, t: 0 };
       continue;
     }
     if (!player.onGround && !player.climb && !(player.noGrab > 0) && rise >= 3 && rise <= CFG.AUTOJUMP_MAX && (b.maxY - b.minY) <= CFG.CLIMB_MAX_SIZE && (player.moveX || player.moveZ)) {
@@ -1043,7 +1091,7 @@ function resolveHorizontal(axis, delta) {
 }
 
 function exitClimb(c, ex, bk) {     // leave a climb at the top; if you then stop moving you get put back on it
-  player.climb = null; player.pos.set(ex.x, ex.y, ex.z); player.prev.copy(player.pos);
+  player.stepOff -= (ex.y - player.pos.y); player.climb = null; player.pos.set(ex.x, ex.y, ex.z); player.prev.copy(player.pos);   // visuals ease up instead of popping
   player.vel.set(0, 0, 0); player.onGround = true;
   player.topExit = { t: 1, climb: c, bk, x0: ex.x, z0: ex.z };
 }
@@ -1059,6 +1107,8 @@ function physicsStep(dt) {
   const p = player.pos, v = player.vel;
   player.prev.copy(p);
   if (player.noGrab > 0) player.noGrab -= dt;
+  if (player.groundT > 0) player.groundT -= dt;
+  if (player.lastStep) player.lastStep.t += dt;
   if (player.topExit) {
     const te = player.topExit; te.t -= dt;
     const moving = keys.KeyW || keys.KeyA || keys.KeyS || keys.KeyD || keys.ArrowUp || keys.ArrowDown;
@@ -1152,6 +1202,7 @@ function physicsStep(dt) {
     v.y = 0;
   }
   player.onGround = landed;
+  if (landed) player.groundT = 0.1;
   if (player.climbReq) {
     const q = player.climbReq; player.climbReq = null;
     player.climb = { t: 0, dur: 0.6, from: p.clone(), to: new THREE.Vector3(q.t.x, q.t.y, q.t.z), face: Math.atan2(-q.az, q.ax), mode: "hang", armed: false, b: q.b, ax: q.ax, az: q.az };
@@ -1171,7 +1222,7 @@ function respawn() {
   player.prev.copy(SPAWN);
   player.vel.set(0, 0, 0);
   player.onGround = false;
-  player.climb = null; player.climbReq = null; player.topExit = null;
+  player.climb = null; player.climbReq = null; player.topExit = null; player.lastStep = null; player.groundT = 0;
   player.alive = true;
   player.ff = CFG.FF_TIME;
   player.stepOff = 0;
@@ -2050,6 +2101,7 @@ function fillGamePage() {
   $("gpIcon").src = gv(g, "icon"); $("gpBannerImg").src = gBanner(g);
   $("gpAbout").querySelector("p").textContent = gv(g, "about") || "";
   if (window.refreshFav) window.refreshFav();
+  if (window.refreshGameEdit) window.refreshGameEdit();
 }
 $("gameGrid").addEventListener("click", e => { const c = e.target.closest("[data-game]"); if (c) openGamePage(c.dataset.game); });
 try { const saved = JSON.parse(localStorage.getItem(GAME_LS) || "{}"); for (const id in saved) applyGameRow(id, saved[id]); } catch (_) {}
@@ -2089,8 +2141,8 @@ function saveCustomLocal() {
 async function loadCustomGames() {
   const sb = getSB(); if (!sb) return;
   try {
-    const r = await sb.from(CUSTOM_TABLE).select("id, name, owner_name, thumb, icon"); if (r.error) throw r.error;
-    for (const row of (r.data || [])) if (/^c[a-z0-9]{3,20}$/.test(row.id)) addCustomEntry(row.id, row.name, row.owner_name, row.thumb, row.icon, null);
+    const r = await sb.from(CUSTOM_TABLE).select("id, name, owner_name, thumb, icon, created_by"); if (r.error) throw r.error;
+    for (const row of (r.data || [])) if (/^c[a-z0-9]{3,20}$/.test(row.id)) { const g = addCustomEntry(row.id, row.name, row.owner_name, row.thumb, row.icon, null); if (g) g.creatorId = row.created_by || null; }
     renderGames();
   } catch (_) {}
 }
@@ -2335,6 +2387,49 @@ for (const b of document.querySelectorAll("#gpTabs button")) b.addEventListener(
   });
 })();
 $("homeBtn").addEventListener("click", () => { freeMouse(); flushSave().then(() => location.reload(), () => location.reload()); });
+
+;
+
+/* ---- js/ui/game-edit.js ---- */
+"use strict";
+
+/* ---- game page: the person who made a game (and any Owner) can edit its name, description, thumbnail and icon ---- */
+(function () {
+  const D = {}, box = $("gpEdit"), msg = (t, bad) => { const n = $("geMsg"); n.textContent = t || ""; n.style.color = bad ? "#ff7a6b" : ""; };
+  const canEditGame = g => !!(acct.user && (isOwner() || (g.creatorId && g.creatorId === acct.user.id)));
+  box.addEventListener("keydown", e => e.stopPropagation());
+  function paint() { $("geThumb").src = D.thumb; $("geIcon").src = D.icon; }
+  window.refreshGameEdit = function () {
+    const g = curGame; box.hidden = !canEditGame(g); if (box.hidden) return;
+    Object.assign(D, { name: gv(g, "name"), by: gv(g, "by"), about: gv(g, "about") || "", thumb: gv(g, "thumb"), icon: gv(g, "icon") });
+    $("geName").value = D.name; $("geBy").value = D.by; $("geAbout").value = D.about; msg(""); paint();
+  };
+  $("gePickThumb").addEventListener("click", () => $("geFileThumb").click());
+  $("gePickIcon").addEventListener("click", () => $("geFileIcon").click());
+  for (const [id, kind] of [["geFileThumb", "thumb"], ["geFileIcon", "icon"]]) $(id).addEventListener("change", async e => {
+    const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+    try { D[kind] = kind === "thumb" ? await fitImage(f, 640, 360, "image/jpeg") : await fitImage(f, 192, 192, "image/png"); paint(); msg("Picture ready. Press Save changes to keep it."); }
+    catch (_) { msg("Couldn't read that picture.", true); }
+  });
+  $("geSave").addEventListener("click", async () => {
+    const g = curGame, sb = getSB(); if (!sb || !canEditGame(g)) return;
+    const name = okTxt($("geName").value, 40), by = okTxt($("geBy").value, 20), about = okTxt($("geAbout").value, 600);
+    if (!name || !by) return msg("Give the game a name and a maker first.", true);
+    const o = {}; if (name !== g.def.name) o.name = name; if (by !== g.def.by) o.by = by; if (about !== (g.def.about || "")) o.about = about;
+    if (D.thumb !== g.def.thumb) o.thumb = D.thumb; if (D.icon !== g.def.icon) o.icon = D.icon; if (g.btools) o.btools = g.btools;
+    applyGameRow(g.id, o); renderGames(); fillGamePage();
+    try { const all = JSON.parse(localStorage.getItem(GAME_LS) || "{}"); all[g.id] = { name, by, thumb: gv(g, "thumb"), icon: gv(g, "icon"), about, btools: g.btools || "all" }; localStorage.setItem(GAME_LS, JSON.stringify(all)); } catch (_) {}
+    const b = $("geSave"); b.disabled = true; msg("Saving…");
+    try {
+      const base = { id: g.id, name, owner_name: by, thumb: gv(g, "thumb"), icon: gv(g, "icon"), updated_by: acct.user.id, updated_at: new Date().toISOString() };
+      let r = await sb.from(GAME_TABLE).upsert(Object.assign({ about }, base));
+      if (r.error) r = await sb.from(GAME_TABLE).upsert(base);                       // about column not added yet
+      if (r.error) throw r.error;
+      msg("Saved. Everyone will see the new details.");
+    } catch (_) { msg("Saved on this device only. Run supabase_owner_tools.sql in Supabase once so everyone sees it.", true); }
+    b.disabled = false;
+  });
+})();
 
 ;
 
@@ -3176,8 +3271,11 @@ $("owSearch").addEventListener("input", () => {
 function ownerRow(id) {
   const p = SOC.cache.get(id); if (!p) return "";
   const has = badgeList(id);
-  return `<div class="owRow box" data-owid="${esc(id)}"><img alt="" data-pid="${esc(id)}" src="${thumb(p.body_colors, "face", id)}"><b data-pid="${esc(id)}">${esc(p.username)}</b>
-    <div class="owBtns">${BADGE_ORDER.map(k => `<button type="button" class="owB${has.includes(k) ? " on" : ""}" data-bk="${k}"><img alt="" src="${BADGE_IMG[k]}">${BADGES[k]}</button>`).join("")}<label>Amount <input data-wallet-amount type="number" min="1" max="1000000000" step="1" value="1" style="width:100px"></label><button class="btnG" data-wallet="add" type="button">Add Triangcles</button><button class="btnG" data-wallet="remove" type="button">Remove Triangcles</button></div></div>`;
+  return `<div class="owPlayer box" data-owid="${esc(id)}">
+    <div class="owTop"><img alt="" data-pid="${esc(id)}" src="${thumb(p.body_colors, "face", id)}"><b data-pid="${esc(id)}">${esc(p.username)}</b></div>
+    <div class="owSec"><span class="owLab">Badges</span><div class="owBtns">${BADGE_ORDER.map(k => `<button type="button" class="owB${has.includes(k) ? " on" : ""}" data-bk="${k}"><img alt="" src="${BADGE_IMG[k]}">${BADGES[k]}</button>`).join("")}</div></div>
+    <div class="owSec"><span class="owLab">Triangcles</span><div class="owWallet"><input data-wallet-amount type="number" min="1" max="1000000000" step="1" value="1" aria-label="Amount"><button class="btnG" data-wallet="add" type="button">Add</button><button class="btnG" data-wallet="remove" type="button">Remove</button></div></div>
+  </div>`;
 }
 async function renderOwner() {
   if (!isOwner()) return;
@@ -3481,6 +3579,24 @@ $("oiList").addEventListener("click", async e => {
 
 ;
 
+/* ---- js/social/owner-panel.js ---- */
+"use strict";
+
+/* ---- Owner panel: the little menu that switches between Players / Badges / Catalog / Games ---- */
+(function () {
+  const nav = $("opNav"); if (!nav) return;
+  function show(name) {
+    for (const b of nav.querySelectorAll("button")) b.classList.toggle("on", b.dataset.op === name);
+    for (const p of document.querySelectorAll("#tabOwner .opPanel")) p.hidden = p.dataset.oppanel !== name;
+    try { sessionStorage.setItem("triangle_op", name); } catch (_) {}
+  }
+  nav.addEventListener("click", e => { const b = e.target.closest("[data-op]"); if (b) show(b.dataset.op); });
+  let saved = "players"; try { saved = sessionStorage.getItem("triangle_op") || "players"; } catch (_) {}
+  show(nav.querySelector(`[data-op="${saved}"]`) ? saved : "players");
+})();
+
+;
+
 /* ---- js/items/ugc.js ---- */
 "use strict";
 
@@ -3699,13 +3815,14 @@ async function renderUgcList() {
     if (r.error) r = await sb.from("ugc_items").select("id, name, attach, file_path, pos, rot, scale").eq("creator", acct.user.id).order("created_at", { ascending: false });
     if (r.error) throw r.error;
     const rows = r.data || []; box._rows = rows;
-    box.innerHTML = rows.length ? rows.map(it => `<div class="ugCard box" data-id="${esc(it.id)}"><b>${esc(it.name)}</b><div class="note">${esc(slotName(it.attach))}</div><div class="note ugSt">${esc(it.published ? (it.price ? Number(it.price).toLocaleString() + " Triangcles" : "Free") + " · " + (it.sales || 0) + " sold" : "Not for sale")}</div><div class="ugRow"><button class="btnG" data-ug="edit" type="button">Edit</button><button class="btnG" data-ug="del" type="button">Delete</button></div></div>`).join("")
+    box.innerHTML = rows.length ? rows.map(it => `<div class="ugCard box" data-id="${esc(it.id)}"><b>${esc(it.name)}</b><div class="note">${esc(slotName(it.attach))}</div><div class="note ugSt">${esc(it.published ? (it.price ? Number(it.price).toLocaleString() + " Triangcles" : "Free") + " · " + (it.sales || 0) + " sold" : "Not for sale")}</div><div class="ugRow"><button class="btnG" data-ug="edit" type="button">Edit model</button><button class="btnG" data-ug="page" type="button">Name, description &amp; price</button><button class="btnG" data-ug="del" type="button">Delete</button></div></div>`).join("")
       : '<div class="note">Nothing saved yet. Upload a GLB above to make your first item.</div>';
   } catch (_) { box.innerHTML = '<div class="note">Couldn\'t load your items. Run supabase_badges.sql in Supabase once.</div>'; }
 }
 $("ugList").addEventListener("click", async e => {
   const b = e.target.closest("[data-ug]"); if (!b) return;
   const id = b.closest("[data-id]").dataset.id, it = ($("ugList")._rows || []).find(x => x.id === id), sb = getSB(); if (!it || !sb) return;
+  if (b.dataset.ug === "page") { ITM.rows.set(id, Object.assign({}, ITM.rows.get(id) || {}, it, { creator: acct.user.id })); return openItem(id); }                  // the item page has the name / description / price / on-sale editor
   if (b.dataset.ug === "del") {
     if ((it.sales || 0) > 0) { ugMsg("People have bought that item, so it can't be deleted. Take it off sale instead.", true); return; }
     if (!confirm("Delete “" + it.name + "”?")) return;
@@ -4286,11 +4403,15 @@ $("ipGet").addEventListener("click", async () => {
    Works for ANY item in the Catalog. Needs the Owner badge (or a badge that allows "edit items") - and
    the server checks it too (owner_update_item / owner_delete_item in supabase_catalog.sql). ---- */
 const canEditItems = () => hasBadgePerm("can_edit_items");
+const isMyItem = it => !!(it && acct.user && it.creator === acct.user.id);             // creators can always edit their own items
+const canEditItem = it => canEditItems() || isMyItem(it);
 const ioMsg = (t, bad) => { const n = $("ioMsg"); n.textContent = t || ""; n.style.color = bad ? "#ff7a6b" : ""; };
 $("ipOwner").addEventListener("keydown", e => e.stopPropagation());
 function ioFill(id, tok) {                                         // called once the item's description has loaded
   const box = $("ipOwner"), it = ITM.rows.get(id);
-  box.hidden = !(it && canEditItems());
+  box.hidden = !(it && canEditItem(it));
+  $("ioTitle").textContent = canEditItems() ? "Owner tools" : "Edit your item";
+  $("ioDel").hidden = !canEditItems();                              // only Owners can delete (buyers would lose it)
   if (box.hidden || tok !== IP.tok) return;
   $("ioName").value = it.name || ""; $("ioDesc").value = IP.desc || "";
   $("ioPrice").value = Math.max(0, Math.floor(+it.price || 0)); $("ioSale").checked = it.published !== false;
@@ -4298,20 +4419,20 @@ function ioFill(id, tok) {                                         // called onc
 }
 function ioErr(e) {
   const m = String(e && e.message || "");
-  return m.includes("not_allowed") ? "Only an Owner can do that."
+  return m.includes("not_allowed") ? "You can only edit your own items."
     : m.includes("bad_name") ? "Names are 1 to 40 characters."
     : m.includes("bad_price") ? "Price must be a whole number from 0 to 1,000,000."
     : m.includes("not_found") ? "That item doesn't exist anymore."
     : "Couldn't do that. Run supabase_catalog.sql in Supabase once. (" + m.slice(0, 80) + ")";
 }
 $("ioSave").addEventListener("click", async () => {
-  const sb = getSB(), it = ITM.rows.get(IP.id); if (!sb || !it || !canEditItems()) return;
+  const sb = getSB(), it = ITM.rows.get(IP.id); if (!sb || !it || !canEditItem(it)) return;
   const name = $("ioName").value.trim(), desc = $("ioDesc").value.trim().slice(0, 600), price = Math.floor(+$("ioPrice").value);
   if (!name || name.length > 40) return ioMsg("Give it a name (up to 40 characters).", true);
   if (!(price >= 0 && price <= 1000000)) return ioMsg("Price must be a whole number from 0 to 1,000,000.", true);
   const on = $("ioSale").checked, b = $("ioSave"); b.disabled = true; ioMsg("Saving…");
   try {
-    const r = await sb.rpc("owner_update_item", { p_item: it.id, p_name: name, p_desc: desc, p_price: price, p_published: on });
+    const r = await sb.rpc(canEditItems() ? "owner_update_item" : "update_own_item", { p_item: it.id, p_name: name, p_desc: desc, p_price: price, p_published: on });
     if (r.error) throw r.error;
     const patch = { name, price, published: on };
     Object.assign(it, patch); ITM.rows.set(it.id, it);

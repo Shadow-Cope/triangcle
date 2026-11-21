@@ -599,6 +599,59 @@ body.chatopen #chatInput { display: block; }
 .owItem .owHead { display: flex; gap: 10px; align-items: center; font-size: 14px; }
 .owItem .owHead .note { margin: 0; }
 
+#gpEdit { max-width: 700px; margin: 18px 0; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+#gpEdit[hidden] { display: none; }
+#gpEdit h4 { margin: 0; }
+#gpEdit .gePrev { display: flex; gap: 10px; align-items: flex-end; }
+#gpEdit #geThumb { width: 160px; height: 90px; border-radius: 10px; border: 1px solid var(--bd); object-fit: cover; background: #2a2418; }
+#gpEdit #geIcon { width: 64px; height: 64px; border-radius: 12px; border: 1px solid var(--bd); object-fit: cover; background: #2a2418; }
+
+/* ================= Owner panel redesign ================= */
+#tabOwner { max-width: 960px; }
+.opHead { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin: 0 0 14px; }
+.opHead h2 { margin: 0 !important; }
+.opNav { display: flex; gap: 4px; flex-wrap: wrap; width: fit-content; max-width: 100%; padding: 5px; margin: 0 0 22px; border: 1px solid var(--bd); border-radius: 12px; background: var(--panel); }
+.opNav button { padding: 8px 18px; border: 0; border-radius: 8px; background: transparent; color: var(--dim); font: inherit; font-size: 16px; cursor: pointer; }
+.opNav button:hover { color: #fff; }
+.opNav button.on { background: var(--y); color: #1a1203; }
+.opPanel[hidden] { display: none; }
+.opCard { padding: 18px 20px; margin: 0 0 18px; }
+.opCard > h3 { margin: 0 0 4px; font-size: 20px; }
+.opCard > .opSub, .opCard .opSub { margin: 0 0 14px; color: var(--dim); font-size: 14px; line-height: 1.5; }
+.opMsg { margin: 10px 0 0; min-height: 18px; font-size: 14px; }
+.opCard #owSearch, .opCard #oiSearch { max-width: 420px; }
+#oiSearch { display: block; box-sizing: border-box; width: 100%; height: 42px; padding: 0 12px; border: 1px solid var(--bd); border-radius: 8px; background: var(--bg, #14100a); color: #fff; font-size: 16px; outline: none; }
+#oiSearch:focus { border-color: var(--y); }
+.fcRow { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; }
+.fcRow .owFields { flex: 1; min-width: 240px; display: flex; flex-direction: column; gap: 10px; }
+#fcPick { width: 112px; height: 112px; }
+
+/* player rows */
+.owPlayer { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; margin: 0 0 12px; }
+.owTop { display: flex; align-items: center; gap: 12px; }
+.owTop > img { width: 48px; height: 48px; border-radius: 10px; background: #2a2418; cursor: pointer; }
+.owTop > b { font-size: 18px; cursor: pointer; }
+.owSec { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding-top: 12px; border-top: 1px solid var(--bd); }
+.owLab { width: 86px; flex: none; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); }
+.owWallet { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.owWallet input { width: 120px; height: 36px; box-sizing: border-box; padding: 0 10px; border: 1px solid var(--bd); border-radius: 8px; background: var(--bg, #14100a); color: #fff; font: inherit; font-size: 14px; outline: none; }
+.owWallet input:focus { border-color: var(--y); }
+.owWallet .btnG { padding: 7px 14px; font-size: 14px; }
+
+/* badge + game + item tiles inside the cards */
+#bdList .bdItem { padding: 10px 12px; margin: 0 0 8px; }
+#tabOwner .owGame { max-width: none; width: 100%; box-sizing: border-box; margin: 0 0 12px; padding: 14px; background: rgba(0,0,0,.18); border: 1px solid var(--bd); border-radius: 12px; }
+#tabOwner .owGame .owFields { min-width: 260px; }
+#tabOwner .owItem { gap: 10px; }
+#tabOwner .owHead { display: flex; align-items: center; gap: 10px; }
+#tabOwner .owHead b { padding: 3px 10px; border-radius: 999px; background: #2a2418; border: 1px solid var(--bd); font-weight: 400; font-size: 13px; }
+#owImport { display: block; }
+#owImport .owRow2 { display: flex; gap: 12px; flex-wrap: wrap; }
+#owImport .owLbl { flex: 1; min-width: 200px; }
+#owImport .owLbl input { display: block; box-sizing: border-box; width: 100%; margin-top: 3px; height: 38px; padding: 0 10px; border: 1px solid var(--bd); border-radius: 8px; background: var(--bg, #14100a); color: #fff; font: inherit; font-size: 14px; outline: none; }
+#owImport .owLbl input:focus { border-color: var(--y); }
+@media (max-width: 560px) { .owLab { width: 100%; } .opNav button { padding: 7px 12px; font-size: 15px; } }
+
 
 /* ---- css/shop.css ---- */
 /* ===== Triangcles: wallet, shop, selling, wearing ===== */

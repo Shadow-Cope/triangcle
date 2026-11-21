@@ -139,60 +139,97 @@
       <div id="ugList" class="grid"></div>
     </section>
     <section id="tabOwner" class="tabsec" hidden>
-      <h2>Owner</h2>
-      <p class="note" style="margin:0 0 14px">Only Owners can give out badges. Search for a player, then click a badge to give it or take it away.</p>
-      <input id="owSearch" placeholder="Find a player" autocomplete="off" spellcheck="false" maxlength="20">
-      <div id="owMsg" class="note" style="margin:10px 0"></div>
-      <div id="owList" style="margin-top:8px"></div>
-      <h3 style="margin:34px 0 6px">Badges</h3>
-      <p class="note" style="margin:0 0 14px">Make a new badge: pick a picture, give it a name, and choose what it lets people do. Then give it to players from the list above.</p>
-      <div id="owBadges" class="owGame box">
-        <div class="bdRow">
-          <label id="bdPick" title="Choose a picture"><img id="bdPrev" alt=""><span>Add picture</span><input type="file" id="bdFile" accept="image/png,image/jpeg,image/webp" hidden></label>
-          <div class="bdFields">
-            <label class="owLbl">Badge name<input id="bdName" maxlength="30" autocomplete="off" spellcheck="false" placeholder="e.g. Tester"></label>
-            <label class="chk"><input type="checkbox" id="bdUgc"> Can upload and sell UGC</label>
-            <label class="chk"><input type="checkbox" id="bdEdit"> Can edit and delete Catalog items</label>
-            <div><button type="button" class="btnP" id="bdCreate">Create badge</button></div>
+      <div class="opHead"><h2>Owner panel</h2><span class="note">Everything only Owners can do, in one place.</span></div>
+      <nav id="opNav" class="opNav">
+        <button type="button" class="on" data-op="players">Players</button>
+        <button type="button" data-op="badges">Badges</button>
+        <button type="button" data-op="catalog">Catalog</button>
+        <button type="button" data-op="games">Games</button>
+      </nav>
+
+      <div class="opPanel" data-oppanel="players">
+        <div class="opCard box">
+          <h3>Find a player</h3>
+          <p class="opSub">Give or remove badges, or change a player's Triangcles balance.</p>
+          <input id="owSearch" placeholder="Search by username" autocomplete="off" spellcheck="false" maxlength="20">
+          <div id="owMsg" class="note opMsg"></div>
+        </div>
+        <div id="owList"></div>
+      </div>
+
+      <div class="opPanel" data-oppanel="badges" hidden>
+        <div class="opCard box">
+          <h3>Create a badge</h3>
+          <p class="opSub">Pick a picture, name it, and choose what it lets people do. Then give it to players from the Players page.</p>
+          <div id="owBadges">
+            <div class="bdRow">
+              <label id="bdPick" title="Choose a picture"><img id="bdPrev" alt=""><span>Add picture</span><input type="file" id="bdFile" accept="image/png,image/jpeg,image/webp" hidden></label>
+              <div class="bdFields">
+                <label class="owLbl">Badge name<input id="bdName" maxlength="30" autocomplete="off" spellcheck="false" placeholder="e.g. Tester"></label>
+                <label class="chk"><input type="checkbox" id="bdUgc"> Can upload and sell UGC</label>
+                <label class="chk"><input type="checkbox" id="bdEdit"> Can edit and delete Catalog items</label>
+                <div><button type="button" class="btnP" id="bdCreate">Create badge</button></div>
+              </div>
+            </div>
+            <div id="bdMsg" class="note opMsg"></div>
           </div>
         </div>
-        <div id="bdMsg" class="note"></div>
-      </div>
-      <div id="bdList"></div>
-      <h3 style="margin:34px 0 6px">Catalog faces</h3>
-      <p class="note" style="margin:0 0 14px">Puts every built-in face in the Catalog (the old ones are free, the new ones cost Triangcles). Players who already wear an old face keep it. Safe to press again. Change a face's name, price or description on its Catalog page.</p>
-      <div class="owBtnRow"><button type="button" class="btnP" id="fcImport">Add faces to the Catalog</button></div>
-      <h3 style="margin:26px 0 6px">Upload a new face</h3>
-      <p class="note" style="margin:0 0 14px">Pick a picture, name it, set a price and a description. It goes straight into the Catalog as a new face anyone can get.</p>
-      <div id="fcNew" class="owGame box fcRow">
-        <label id="fcPick" title="Choose a face picture"><img id="fcPrev" alt=""><span>Add picture</span><input type="file" id="fcFile" accept="image/png,image/jpeg,image/webp" hidden></label>
-        <div class="owFields">
-          <label class="owLbl">Face name<input id="fcName" maxlength="40" autocomplete="off" spellcheck="false" placeholder="e.g. Grumpy"></label>
-          <label class="owLbl">Description<textarea id="fcDesc" maxlength="600" rows="2" spellcheck="false"></textarea></label>
-          <label class="owLbl">Price in Triangcles (0 = free)<input id="fcPrice" type="number" min="0" max="1000000" step="1" value="0"></label>
-          <div class="owBtnRow"><button type="button" class="btnP" id="fcUpload">Upload face</button></div>
+        <div class="opCard box">
+          <h3>Custom badges</h3>
+          <p class="opSub">Change what a badge allows, or delete it.</p>
+          <div id="bdList"></div>
         </div>
       </div>
-      <div id="fcMsg" class="note" style="margin:10px 0"></div>
-      <h3 style="margin:34px 0 6px">Edit Catalog items</h3>
-      <p class="note" style="margin:0 0 14px">Search any item or face (including ones that are off sale) and change its name, description, price or whether it is on sale.</p>
-      <input id="oiSearch" placeholder="Search items and faces" autocomplete="off" spellcheck="false" maxlength="40">
-      <div id="oiMsg" class="note" style="margin:10px 0"></div>
-      <div id="oiList"></div>
-      <h3 style="margin:34px 0 6px">Games</h3>
-      <p class="note" style="margin:0 0 14px">Change a game's name, who it is made by, its description, thumbnail and icon. Everyone sees the changes once supabase_game_settings.sql and supabase_owner_tools.sql have been run in Supabase.</p>
-      <div id="owGames"></div>
-      <h3 style="margin:26px 0 6px">New game from a Roblox file</h3>
-      <div id="owImport" class="owGame box">
-        <p class="note" style="margin:0">Pick a .rbxl saved from Roblox Studio. Its parts become a new game with studs on the top and bottom, ready to play.</p>
-        <div class="owRow2">
-          <label>Game name<input type="text" id="rbxName" maxlength="40" autocomplete="off" spellcheck="false" placeholder="Uses the file name if empty"></label>
-          <label>Owner (made by)<input type="text" id="rbxBy" maxlength="20" autocomplete="off" spellcheck="false" placeholder="Your name if empty"></label>
+
+      <div class="opPanel" data-oppanel="catalog" hidden>
+        <div class="opCard box">
+          <h3>Upload a new face</h3>
+          <p class="opSub">Pick a picture, name it, set a price and a description. It goes straight into the Catalog.</p>
+          <div id="fcNew" class="fcRow">
+            <label id="fcPick" title="Choose a face picture"><img id="fcPrev" alt=""><span>Add picture</span><input type="file" id="fcFile" accept="image/png,image/jpeg,image/webp" hidden></label>
+            <div class="owFields">
+              <label class="owLbl">Face name<input id="fcName" maxlength="40" autocomplete="off" spellcheck="false" placeholder="e.g. Grumpy"></label>
+              <label class="owLbl">Description<textarea id="fcDesc" maxlength="600" rows="2" spellcheck="false"></textarea></label>
+              <label class="owLbl">Price in Triangcles (0 = free)<input id="fcPrice" type="number" min="0" max="1000000" step="1" value="0"></label>
+              <div class="owBtnRow"><button type="button" class="btnP" id="fcUpload">Upload face</button></div>
+            </div>
+          </div>
+          <div id="fcMsg" class="note opMsg"></div>
         </div>
-        <div class="owBtnRow" style="margin-top:10px"><button type="button" class="btnP" id="rbxPick">Upload .rbxl</button></div>
-        <input type="file" id="rbxFile" accept=".rbxl" hidden>
+        <div class="opCard box">
+          <h3>Built-in faces</h3>
+          <p class="opSub">Puts every built-in face in the Catalog (the old ones are free, the new ones cost Triangcles). Players who already wear an old face keep it. Safe to press again.</p>
+          <div class="owBtnRow"><button type="button" class="btnG" id="fcImport">Add built-in faces to the Catalog</button></div>
+        </div>
+        <div class="opCard box">
+          <h3>Edit Catalog items</h3>
+          <p class="opSub">Search any item, clothing or face (including ones that are off sale) and change its name, description, price or whether it is on sale.</p>
+          <input id="oiSearch" placeholder="Search items and faces" autocomplete="off" spellcheck="false" maxlength="40">
+          <div id="oiMsg" class="note opMsg"></div>
+          <div id="oiList"></div>
+        </div>
       </div>
-      <div id="owGMsg" class="note" style="margin:10px 0"></div>
+
+      <div class="opPanel" data-oppanel="games" hidden>
+        <div class="opCard box">
+          <h3>Edit games</h3>
+          <p class="opSub">Change a game's name, who made it, its description, thumbnail and icon. Everyone sees the changes once supabase_game_settings.sql and supabase_owner_tools.sql have been run in Supabase.</p>
+          <div id="owGames"></div>
+        </div>
+        <div class="opCard box">
+          <h3>New game from a Roblox file</h3>
+          <div id="owImport">
+            <p class="opSub" style="margin:0 0 12px">Pick a .rbxl saved from Roblox Studio. Its parts become a new game with studs on the top and bottom, ready to play.</p>
+            <div class="owRow2">
+              <label class="owLbl">Game name<input type="text" id="rbxName" maxlength="40" autocomplete="off" spellcheck="false" placeholder="Uses the file name if empty"></label>
+              <label class="owLbl">Made by<input type="text" id="rbxBy" maxlength="20" autocomplete="off" spellcheck="false" placeholder="Your name if empty"></label>
+            </div>
+            <div class="owBtnRow" style="margin-top:12px"><button type="button" class="btnP" id="rbxPick">Upload .rbxl</button></div>
+            <input type="file" id="rbxFile" accept=".rbxl" hidden>
+          </div>
+          <div id="owGMsg" class="note opMsg"></div>
+        </div>
+      </div>
     </section>
     <section id="tabSettings" class="tabsec" hidden>
       <div id="sBody"></div>
@@ -251,7 +288,7 @@
           <button id="ipGet" class="btnP" type="button">Get</button>
           <div id="ipNote" class="note"></div>
           <div id="ipOwner" class="box" hidden>
-            <h4>Owner tools</h4>
+            <h4 id="ioTitle">Owner tools</h4>
             <label class="owLbl">Name<input id="ioName" maxlength="40" autocomplete="off" spellcheck="false"></label>
             <label class="owLbl">Description<textarea id="ioDesc" maxlength="600" rows="3" spellcheck="false"></textarea></label>
             <label class="owLbl">Price in Triangcles (0 = free)<input id="ioPrice" type="number" min="0" max="1000000" step="1"></label>
@@ -279,6 +316,16 @@
       <div id="gpTabs"><button class="on" data-gp="about" type="button">About</button><button data-gp="controls" type="button">Controls</button></div>
       <div id="gpAbout" class="gpbody">
         <p>A plain baseplate to run around on. Jump up ladders and ledges, build with parts that everyone in the server can see, and chat with whoever else is here.</p>
+      </div>
+      <div id="gpEdit" class="box" hidden>
+        <h4>Edit your game</h4>
+        <div class="gePrev"><img id="geThumb" alt="Thumbnail"><img id="geIcon" alt="Icon"></div>
+        <label class="owLbl">Game name<input id="geName" maxlength="40" autocomplete="off" spellcheck="false"></label>
+        <label class="owLbl">Made by<input id="geBy" maxlength="20" autocomplete="off" spellcheck="false"></label>
+        <label class="owLbl">Description<textarea id="geAbout" maxlength="600" rows="3" spellcheck="false"></textarea></label>
+        <div class="ugRow"><button class="btnG" id="gePickThumb" type="button">Thumbnail…</button><button class="btnG" id="gePickIcon" type="button">Icon…</button><button class="btnP" id="geSave" type="button">Save changes</button></div>
+        <input type="file" id="geFileThumb" accept="image/*" hidden><input type="file" id="geFileIcon" accept="image/*" hidden>
+        <div id="geMsg" class="note"></div>
       </div>
       <div id="gpControls" class="gpbody" hidden>
         <table>
