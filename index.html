@@ -2975,7 +2975,7 @@ function getRigX() {
   const dl = new THREE.DirectionalLight(0xffffff, 1.0); dl.position.set(4, 8, 6); sc.add(dl); sc.add(av.group);
   return (_rigX = { r, sc, cam, av });
 }
-function itemThumb(colors, kind, ids) {                                // picture of a player wearing their items (items load from the network, so this is async)
+function outfitThumb(colors, kind, ids) {                                // picture of a player wearing their items (items load from the network, so this is async)
   const key = thumbKeyX(colors, kind, ids);
   if (thumbsX.cache.has(key)) return Promise.resolve(thumbsX.cache.get(key));
   thumbsX.q = thumbsX.q.then(async () => {
@@ -3013,7 +3013,7 @@ async function runUpgrade(ids) {
     const items = wornOf(uid) || [], p = uid === me ? { body_colors: myColors } : SOC.cache.get(uid); if (!p) continue;
     const prevUrls = UP.shown.get(uid) || new Map();
     const plain = thumb(p.body_colors, "face");
-    const target = items.length ? await itemThumb(p.body_colors, "face", items) : plain;
+    const target = items.length ? await outfitThumb(p.body_colors, "face", items) : plain;
     if (!target) continue;
     const known = new Map(prevUrls); known.set(plain, 1);
     for (const el of document.querySelectorAll('[data-pid="' + uid + '"],[data-tu="' + uid + '"]')) {
