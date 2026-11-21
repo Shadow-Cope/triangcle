@@ -427,6 +427,12 @@
   .plSel { height: 42px; padding: 0 10px; border: 1px solid var(--bd); border-radius: 8px; background: var(--panel); color: #fff; font-size: 15px; outline: none; cursor: pointer; }
   .plSel:focus { border-color: var(--y); }
   #plMore { margin-top: 18px; }
+  #hLogo { cursor: pointer; }
+  .gimg { position: relative; }
+  .gimg img.gico { position: absolute; left: 8px; bottom: 8px; width: 46px; height: 46px; border: 2px solid rgba(0,0,0,.55); border-radius: 11px; background: #2a2418; box-shadow: 0 2px 8px rgba(0,0,0,.45); }
+  #owImport { display: block; }
+  #owImport .owRow2 { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+  #owImport label { flex: 1; min-width: 180px; }
   .owGame { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; padding: 14px; margin-bottom: 14px; max-width: 700px; }
   .owGame .owPrev { display: flex; gap: 10px; align-items: flex-end; }
   .owGame .owThumb { width: 160px; height: 90px; border-radius: 10px; border: 1px solid var(--bd); object-fit: cover; background: #2a2418; }
@@ -640,6 +646,16 @@
       <h3 style="margin:34px 0 6px">Games</h3>
       <p class="note" style="margin:0 0 14px">Change a game's name, who it is made by, and its thumbnail and icon. Everyone sees the changes once supabase_game_settings.sql has been run in Supabase.</p>
       <div id="owGames"></div>
+      <h3 style="margin:26px 0 6px">New game from a Roblox file</h3>
+      <div id="owImport" class="owGame box">
+        <p class="note" style="margin:0">Pick a .rbxl saved from Roblox Studio. Its parts become a new game with studs on the top and bottom, ready to play.</p>
+        <div class="owRow2">
+          <label>Game name<input type="text" id="rbxName" maxlength="40" autocomplete="off" spellcheck="false" placeholder="Uses the file name if empty"></label>
+          <label>Owner (made by)<input type="text" id="rbxBy" maxlength="20" autocomplete="off" spellcheck="false" placeholder="Your name if empty"></label>
+        </div>
+        <div class="owBtnRow" style="margin-top:10px"><button type="button" class="btnP" id="rbxPick">Upload .rbxl</button></div>
+        <input type="file" id="rbxFile" accept=".rbxl" hidden>
+      </div>
       <div id="owGMsg" class="note" style="margin:10px 0"></div>
     </section>
     <section id="tabProfile" class="tabsec" hidden>
@@ -1027,7 +1043,7 @@ function addRotatedCollision(sx, sy, sz, x, y, z, R) {
   const ez = Math.abs(R[6]) * sx + Math.abs(R[7]) * sy + Math.abs(R[8]) * sz;
   if (R.every(v => Math.abs(v) < 1e-3 || Math.abs(Math.abs(v) - 1) < 1e-3)) { addSolid(x, y, z, ex, ey, ez); return; }   // flat or turned in 90 degree steps
   // tilted part: collide with a field of small columns that follow its surface, so ramps can be walked up
-  const cell = 0.6, h = [sx / 2, sy / 2, sz / 2];
+  const cell = Math.max(0.6, Math.sqrt(ex * ez / 400)), h = [sx / 2, sy / 2, sz / 2];
   for (let cx = x - ex / 2 + cell / 2; cx < x + ex / 2; cx += cell) for (let cz = z - ez / 2 + cell / 2; cz < z + ez / 2; cz += cell) {
     let lo = -Infinity, hi = Infinity, ok = true;
     for (let i = 0; i < 3 && ok; i++) {
@@ -1039,30 +1055,42 @@ function addRotatedCollision(sx, sy, sz, x, y, z, R) {
     if (ok && hi - lo > 0.02) solids.push({ minX: cx - cell / 2, maxX: cx + cell / 2, minY: lo, maxY: hi, minZ: cz - cell / 2, maxZ: cz + cell / 2 });
   }
 }
-function buildSharknadoWorld() {
-  BASEPLATE_HALF = 1024; SPAWN.set(0, 3, 0);
-  const addPart = row => {
-    const [sx, sy, sz, x, y, z, R, hex, tr, col] = row;
+/* one builder for every map: the Sharknado data and any .rbxl the owner uploads.
+   row = [sizeX, sizeY, sizeZ, x, y, z, rotation(3x3 row-major), colour, transparency, canCollide, shape(0 ball, 1 block, 2 cylinder)] */
+function buildMapWorld(map) {
+  SPAWN.set(map.spawn[0], map.spawn[1], map.spawn[2]);
+  let half = 0;                                                         // camera stays above the ground only where there is a big ground part
+  for (const r of map.parts) if (r[1] <= 64 && Math.abs(r[4] + r[1] / 2) < 2) half = Math.max(half, Math.min(4096, Math.max(r[0], r[2]) / 2));
+  BASEPLATE_HALF = half;
+  const texC = new Map(), matC = new Map(), geoC = new Map();
+  const tex = (css, rx, rz) => { const k = css + "|" + rx.toFixed(2) + "|" + rz.toFixed(2); let t = texC.get(k); if (!t) { t = studTexture(css, [rx, rz], IMG_STUD); texC.set(k, t); } return t; };
+  const mat = (k, o, tr) => { const key = k + "|" + tr; let m = matC.get(key); if (!m) { m = new THREE.MeshStandardMaterial(Object.assign({ roughness: 0.6, metalness: 0, transparent: tr > 0, opacity: 1 - tr }, o)); matC.set(key, m); } return m; };
+  for (const row of map.parts) {
+    const [sx, sy, sz, x, y, z, R, hex, tr, col, shape] = row;
     const css = "#" + hex.toString(16).padStart(6, "0");
-    const rep = row === SHARK_MAP.base ? 2048 : [sx, sz];
-    const mat = o => new THREE.MeshStandardMaterial(Object.assign({ roughness: 0.6, metalness: 0, transparent: tr > 0, opacity: 1 - tr }, o));
-    const side = mat({ color: hex });
-    const top = mat({ map: studTexture(css, rep, IMG_STUD) });
-    const bot = mat({ map: studTexture(css, rep, IMG_STUD) });         // studs on the bottom too
-    const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), [side, side, top, bot, side, side]);
+    let m;
+    if (shape === 0 || shape === 2) {
+      const gk = "s" + shape; let g = geoC.get(gk);
+      if (!g) { g = shape === 0 ? new THREE.SphereGeometry(0.5, 20, 14) : new THREE.CylinderGeometry(0.5, 0.5, 1, 24); if (shape === 2) g.rotateZ(Math.PI / 2); geoC.set(gk, g); }
+      m = new THREE.Mesh(g, mat("c" + css, { color: hex }, tr)); m.scale.set(sx, sy, sz);
+    } else {
+      const gk = sx + "|" + sy + "|" + sz; let g = geoC.get(gk); if (!g) { g = new THREE.BoxGeometry(sx, sy, sz); geoC.set(gk, g); }
+      const side = mat("s" + css, { color: hex }, tr), st = mat("t" + css + sx.toFixed(2) + sz.toFixed(2), { map: tex(css, sx, sz) }, tr);   // studs on top and bottom
+      m = new THREE.Mesh(g, [side, side, st, st, side, side]);
+    }
     m.position.set(x, y, z);
     m.quaternion.setFromRotationMatrix(new THREE.Matrix4().set(R[0], R[1], R[2], 0, R[3], R[4], R[5], 0, R[6], R[7], R[8], 0, 0, 0, 0, 1));
     m.receiveShadow = true; m.castShadow = tr === 0;
     scene.add(m);
     if (col) addRotatedCollision(sx, sy, sz, x, y, z, R);
-  };
-  addPart(SHARK_MAP.base);
-  for (const row of SHARK_MAP.parts) addPart(row);
+  }
 }
 let worldBuilt = false;
-function buildWorld(id) {
+function buildWorld(g) {
   if (worldBuilt) return; worldBuilt = true;
-  (id === "sharknado" ? buildSharknadoWorld : buildBaseplateWorld)();
+  if (g.id === "baseplate") buildBaseplateWorld();
+  else if (g.id === "sharknado") buildMapWorld({ spawn: [0, 3, 0], parts: SHARK_MAP.parts.concat([SHARK_MAP.base]) });
+  else buildMapWorld(g.map);
   player.pos.copy(SPAWN); player.prev.copy(SPAWN);
 }
 
@@ -2525,7 +2553,7 @@ acctUI();
     if (sb) { const { data } = await sb.auth.getUser(); if (data && data.user) await onSignedIn(data.user); }
   } catch (_) {}
   document.body.classList.remove("boot");
-  if (acct.user) { loadGameSettings(); showTab("home"); } else openAuth("login");
+  if (acct.user) { loadAllGames(); showTab("home"); } else openAuth("login");
 })();
 
 /* ---- home screen: Games + Avatar tabs ---- */
@@ -2534,8 +2562,9 @@ function startGame() {
   if (!acct.user) { openAuth("login"); return; }
   if (starting) return; starting = true;
   const veil = $("veil"); veil.classList.add("on");                  // quick fade to black, swap to the game, fade back in
-  setTimeout(() => {
-    buildWorld(curGame.id); CFG.ROOM = curGame.room;                // the map you picked, and its own multiplayer room
+  setTimeout(async () => {
+    if (curGame.custom && !curGame.map) { try { await loadCustomMap(curGame); } catch (_) { veil.classList.remove("on"); starting = false; alert("Couldn't load that map."); return; } }
+    buildWorld(curGame); CFG.ROOM = curGame.room;                // the map you picked, and its own multiplayer room
     inGame = true; document.body.classList.remove("home");
     if (document.activeElement) document.activeElement.blur();
     last = performance.now();
@@ -2572,7 +2601,7 @@ function applyGameRow(id, r) {                                        // r = { n
   g.ovr = o;
 }
 function renderGames() {
-  $("gameGrid").innerHTML = GAMES.map(g => `<button class="gcard" data-game="${g.id}" type="button"><span class="gimg"><img alt="${gesc(gv(g, "name"))}" src="${gesc(gv(g, "thumb"))}"></span><span class="gname">${gesc(gv(g, "name"))}</span><span class="gby">made by ${gesc(gv(g, "by"))}</span></button>`).join("");
+  $("gameGrid").innerHTML = GAMES.map(g => `<button class="gcard" data-game="${g.id}" type="button"><span class="gimg"><img alt="${gesc(gv(g, "name"))}" src="${gesc(gv(g, "thumb"))}"><img class="gico" alt="" src="${gesc(gv(g, "icon"))}"></span><span class="gname">${gesc(gv(g, "name"))}</span><span class="gby">made by ${gesc(gv(g, "by"))}</span></button>`).join("");
 }
 function fillGamePage() {
   const g = curGame;
@@ -2594,7 +2623,141 @@ async function loadGameSettings() {                                    // everyo
     renderGames(); if (!$("pageGame").hidden) fillGamePage(); if (!$("tabOwner").hidden) renderOwnerGames();
   } catch (_) {}
 }
-loadGameSettings();
+async function loadAllGames() { await loadCustomGames(); await loadGameSettings(); }
+$("hLogo").addEventListener("click", () => showTab("home"));              // the triangle logo goes home
+
+/* ---- custom games: made from an uploaded Roblox .rbxl ---- */
+const CUSTOM_LS = "triangle_custom_games", CUSTOM_TABLE = "custom_games";
+function addCustomEntry(id, name, by, thumb, icon, map) {
+  if (GAMES.some(g => g.id === id)) return GAMES.find(g => g.id === id);
+  const g = { id, room: "c-" + id.toLowerCase(), custom: true, map: map || null, ovr: {}, def: { name: okTxt(name, 40) || "New game", by: okTxt(by, 20) || "Unknown", thumb: okImg(thumb) ? thumb : BLANK, icon: okImg(icon) ? icon : BLANK, banner: okImg(thumb) ? thumb : BLANK, about: "A map made from a Roblox file. Run around, climb, and chat with whoever else is here." } };
+  GAMES.push(g); return g;
+}
+try { const loc = JSON.parse(localStorage.getItem(CUSTOM_LS) || "{}"); for (const id in loc) { const r = loc[id]; let m = null; try { m = JSON.parse(r.map); } catch (_) {} if (m && m.parts) addCustomEntry(id, r.name, r.by, r.thumb, r.icon, m); } renderGames(); } catch (_) {}
+function saveCustomLocal() {
+  try { const o = {}; for (const g of GAMES) if (g.custom && g.map) o[g.id] = { name: g.def.name, by: g.def.by, map: JSON.stringify(g.map) }; localStorage.setItem(CUSTOM_LS, JSON.stringify(o)); return true; } catch (_) { return false; }
+}
+async function loadCustomGames() {
+  const sb = getSB(); if (!sb) return;
+  try {
+    const r = await sb.from(CUSTOM_TABLE).select("id, name, owner_name, thumb, icon"); if (r.error) throw r.error;
+    for (const row of (r.data || [])) if (/^c[a-z0-9]{3,20}$/.test(row.id)) addCustomEntry(row.id, row.name, row.owner_name, row.thumb, row.icon, null);
+    renderGames();
+  } catch (_) {}
+}
+async function loadCustomMap(g) {
+  const sb = getSB(); if (!sb) throw new Error("no supabase");
+  const r = await sb.from(CUSTOM_TABLE).select("map").eq("id", g.id).single(); if (r.error) throw r.error;
+  const m = JSON.parse(r.data.map); if (!m || !Array.isArray(m.parts)) throw new Error("bad map"); g.map = m;
+}
+
+/* ---- reading a binary .rbxl in the browser ---- */
+const RBX_ROT = {2:[1,0,0,0,1,0,0,0,1],3:[1,0,0,0,0,-1,0,1,0],5:[1,0,0,0,-1,0,0,0,-1],6:[1,0,0,0,0,1,0,-1,0],7:[0,1,0,1,0,0,0,0,-1],9:[0,0,1,1,0,0,0,1,0],10:[0,-1,0,1,0,0,0,0,1],12:[0,0,-1,1,0,0,0,-1,0],13:[0,1,0,0,0,1,1,0,0],14:[0,0,-1,0,1,0,1,0,0],16:[0,-1,0,0,0,-1,1,0,0],17:[0,0,1,0,-1,0,1,0,0],20:[-1,0,0,0,1,0,0,0,-1],21:[-1,0,0,0,0,1,0,1,0],23:[-1,0,0,0,-1,0,0,0,1],24:[-1,0,0,0,0,-1,0,-1,0],25:[0,1,0,-1,0,0,0,0,1],27:[0,0,-1,-1,0,0,0,1,0],28:[0,-1,0,-1,0,0,0,0,-1],30:[0,0,1,-1,0,0,0,-1,0],31:[0,1,0,0,0,-1,-1,0,0],32:[0,0,1,0,1,0,-1,0,0],34:[0,-1,0,0,0,1,-1,0,0],35:[0,0,-1,0,-1,0,-1,0,0]};
+const RBX_PARTS = new Set(["Part", "SpawnLocation", "Seat", "VehicleSeat", "MeshPart", "WedgePart", "CornerWedgePart", "TrussPart"]);
+const RBX_MAX_PARTS = 6000;
+function lz4Block(src, n) {
+  const dst = new Uint8Array(n); let s = 0, d = 0;
+  while (s < src.length && d < n) {
+    const tok = src[s++]; let lit = tok >> 4;
+    if (lit === 15) { let b; do { b = src[s++]; lit += b; } while (b === 255); }
+    for (let i = 0; i < lit; i++) dst[d++] = src[s++];
+    if (s >= src.length) break;
+    const off = src[s] | (src[s + 1] << 8); s += 2;
+    let ml = tok & 15; if (ml === 15) { let b; do { b = src[s++]; ml += b; } while (b === 255); }
+    ml += 4; let m = d - off; for (let i = 0; i < ml; i++) dst[d++] = dst[m++];
+  }
+  return dst;
+}
+function loadZstd() {
+  if (window.fzstd) return Promise.resolve();
+  return new Promise((res, rej) => { const el = document.createElement("script"); el.src = "https://cdn.jsdelivr.net/npm/fzstd@0.1.1/umd/index.js"; el.onload = () => window.fzstd ? res() : rej(new Error("zstd")); el.onerror = () => rej(new Error("zstd")); document.head.appendChild(el); });
+}
+async function rbxToMap(buf) {
+  const u8 = new Uint8Array(buf), dv0 = new DataView(buf);
+  const sig = String.fromCharCode.apply(null, u8.subarray(0, 8));
+  if (sig === "<roblox ") throw new Error("xml");
+  if (sig !== "<roblox!") throw new Error("notrbx");
+  const chunks = []; let off = 32;
+  while (off + 16 <= u8.length) {
+    const name = String.fromCharCode(u8[off], u8[off + 1], u8[off + 2], u8[off + 3]).replace(/ /g, "");
+    const cl = dv0.getUint32(off + 4, true), ul = dv0.getUint32(off + 8, true); off += 16;
+    let data;
+    if (cl === 0) { data = u8.slice(off, off + ul); off += ul; }
+    else {
+      const raw = u8.subarray(off, off + cl); off += cl;
+      if (raw[0] === 0x28 && raw[1] === 0xb5 && raw[2] === 0x2f && raw[3] === 0xfd) { await loadZstd(); data = window.fzstd.decompress(raw); }
+      else data = lz4Block(raw, ul);
+    }
+    chunks.push({ name, data }); if (name === "END") break;
+  }
+  const td = new TextDecoder(), dvOf = d => new DataView(d.buffer, d.byteOffset, d.byteLength);
+  const rdStr = (d, o) => { const n = dvOf(d).getUint32(o, true); return [td.decode(d.subarray(o + 4, o + 4 + n)), o + 4 + n]; };
+  const deint = (d, o, n) => { const out = new Array(n); for (let i = 0; i < n; i++) out[i] = ((d[o + i] * 16777216) + (d[o + n + i] << 16) + (d[o + 2 * n + i] << 8) + d[o + 3 * n + i]) >>> 0; return out; };
+  const zz = v => (v >>> 1) ^ -(v & 1);
+  const fl = v => { v = ((v >>> 1) | (v << 31)) >>> 0; const b = new DataView(new ArrayBuffer(4)); b.setUint32(0, v); return b.getFloat32(0); };
+  const refsOf = arr => { let a = 0; return arr.map(v => a += zz(v)); };
+  const classes = {}, inst = new Map(), parent = new Map();
+  for (const c of chunks) if (c.name === "INST") {
+    const d = c.data, dv = dvOf(d), id = dv.getUint32(0, true); let [nm, o] = rdStr(d, 4); o++;
+    const n = dv.getUint32(o, true); o += 4; const refs = refsOf(deint(d, o, n));
+    classes[id] = { name: nm, refs }; for (const r of refs) inst.set(r, { c: nm, p: {} });
+  }
+  const WANT = { Name: 1, size: 1, Size: 1, CFrame: 1, Color3uint8: 1, Transparency: 1, CanCollide: 1, shape: 1, Shape: 1 };
+  for (const c of chunks) {
+    const d = c.data, dv = dvOf(d);
+    if (c.name === "PROP") {
+      const id = dv.getUint32(0, true); let [pn, o] = rdStr(d, 4); const t = d[o++], cl = classes[id];
+      if (!cl || !RBX_PARTS.has(cl.name) || !WANT[pn]) continue;
+      const n = cl.refs.length; let vals = null;
+      if (t === 1) { vals = []; for (let i = 0; i < n; i++) { let v; [v, o] = rdStr(d, o); vals.push(v); } }
+      else if (t === 2) { vals = []; for (let i = 0; i < n; i++) vals.push(!!d[o + i]); }
+      else if (t === 4) vals = deint(d, o, n).map(fl);
+      else if (t === 18) vals = deint(d, o, n);
+      else if (t === 14) { const X = deint(d, o, n).map(fl), Y = deint(d, o + 4 * n, n).map(fl), Z = deint(d, o + 8 * n, n).map(fl); vals = X.map((x, i) => [x, Y[i], Z[i]]); }
+      else if (t === 26) { vals = []; for (let i = 0; i < n; i++) vals.push([d[o + i], d[o + n + i], d[o + 2 * n + i]]); }
+      else if (t === 16) {
+        const rot = [];
+        for (let i = 0; i < n; i++) { const idb = d[o++]; if (idb === 0) { const m = []; for (let k = 0; k < 9; k++) { m.push(dv.getFloat32(o, true)); o += 4; } rot.push(m); } else rot.push(RBX_ROT[idb] || RBX_ROT[2]); }
+        const X = deint(d, o, n).map(fl), Y = deint(d, o + 4 * n, n).map(fl), Z = deint(d, o + 8 * n, n).map(fl);
+        vals = rot.map((r, i) => ({ pos: [X[i], Y[i], Z[i]], rot: r }));
+      }
+      if (vals) cl.refs.forEach((r, i) => { inst.get(r).p[pn] = vals[i]; });
+    } else if (c.name === "PRNT") {
+      const n = dv.getUint32(1, true), ch = refsOf(deint(d, 5, n)), pa = refsOf(deint(d, 5 + 4 * n, n));
+      ch.forEach((k, i) => parent.set(k, pa[i]));
+    }
+  }
+  const memo = new Map();
+  const inWs = r => { if (memo.has(r)) return memo.get(r); let x = r, res = false, guard = 0; while (x !== undefined && x >= 0 && guard++ < 200) { const q = inst.get(x); if (q && q.c === "Workspace") { res = true; break; } x = parent.get(x); } memo.set(r, res); return res; };
+  const r3 = v => Math.round(v * 1000) / 1000, r4 = v => Math.round(v * 10000) / 10000;
+  const rows = []; let spawn = null, cut = 0;
+  for (const [ref, q] of inst) {
+    if (!RBX_PARTS.has(q.c) || !q.p.CFrame || !(q.p.size || q.p.Size) || !inWs(ref)) continue;
+    if (rows.length >= RBX_MAX_PARTS) { cut++; continue; }
+    const sz = q.p.size || q.p.Size, cf = q.p.CFrame, c = q.p.Color3uint8 || [163, 162, 165];
+    const shape = q.p.shape !== undefined ? q.p.shape : q.p.Shape;
+    const row = [r3(sz[0]), r3(sz[1]), r3(sz[2]), r3(cf.pos[0]), r3(cf.pos[1]), r3(cf.pos[2]), cf.rot.map(r4), (c[0] << 16) | (c[1] << 8) | c[2], r3(q.p.Transparency || 0), q.p.CanCollide === false ? 0 : 1, shape === 0 || shape === 2 ? shape : 1];
+    rows.push(row);
+    if (q.c === "SpawnLocation" && !spawn) spawn = [row[3], row[4] + row[1] / 2 + 3, row[5]];
+  }
+  if (!rows.length) throw new Error("noparts");
+  if (!spawn) {
+    let best = null;
+    for (const r of rows) {
+      const R = r[6], ex = Math.abs(R[0]) * r[0] + Math.abs(R[1]) * r[1] + Math.abs(R[2]) * r[2], ey = Math.abs(R[3]) * r[0] + Math.abs(R[4]) * r[1] + Math.abs(R[5]) * r[2], ez = Math.abs(R[6]) * r[0] + Math.abs(R[7]) * r[1] + Math.abs(R[8]) * r[2];
+      if (Math.abs(r[3]) <= ex / 2 && Math.abs(r[5]) <= ez / 2) { const top = r[4] + ey / 2; if (!best || top > best) best = top; }
+    }
+    if (best !== null) spawn = [0, best + 3, 0];
+    else { const r = rows.reduce((p, q) => (q[0] * q[2] > p[0] * p[2] ? q : p)); spawn = [r[3], r[4] + r[1] / 2 + 3, r[5]]; }
+  }
+  return { spawn: spawn.map(r3), parts: rows, cut };
+}
+function addCustomGame(name, by, map) {
+  const id = "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  return addCustomEntry(id, name, by, null, null, map);
+}
+
+loadAllGames();
 
 /* owner page: edit games */
 const OWG = {};                                                        // drafts while editing: { id: { name, by, thumb, icon } }
@@ -2606,7 +2769,7 @@ function renderOwnerGames() {
     <div class="owFields">
       <label>Game name<input type="text" data-f="name" maxlength="40" value="${gesc(d.name)}" autocomplete="off" spellcheck="false"></label>
       <label>Owner (made by)<input type="text" data-f="by" maxlength="20" value="${gesc(d.by)}" autocomplete="off" spellcheck="false"></label>
-      <div class="owBtnRow"><button type="button" class="btnG" data-pick="thumb">Thumbnail…</button><button type="button" class="btnG" data-pick="icon">Icon…</button><button type="button" class="btnG" data-reset="1">Reset</button><button type="button" class="btnP" data-save="1">Save</button></div>
+      <div class="owBtnRow"><button type="button" class="btnG" data-pick="thumb">Thumbnail…</button><button type="button" class="btnG" data-pick="icon">Icon…</button><button type="button" class="btnG" data-reset="1">Reset</button>${g.custom ? '<button type="button" class="btnG" data-del="1">Delete</button>' : ""}<button type="button" class="btnP" data-save="1">Save</button></div>
       <input type="file" accept="image/*" data-file="thumb" hidden><input type="file" accept="image/*" data-file="icon" hidden>
     </div></div>`; }).join("");
 }
@@ -2624,6 +2787,28 @@ function fitImage(file, w, h, type) {                                  // center
   });
 }
 $("owGames").addEventListener("keydown", e => e.stopPropagation());
+$("rbxName").addEventListener("keydown", e => e.stopPropagation()); $("rbxBy").addEventListener("keydown", e => e.stopPropagation());
+$("rbxPick").addEventListener("click", () => { if (isOwner()) $("rbxFile").click(); });
+$("rbxFile").addEventListener("change", async e => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f || !isOwner()) return;
+  const msg = $("owGMsg"); msg.textContent = "Reading " + f.name + "…";
+  try {
+    const map = await rbxToMap(await f.arrayBuffer());
+    const g = addCustomGame($("rbxName").value || f.name.replace(/\.[^.]+$/, ""), $("rbxBy").value || acct.username, map);
+    const localOK = saveCustomLocal(); renderGames(); renderOwnerGames(); $("rbxName").value = ""; $("rbxBy").value = "";
+    msg.textContent = "Made \"" + gv(g, "name") + "\" from " + map.parts.length + " parts" + (map.cut ? " (" + map.cut + " extra parts left out)" : "") + ". Saving…";
+    const sb = getSB();
+    try {
+      if (!sb) throw new Error("no supabase");
+      const r = await sb.from(CUSTOM_TABLE).upsert({ id: g.id, name: gv(g, "name"), owner_name: gv(g, "by"), map: JSON.stringify(map), created_by: acct.user.id });
+      if (r.error) throw r.error;
+      msg.textContent = "Made \"" + gv(g, "name") + "\" from " + map.parts.length + " parts" + (map.cut ? " (" + map.cut + " extra parts left out)" : "") + ". It's on Home for everyone.";
+    } catch (_) { msg.textContent = "Made \"" + gv(g, "name") + "\" from " + map.parts.length + " parts, but only " + (localOK ? "on this device" : "for this visit (too big to keep)") + ". Run supabase_custom_games.sql in Supabase so everyone can play it."; }
+  } catch (err) {
+    const m = err && err.message;
+    msg.textContent = m === "xml" ? "That's a .rbxlx (XML) file. In Studio use File > Save to File and choose .rbxl." : m === "notrbx" ? "That doesn't look like a Roblox .rbxl file." : m === "zstd" ? "Couldn't load the decompressor. Check your internet and try again." : m === "noparts" ? "No parts were found in that file's Workspace." : "Couldn't read that file.";
+  }
+});
 $("owGames").addEventListener("input", e => {
   const box = e.target.closest("[data-gid]"), f = e.target.dataset && e.target.dataset.f; if (!box || !f) return;
   OWG[box.dataset.gid][f] = e.target.value;
@@ -2634,6 +2819,13 @@ $("owGames").addEventListener("click", async e => {
   const g = GAMES.find(x => x.id === box.dataset.gid), d = owDraft(g), msg = $("owGMsg");
   const pick = e.target.closest("[data-pick]");
   if (pick) { box.querySelector(`[data-file="${pick.dataset.pick}"]`).click(); return; }
+  if (e.target.closest("[data-del]")) {
+    if (!g.custom || !confirm("Delete " + gv(g, "name") + " for everyone?")) return;
+    GAMES.splice(GAMES.indexOf(g), 1); delete OWG[g.id]; saveCustomLocal(); renderGames(); renderOwnerGames();
+    try { const all = JSON.parse(localStorage.getItem(GAME_LS) || "{}"); delete all[g.id]; localStorage.setItem(GAME_LS, JSON.stringify(all)); } catch (_) {}
+    const sb = getSB(); if (sb) { try { await sb.from(CUSTOM_TABLE).delete().eq("id", g.id); await sb.from(GAME_TABLE).delete().eq("id", g.id); } catch (_) {} }
+    msg.textContent = "Deleted."; return;
+  }
   if (e.target.closest("[data-reset]")) {
     g.ovr = {}; delete OWG[g.id]; msg.textContent = "Reset to the original. Press Save on this game to keep it.";
     OWG[g.id] = { name: g.def.name, by: g.def.by, thumb: g.def.thumb, icon: g.def.icon }; renderOwnerGames(); return;
@@ -2766,8 +2958,74 @@ const thumbs = (function () {
   sc.add(av.group);
   return { r, sc, cam, av, cache: new Map() };
 })();
-function thumb(colors, kind) {
+const WORN = new Map();                                              // user id -> ids of the UGC items they wear
+const thumbsX = { cache: new Map(), q: Promise.resolve() };
+const UP = { ids: new Set(), timer: 0, shown: new Map(), fail: false };
+function wornOf(uid) { return acct.user && uid === acct.user.id ? WEAR.mine : WORN.get(uid); }
+const thumbKeyX = (colors, kind, ids) => kind + "|" + colorSig(sanitizeColors(colors)) + "|" + ids.join(",");
+let _rigX = null;
+function getRigX() {
+  if (_rigX) return _rigX;
+  let r; try { r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true }); } catch (_) { return null; }
+  if (renderer.outputEncoding !== undefined) r.outputEncoding = renderer.outputEncoding;
+  if (renderer.outputColorSpace !== undefined) r.outputColorSpace = renderer.outputColorSpace;
+  r.toneMapping = renderer.toneMapping; r.toneMappingExposure = renderer.toneMappingExposure;
+  const sc = new THREE.Scene(), cam = new THREE.PerspectiveCamera(30, 1, 0.1, 100), av = createAvatar();
+  sc.add(new THREE.HemisphereLight(0xffffff, 0x556070, 1.1));
+  const dl = new THREE.DirectionalLight(0xffffff, 1.0); dl.position.set(4, 8, 6); sc.add(dl); sc.add(av.group);
+  return (_rigX = { r, sc, cam, av });
+}
+function itemThumb(colors, kind, ids) {                                // picture of a player wearing their items (items load from the network, so this is async)
+  const key = thumbKeyX(colors, kind, ids);
+  if (thumbsX.cache.has(key)) return Promise.resolve(thumbsX.cache.get(key));
+  thumbsX.q = thumbsX.q.then(async () => {
+    const R = getRigX(); if (!R) return "";
+    setAvatarColors(R.av, sanitizeColors(colors));
+    R.av.itemSig = ids.join(","); await applyItemsToAvatar(R.av, ids);
+    R.av.group.rotation.y = -Math.PI / 2 + 0.3; R.av.group.position.y = 0;
+    R.r.setSize(200, 200, false); R.cam.aspect = 1; R.cam.updateProjectionMatrix();
+    if (kind === "body") { R.cam.position.set(0, 2.7, 12.5); R.cam.lookAt(0, 2.6, 0); } else { R.cam.position.set(0, 4.55, 4.6); R.cam.lookAt(0, 4.45, 0); }
+    R.r.render(R.sc, R.cam);
+    let url = ""; try { url = R.r.domElement.toDataURL("image/png"); } catch (_) {}
+    thumbsX.cache.set(key, url); return url;
+  }).catch(() => "");
+  return thumbsX.q;
+}
+async function fetchWorn(ids) {
+  const sb = getSB(); if (!sb) return;
+  const need = ids.filter(i => !WORN.has(i)); if (!need.length) return;
+  let rows = null;
+  try { const r = await sb.rpc("equipped_items_by_users", { p_users: need }); if (!r.error) rows = r.data || []; } catch (_) {}
+  if (!rows) { try { const r = await sb.from("ugc_inventory").select("user_id, item_id").in("user_id", need).eq("equipped", true); if (!r.error) rows = r.data || []; } catch (_) {} }
+  if (!rows) { UP.fail = true; return; }                               // this database does not let us see other players' items yet
+  for (const id of need) WORN.set(id, []);
+  for (const r of rows) { const a = WORN.get(r.user_id); if (a && UUID_RE.test(r.item_id) && a.length < MAX_WORN) a.push(r.item_id); }
+}
+function queueUpgrade(uid) {
+  if (!uid || (UP.fail && !(acct.user && uid === acct.user.id))) return;
+  UP.ids.add(uid); if (UP.timer) return;
+  UP.timer = setTimeout(async () => { const ids = [...UP.ids]; UP.ids.clear(); UP.timer = 0; try { await runUpgrade(ids); } catch (_) {} }, 40);
+}
+async function runUpgrade(ids) {
+  const me = acct.user && acct.user.id;
+  await fetchWorn(ids.filter(i => i !== me));
+  for (const uid of ids) {
+    const items = wornOf(uid) || [], p = uid === me ? { body_colors: myColors } : SOC.cache.get(uid); if (!p) continue;
+    const prevUrls = UP.shown.get(uid) || new Map();
+    const plain = thumb(p.body_colors, "face");
+    const target = items.length ? await itemThumb(p.body_colors, "face", items) : plain;
+    if (!target) continue;
+    const known = new Map(prevUrls); known.set(plain, 1);
+    for (const el of document.querySelectorAll('[data-pid="' + uid + '"],[data-tu="' + uid + '"]')) {
+      const img = el.tagName === "IMG" ? el : el.querySelector("img.pface");
+      if (img && known.has(img.getAttribute("src"))) img.src = target;
+    }
+    known.set(target, 1); UP.shown.set(uid, known);
+  }
+}
+function thumb(colors, kind, uid) {
   if (!thumbs) return "";
+  if (uid) { const it = wornOf(uid); if (it && it.length) { const hit = thumbsX.cache.get(thumbKeyX(colors, kind, it)); if (hit) return hit; queueUpgrade(uid); } else if (!it) queueUpgrade(uid); }
   const c = sanitizeColors(colors), key = kind + "|" + colorSig(c);
   if (thumbs.cache.has(key)) return thumbs.cache.get(key);
   const w = 200, hgt = 200;
@@ -2839,7 +3097,7 @@ function isOwner() { return !!(acct.user && (String(acct.user.email || "").toLow
 const pcard = (id, sub) => {
   const p = SOC.cache.get(id); if (!p) return "";
   const bd = smallBadges(id), meta = [p.player_number ? "#" + p.player_number : "", sub].filter(Boolean).join(" · ");
-  return `<button class="pcard box" type="button" data-pid="${esc(id)}"><img class="pface" alt="" src="${thumb(p.body_colors, "face")}"><span class="pn">${esc(p.username)}</span>${bd ? `<span class="pbd">${bd}</span>` : ""}${meta ? `<span class="ps">${esc(meta)}</span>` : ""}</button>`;
+  return `<button class="pcard box" type="button" data-pid="${esc(id)}"><img class="pface" alt="" src="${thumb(p.body_colors, "face", id)}"><span class="pn">${esc(p.username)}</span>${bd ? `<span class="pbd">${bd}</span>` : ""}${meta ? `<span class="ps">${esc(meta)}</span>` : ""}</button>`;
 };
 const noteSQL = '<div class="note">Run supabase_social.sql in Supabase once to turn on friends.</div>';
 
@@ -2847,7 +3105,7 @@ const noteSQL = '<div class="note">Run supabase_social.sql in Supabase once to t
 async function renderHome() {
   if (!acct.user) return;
   $("wName").textContent = "Hello, " + acct.username + "!";
-  $("wImg").src = thumb(myColors, "face");
+  $("wImg").dataset.tu = acct.user.id; $("wImg").src = thumb(myColors, "face", acct.user.id);
   $("wSub").textContent = "";
   await loadSocial();
   const f = SOC.friends.length, q = SOC.incoming.length;
@@ -2865,7 +3123,7 @@ async function renderFriends() {
   await loadSocial();
   $("fReqWrap").hidden = !SOC.incoming.length; $("fReqT").textContent = "Requests (" + SOC.incoming.length + ")";
   $("fReqs").innerHTML = SOC.incoming.map(id => { const p = SOC.cache.get(id); if (!p) return "";
-    return `<div class="reqRow box"><img alt="" data-pid="${esc(id)}" src="${thumb(p.body_colors, "face")}"><b data-pid="${esc(id)}">${esc(p.username)}</b><button class="btnP" data-act="accept" data-id="${esc(id)}" type="button">Accept</button><button class="btnG" data-act="remove" data-id="${esc(id)}" type="button">Decline</button></div>`; }).join("");
+    return `<div class="reqRow box"><img alt="" data-pid="${esc(id)}" src="${thumb(p.body_colors, "face", id)}"><b data-pid="${esc(id)}">${esc(p.username)}</b><button class="btnP" data-act="accept" data-id="${esc(id)}" type="button">Accept</button><button class="btnG" data-act="remove" data-id="${esc(id)}" type="button">Decline</button></div>`; }).join("");
   $("fTitle").textContent = "Your friends (" + SOC.friends.length + ")";
   $("fList").innerHTML = !SOC.ok ? noteSQL : (SOC.friends.length ? SOC.friends.map(id => pcard(id)).join("") : '<div class="note">No friends yet. Search for a username above.</div>');
 }
@@ -2915,7 +3173,7 @@ async function renderProfile(id) {
   const about = p.about && p.about.trim() ? esc(p.about) : '<span class="muted">' + (mine ? "Nothing here yet." : "No bio.") + "</span>";
   body.innerHTML = `
     <div id="pHead">
-      <img id="pFace" alt="" src="${thumb(colors, "face")}">
+      <img id="pFace" alt="" data-tu="${esc(id)}" src="${thumb(colors, "face", id)}">
       <div id="pInfo">
         <div id="pNameRow"><h2 id="pName">${esc(p.username)}</h2>${badgeList(id).length ? `<span class="bdgs" id="pBadges">${bigBadges(id)}</span>` : ""}</div>
         <div id="pStats">${p.player_number ? `<div><b>#${esc(p.player_number)}</b>Player ID</div>` : ""}<div><b>${theirFriends.length}</b>Friends</div><div><b>${esc(joinedTxt)}</b>Joined</div></div>
@@ -3219,7 +3477,7 @@ $("owSearch").addEventListener("input", () => {
 function ownerRow(id) {
   const p = SOC.cache.get(id); if (!p) return "";
   const has = badgeList(id);
-  return `<div class="owRow box" data-owid="${esc(id)}"><img alt="" data-pid="${esc(id)}" src="${thumb(p.body_colors, "face")}"><b data-pid="${esc(id)}">${esc(p.username)}</b>
+  return `<div class="owRow box" data-owid="${esc(id)}"><img alt="" data-pid="${esc(id)}" src="${thumb(p.body_colors, "face", id)}"><b data-pid="${esc(id)}">${esc(p.username)}</b>
     <div class="owBtns">${BADGE_ORDER.map(k => `<button type="button" class="owB${has.includes(k) ? " on" : ""}" data-bk="${k}"><img alt="" src="${BADGE_IMG[k]}">${BADGES[k]}</button>`).join("")}<label>Amount <input data-wallet-amount type="number" min="1" max="1000000000" step="1" value="1" style="width:100px"></label><button class="btnG" data-wallet="add" type="button">Add Triangcles</button><button class="btnG" data-wallet="remove" type="button">Remove Triangcles</button></div></div>`;
 }
 async function renderOwner() {
@@ -3595,6 +3853,7 @@ function setMyItems(ids) {
   WEAR.mine = ids.filter(x => UUID_RE.test(x)).slice(0, MAX_WORN);
   syncAvatarItems(localAvatar, WEAR.mine);
   netSend({ t: "colors", colors: myColors });                     // re-sends presence, which now includes what you wear
+  if (acct.user) queueUpgrade(acct.user.id);                       // your own picture shows what you wear
 }
 
 /* ---- little picture of an item on the player (shop + items list) ---- */
