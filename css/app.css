@@ -1,0 +1,26 @@
+/* desktop app: web-only bits + the get/open prompt */
+html.inapp .webonly { display: none !important; }
+#hGetApp { padding: 7px 14px; border: 1px solid var(--y); border-radius: 8px; color: var(--y); text-decoration: none; font-size: 15px; white-space: nowrap; }
+#hGetApp:hover { background: var(--y); color: #1a1203; }
+
+#appPrompt { position: fixed; inset: 0; z-index: 100000; display: none; align-items: center; justify-content: center; padding: 20px; background: rgba(8, 6, 3, .78); backdrop-filter: blur(3px); }
+#appPrompt.on { display: flex; }
+#appPrompt, #appPrompt * { font-family: "Capriola", system-ui, sans-serif; }
+#appPrompt .apCard { position: relative; width: 100%; max-width: 440px; box-sizing: border-box; padding: 30px 28px 24px; text-align: center; background: var(--panel, #1b1710); border: 1px solid var(--bd, #3a3322); border-radius: 16px; color: #fff; box-shadow: 0 20px 60px rgba(0, 0, 0, .5); }
+#appPrompt .apX { position: absolute; right: 10px; top: 8px; width: 34px; height: 34px; border: 0; border-radius: 8px; background: transparent; color: var(--dim, #a79b80); font-size: 24px; line-height: 1; cursor: pointer; }
+#appPrompt .apX:hover { background: #2a2418; color: #fff; }
+#appPrompt .apIcon { width: 76px; height: 76px; margin: 0 auto 10px; display: block; }
+#appPrompt h2 { margin: 0 0 8px; font-size: 24px; font-weight: 400; }
+#appPrompt p { margin: 0 0 14px; color: var(--dim, #a79b80); font-size: 15px; line-height: 1.45; }
+#apStatus { min-height: 20px; margin: 0 0 14px; font-size: 14px; color: var(--dim, #a79b80); }
+#apStatus.ok { color: #7fd48a; } #apStatus.warn { color: var(--y, #ffbf2f); }
+#appPrompt .apBtns { display: flex; flex-direction: column; gap: 10px; }
+#appPrompt .apP, #appPrompt .apG { display: block; box-sizing: border-box; height: 46px; line-height: 44px; border-radius: 10px; font-size: 17px; text-align: center; text-decoration: none; cursor: pointer; }
+#appPrompt .apP { background: var(--y, #ffbf2f); border: 0; color: #1a1203; }
+#appPrompt .apP:hover { background: #ffd25e; }
+#appPrompt .apG { background: transparent; border: 1px solid var(--bd, #3a3322); color: #fff; padding: 0; }
+#appPrompt .apG:hover { border-color: var(--y, #ffbf2f); background: #2a2418; }
+#appPrompt [hidden] { display: none !important; }
+#appPrompt .apMore { display: flex; justify-content: center; gap: 18px; margin-top: 14px; font-size: 14px; }
+#appPrompt .apMore a { color: var(--dim, #a79b80); text-decoration: underline; }
+#appPrompt .apMore a:hover { color: var(--y, #ffbf2f); }

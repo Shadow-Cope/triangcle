@@ -3,6 +3,7 @@
 /* ---- home screen: Games + Avatar tabs ---- */
 let starting = false;
 function startGame() {
+  if (APP.required && !APP.in) { showAppPrompt(curGame && curGame.id); return; }   // games run in the desktop app
   if (!acct.user) { openAuth("login"); return; }
   if (starting) return; starting = true;
   const veil = $("veil"); veil.classList.add("on");                  // quick fade to black, swap to the game, fade back in

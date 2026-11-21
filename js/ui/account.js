@@ -114,7 +114,7 @@ async function submitAuth() {
     if (!user || !session) { authMsg("Account made, but Supabase wants email confirmation. Turn off Confirm email in Authentication settings.", true); return; }
     authPass.value = "";
     await onSignedIn(user);
-    closeAuth(); showTab("home");
+    closeAuth(); showTab("home"); appRunPendingJoin();
   } catch (_) { authMsg("Couldn't reach the server. Try again.", true); }
   finally { acct.busy = false; authGo.disabled = false; }
 }

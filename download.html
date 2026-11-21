@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Download Triangle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Capriola&display=swap" rel="stylesheet">
+<link rel="icon" href="assets/img/app-icon.png">
+<link rel="stylesheet" href="css/download.css">
+</head>
+<body>
+<header class="top">
+  <a href="index.html" class="brand"><img alt="Triangle" src="assets/img/logo.png"></a>
+  <a href="index.html" class="back">Back to Triangle</a>
+</header>
+<main>
+  <section class="hero">
+    <img class="appico" alt="" src="assets/img/app-icon.png">
+    <h1>Play Triangle on your computer</h1>
+    <p>The free Triangle app for Windows and Mac. Join games, change your avatar, chat with friends and shop, all in its own window.</p>
+  </section>
+
+  <section class="cards" id="cards">
+    <article class="card" id="cardWin" data-os="win">
+      <svg viewBox="0 0 24 24" class="osico" aria-hidden="true"><path fill="currentColor" d="M3 5.5 10.5 4.4v7H3zm8.5-1.2L21 3v8.4h-9.5zM3 12.6h7.5v7L3 18.5zm8.5 0H21V21l-9.5-1.3z"/></svg>
+      <h2>Windows</h2>
+      <p class="sub">Windows 10 or 11 (64-bit)</p>
+      <a class="dl" id="dlWin" href="#">Download for Windows</a>
+      <p class="file">Triangle-Setup.exe</p>
+      <span class="badge" hidden>Recommended for you</span>
+    </article>
+    <article class="card" id="cardMac" data-os="mac">
+      <svg viewBox="0 0 24 24" class="osico" aria-hidden="true"><path fill="currentColor" d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm1 2v7h14V7zM2 18h20v1.5a.5.5 0 0 1-.5.5h-19a.5.5 0 0 1-.5-.5z"/></svg>
+      <h2>macOS</h2>
+      <p class="sub">Apple Silicon and Intel Macs</p>
+      <a class="dl" id="dlMac" href="#">Download for Mac</a>
+      <p class="file">Triangle-mac.dmg</p>
+      <span class="badge" hidden>Recommended for you</span>
+    </article>
+  </section>
+  <p class="note" id="mobileNote" hidden>You're on a phone or tablet. Triangle's app is for Windows and Mac computers, so open this page on one to download it.</p>
+  <p class="note warn" id="soon" hidden>The installers haven't been published yet. Check back soon.</p>
+
+  <section class="open">
+    <p>Already installed?</p>
+    <a class="ghost" id="openApp" href="triangle://open">Open Triangle</a>
+  </section>
+
+  <section class="steps">
+    <h2>How to install</h2>
+    <ol>
+      <li><b>Download</b> the installer for your computer.</li>
+      <li><b>Run it.</b> On Windows it installs and starts by itself. On Mac, open the disk image and drag Triangle into Applications.</li>
+      <li><b>Sign in</b> with your Triangle account and press Play on any game.</li>
+    </ol>
+    <details>
+      <summary>Windows says "Windows protected your PC"</summary>
+      <p>Click <b>More info</b>, then <b>Run anyway</b>. This appears for apps that aren't code-signed yet.</p>
+    </details>
+    <details>
+      <summary>Mac says Triangle can't be opened</summary>
+      <p>In Applications, right-click (or Control-click) Triangle, choose <b>Open</b>, then <b>Open</b> again. If it says the app is damaged, open Terminal and run <code>xattr -cr /Applications/Triangle.app</code>.</p>
+    </details>
+    <details>
+      <summary>What still works in the browser?</summary>
+      <p>You can still sign in, change your avatar, shop, and see friends and profiles on the website. Starting a game needs the app.</p>
+    </details>
+  </section>
+</main>
+<script src="js/core/app-config.js"></script>
+<script src="js/core/download-page.js"></script>
+</body>
+</html>

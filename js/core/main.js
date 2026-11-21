@@ -9,7 +9,7 @@ acctUI();
     if (sb) { const { data } = await sb.auth.getUser(); if (data && data.user) await onSignedIn(data.user); }
   } catch (_) {}
   document.body.classList.remove("boot");
-  if (acct.user) { loadAllGames(); showTab("home"); } else openAuth("login");
+  if (acct.user) { loadAllGames(); showTab("home"); appRunPendingJoin(); } else openAuth("login");
 })();
 
 loadAllGames();

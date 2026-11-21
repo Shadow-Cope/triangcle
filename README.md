@@ -74,3 +74,12 @@ Transparent pixels show the body colour.
 - Stored like any item: `ugc_items.attach` is `Shirt` / `Pants` and `file_path` is a `.png` in the `ugc` bucket, so buying, selling,
   the Shop, inventory and the item page all work unchanged. Run `supabase_clothing.sql` once.
 - Code: `js/game/character.js` (UVs, shader, `setAvatarCloth`), `js/items/item-models.js` (loading / thumbnails), `js/items/ugc.js` (editor).
+
+## Desktop app (Windows + macOS)
+
+Games now start only in the Triangle desktop app. In a browser, **Play** tries to open the app (`triangle://join/<game>`) and shows a
+download prompt if nothing opens; `download.html` is the download page. The app itself lives in `desktop/` (Electron) and is built for
+Windows and macOS by `.github/workflows/build-desktop.yml`. Setup steps: `desktop/README.md`.
+
+- `js/core/app-config.js` - installer links and the `REQUIRE_APP` switch.  `js/core/app.js` - app detection, Play gate, prompt, `?join=` links.
+- Share links like `https://yoursite/?join=baseplate` open the app (or the download prompt) for that game.

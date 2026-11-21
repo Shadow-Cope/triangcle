@@ -10,7 +10,7 @@ const http = require("http"), fs = require("fs"), path = require("path"), crypto
 const PORT = process.env.PORT || 3000;
 const ROOT = __dirname;
 const MAX_MSG = 1024 * 1024;                              // largest WebSocket message we accept (1 MB)
-const PUBLIC = ["index.html", "css", "js", "assets"];     // only these are served
+const PUBLIC = ["index.html", "download.html", "css", "js", "assets"];     // only these are served
 const MIME = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8",
   ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".svg": "image/svg+xml",
   ".ico": "image/x-icon", ".json": "application/json", ".woff2": "font/woff2" };

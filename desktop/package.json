@@ -1,0 +1,36 @@
+{
+  "name": "triangle-desktop",
+  "productName": "Triangle",
+  "version": "1.0.0",
+  "description": "Triangle desktop app (Windows and macOS)",
+  "author": "Triangle",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win --x64",
+    "dist:mac": "electron-builder --mac --universal"
+  },
+  "devDependencies": {
+    "electron": "^45.3.3",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "com.triangle.app",
+    "productName": "Triangle",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["main.js", "preload.js", "offline.html", "config.json", "build/icon.png", "package.json"],
+    "protocols": [{ "name": "Triangle", "schemes": ["triangle"] }],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "artifactName": "Triangle-Setup.${ext}"
+    },
+    "nsis": { "oneClick": true, "perMachine": false, "createDesktopShortcut": true, "runAfterFinish": true },
+    "mac": {
+      "category": "public.app-category.games",
+      "target": [{ "target": "dmg", "arch": ["universal"] }],
+      "artifactName": "Triangle-mac.${ext}"
+    },
+    "dmg": { "title": "Triangle" }
+  }
+}
