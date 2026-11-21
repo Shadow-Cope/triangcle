@@ -5,7 +5,7 @@ const APP_CFG = {
   // Where the installers are hosted. With the included GitHub workflow that's your latest release:
   //   "https://github.com/<you>/<repo>/releases/latest/download/"
   // Leave empty until the first release exists (buttons then say downloads aren't published yet).
-  RELEASES_URL: "",
+  RELEASES_URL: "https://github.com/oweniscall-bit/triangcle/releases/latest/download/",
   WIN_FILE: "Triancle-Setup.exe",
   MAC_FILE: "Triancle-mac.dmg",
   VERSION: "1.0.0",
