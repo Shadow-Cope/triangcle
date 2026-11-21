@@ -1,0 +1,11 @@
+{
+  "name": "triangle",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Triangle - Roblox-style 3D game site (Three.js + Supabase)",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": { "node": ">=18" }
+}

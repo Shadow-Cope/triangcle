@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Triangle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Capriola&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/popups.css">
+<link rel="stylesheet" href="css/theme.css">
+<link rel="stylesheet" href="css/menu.css">
+<link rel="stylesheet" href="css/chat.css">
+<link rel="stylesheet" href="css/social.css">
+<link rel="stylesheet" href="css/shop.css">
+</head>
+<body class="home boot">
+<canvas id="c"></canvas>
+<div id="hud"></div>
+<div id="topbar"><button id="tbLogo" type="button" title="Menu"><svg class="ico" viewBox="0 0 124 102" xmlns="http://www.w3.org/2000/svg"><path fill="#d9d9d9" d="M 56.269531 8.164062 C 59.058594 4.191406 64.941406 4.191406 67.730469 8.164062 L 107.957031 65.480469 C 111.214844 70.117188 107.894531 76.5 102.226562 76.5 L 21.773438 76.5 C 16.105469 76.5 12.785156 70.117188 16.042969 65.480469 Z M 56.269531 8.164062 "/><path fill="#d88c00" d="M 56.265625 15.183594 C 59.054688 11.203125 64.945312 11.203125 67.734375 15.183594 L 101.046875 62.734375 C 104.296875 67.371094 100.980469 73.75 95.3125 73.75 L 28.6875 73.75 C 23.019531 73.75 19.703125 67.371094 22.953125 62.734375 Z M 56.265625 15.183594 "/></svg></button><div id="tbPill"><button id="tbMenu" type="button" title="Menu"><svg class="ico" viewBox="0 0 71 70" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M 58 36 C 58 48.703125 47.703125 59 35 59 C 22.296875 59 12 48.703125 12 36 C 12 23.296875 22.296875 13 35 13 C 47.703125 13 58 23.296875 58 36 Z M 58 36 "/><path fill="currentColor" d="M 31 0 L 38 0 C 38.550781 0 39 0.449219 39 1 L 39 13 C 39 13.550781 38.550781 14 38 14 L 31 14 C 30.449219 14 30 13.550781 30 13 L 30 1 C 30 0.449219 30.449219 0 31 0 Z M 31 0 "/><path fill="currentColor" d="M 31 56 L 38 56 C 38.550781 56 39 56.449219 39 57 L 39 69 C 39 69.550781 38.550781 70 38 70 L 31 70 C 30.449219 70 30 69.550781 30 69 L 30 57 C 30 56.449219 30.449219 56 31 56 Z M 31 56 "/><path fill="currentColor" d="M 7.707031 14.65625 L 12.65625 9.707031 C 13.046875 9.316406 13.679688 9.316406 14.070312 9.707031 L 22.554688 18.191406 C 22.945312 18.582031 22.945312 19.214844 22.554688 19.605469 L 17.605469 24.554688 C 17.214844 24.945312 16.582031 24.945312 16.191406 24.554688 L 7.707031 16.070312 C 7.316406 15.679688 7.316406 15.046875 7.707031 14.65625 Z M 7.707031 14.65625 "/><path fill="currentColor" d="M 58.605469 9.707031 L 63.554688 14.65625 C 63.945312 15.046875 63.945312 15.679688 63.554688 16.070312 L 55.070312 24.554688 C 54.679688 24.945312 54.046875 24.945312 53.65625 24.554688 L 48.707031 19.605469 C 48.316406 19.214844 48.316406 18.582031 48.707031 18.191406 L 57.191406 9.707031 C 57.582031 9.316406 58.214844 9.316406 58.605469 9.707031 Z M 58.605469 9.707031 "/><path fill="currentColor" d="M 17.605469 49.707031 L 22.554688 54.65625 C 22.945312 55.046875 22.945312 55.679688 22.554688 56.070312 L 14.070312 64.554688 C 13.679688 64.945312 13.046875 64.945312 12.65625 64.554688 L 7.707031 59.605469 C 7.316406 59.214844 7.316406 58.582031 7.707031 58.191406 L 16.191406 49.707031 C 16.582031 49.316406 17.214844 49.316406 17.605469 49.707031 Z M 17.605469 49.707031 "/><path fill="currentColor" d="M 48.707031 51.65625 L 53.65625 46.707031 C 54.046875 46.316406 54.679688 46.316406 55.070312 46.707031 L 63.554688 55.191406 C 63.945312 55.582031 63.945312 56.214844 63.554688 56.605469 L 58.605469 61.554688 C 58.214844 61.945312 57.582031 61.945312 57.191406 61.554688 L 48.707031 53.070312 C 48.316406 52.679688 48.316406 52.046875 48.707031 51.65625 Z M 48.707031 51.65625 "/><path fill="currentColor" d="M 0 40 L 0 33 C 0 32.449219 0.449219 32 1 32 L 13 32 C 13.550781 32 14 32.449219 14 33 L 14 40 C 14 40.550781 13.550781 41 13 41 L 1 41 C 0.449219 41 0 40.550781 0 40 Z M 0 40 "/><path fill="currentColor" d="M 57 40 L 57 33 C 57 32.449219 57.449219 32 58 32 L 70 32 C 70.550781 32 71 32.449219 71 33 L 71 40 C 71 40.550781 70.550781 41 70 41 L 58 41 C 57.449219 41 57 40.550781 57 40 Z M 57 40 "/></svg></button><button id="tbChat" type="button" title="Chat"><svg class="ico" viewBox="0 0 67 56.093002" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M 66.46875 21.46875 C 66.46875 33.324219 55.140625 42.933594 41.167969 42.933594 C 27.195312 42.933594 15.867188 33.324219 15.867188 21.46875 C 15.867188 9.609375 27.195312 0 41.167969 0 C 55.140625 0 66.46875 9.609375 66.46875 21.46875 Z M 66.46875 21.46875 "/><path fill="currentColor" d="M 10.808594 46.023438 C 10.003906 46.328125 9.226562 45.527344 9.550781 44.730469 L 17.707031 24.738281 C 17.972656 24.078125 18.828125 23.914062 19.320312 24.421875 L 31.367188 36.78125 C 31.859375 37.289062 31.671875 38.140625 31.007812 38.390625 Z M 10.808594 46.023438 "/></svg></button></div></div>
+<div id="gmenu">
+  <div id="gmBox">
+    <div id="gmHead"><svg class="ico gearI" viewBox="0 0 71 70" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M 58 36 C 58 48.703125 47.703125 59 35 59 C 22.296875 59 12 48.703125 12 36 C 12 23.296875 22.296875 13 35 13 C 47.703125 13 58 23.296875 58 36 Z M 58 36 "/><path fill="currentColor" d="M 31 0 L 38 0 C 38.550781 0 39 0.449219 39 1 L 39 13 C 39 13.550781 38.550781 14 38 14 L 31 14 C 30.449219 14 30 13.550781 30 13 L 30 1 C 30 0.449219 30.449219 0 31 0 Z M 31 0 "/><path fill="currentColor" d="M 31 56 L 38 56 C 38.550781 56 39 56.449219 39 57 L 39 69 C 39 69.550781 38.550781 70 38 70 L 31 70 C 30.449219 70 30 69.550781 30 69 L 30 57 C 30 56.449219 30.449219 56 31 56 Z M 31 56 "/><path fill="currentColor" d="M 7.707031 14.65625 L 12.65625 9.707031 C 13.046875 9.316406 13.679688 9.316406 14.070312 9.707031 L 22.554688 18.191406 C 22.945312 18.582031 22.945312 19.214844 22.554688 19.605469 L 17.605469 24.554688 C 17.214844 24.945312 16.582031 24.945312 16.191406 24.554688 L 7.707031 16.070312 C 7.316406 15.679688 7.316406 15.046875 7.707031 14.65625 Z M 7.707031 14.65625 "/><path fill="currentColor" d="M 58.605469 9.707031 L 63.554688 14.65625 C 63.945312 15.046875 63.945312 15.679688 63.554688 16.070312 L 55.070312 24.554688 C 54.679688 24.945312 54.046875 24.945312 53.65625 24.554688 L 48.707031 19.605469 C 48.316406 19.214844 48.316406 18.582031 48.707031 18.191406 L 57.191406 9.707031 C 57.582031 9.316406 58.214844 9.316406 58.605469 9.707031 Z M 58.605469 9.707031 "/><path fill="currentColor" d="M 17.605469 49.707031 L 22.554688 54.65625 C 22.945312 55.046875 22.945312 55.679688 22.554688 56.070312 L 14.070312 64.554688 C 13.679688 64.945312 13.046875 64.945312 12.65625 64.554688 L 7.707031 59.605469 C 7.316406 59.214844 7.316406 58.582031 7.707031 58.191406 L 16.191406 49.707031 C 16.582031 49.316406 17.214844 49.316406 17.605469 49.707031 Z M 17.605469 49.707031 "/><path fill="currentColor" d="M 48.707031 51.65625 L 53.65625 46.707031 C 54.046875 46.316406 54.679688 46.316406 55.070312 46.707031 L 63.554688 55.191406 C 63.945312 55.582031 63.945312 56.214844 63.554688 56.605469 L 58.605469 61.554688 C 58.214844 61.945312 57.582031 61.945312 57.191406 61.554688 L 48.707031 53.070312 C 48.316406 52.679688 48.316406 52.046875 48.707031 51.65625 Z M 48.707031 51.65625 "/><path fill="currentColor" d="M 0 40 L 0 33 C 0 32.449219 0.449219 32 1 32 L 13 32 C 13.550781 32 14 32.449219 14 33 L 14 40 C 14 40.550781 13.550781 41 13 41 L 1 41 C 0.449219 41 0 40.550781 0 40 Z M 0 40 "/><path fill="currentColor" d="M 57 40 L 57 33 C 57 32.449219 57.449219 32 58 32 L 70 32 C 70.550781 32 71 32.449219 71 33 L 71 40 C 71 40.550781 70.550781 41 70 41 L 58 41 C 57.449219 41 57 40.550781 57 40 Z M 57 40 "/></svg><span id="gmTitle">Settings</span><button id="gmClose" type="button" title="Close"><svg class="ico" viewBox="0 0 124 102" xmlns="http://www.w3.org/2000/svg"><path fill="#d9d9d9" d="M 56.269531 8.164062 C 59.058594 4.191406 64.941406 4.191406 67.730469 8.164062 L 107.957031 65.480469 C 111.214844 70.117188 107.894531 76.5 102.226562 76.5 L 21.773438 76.5 C 16.105469 76.5 12.785156 70.117188 16.042969 65.480469 Z M 56.269531 8.164062 "/><path fill="#d88c00" d="M 56.265625 15.183594 C 59.054688 11.203125 64.945312 11.203125 67.734375 15.183594 L 101.046875 62.734375 C 104.296875 67.371094 100.980469 73.75 95.3125 73.75 L 28.6875 73.75 C 23.019531 73.75 19.703125 67.371094 22.953125 62.734375 Z M 56.265625 15.183594 "/></svg></button></div>
+    <div id="gmTabs"><button data-gm="players" type="button">Players</button><button data-gm="settings" type="button" class="on">Settings</button><button data-gm="stats" type="button">Stats</button></div>
+    <div id="gmBody">
+      <div class="gmp" id="gm-players"><div id="gmPlayers"></div></div>
+      <div class="gmp on" id="gm-settings">
+        <div class="gmh">Graphics</div>
+        <div class="gmrow"><span>Quality level</span><div class="seg" id="sGfx"><button type="button" data-v="1">1</button><button type="button" data-v="2">2</button><button type="button" data-v="3">3</button><button type="button" data-v="4">4</button><button type="button" data-v="5">5</button></div></div>
+        <div class="gmh">Camera</div>
+        <div class="gmrow"><span>Shift lock switch<small>Lets the Shift key turn shift lock on and off</small></span><div class="seg" id="sSL"><button type="button" data-v="1">On</button><button type="button" data-v="0">Off</button></div></div>
+        <div class="gmrow"><span>Shift lock offset<small>How far the camera sits to the right</small></span><div class="sl"><input type="range" id="sOff" min="0" max="3" step="0.05"><span id="sOffV"></span></div></div>
+        <div class="gmrow"><span>Shift lock turn speed</span><div class="sl"><input type="range" id="sTurn" min="10" max="60" step="1"><span id="sTurnV"></span></div></div>
+        <div class="gmrow"><span>Camera sensitivity</span><div class="sl"><input type="range" id="sSens" min="0.002" max="0.012" step="0.0005"><span id="sSensV"></span></div></div>
+        <div class="gmh">Interface</div>
+        <div class="gmrow"><span>Player list</span><div class="seg" id="sBoard"><button type="button" data-v="1">On</button><button type="button" data-v="0">Off</button></div></div>
+        <div class="gmrow"><span>Show hitboxes</span><div class="seg" id="sHit"><button type="button" data-v="1">On</button><button type="button" data-v="0">Off</button></div></div>
+        <div class="gmh">Account</div>
+        <div class="gmrow"><span id="gmWho">Signed in</span><button id="gmLogout" type="button">Log out</button></div>
+      </div>
+      <div class="gmp" id="gm-stats"><pre id="gmStats"></pre></div>
+    </div>
+    <div id="gmFoot"><button id="gmLeave" type="button"><span class="kb">L</span>Leave</button><button id="gmResp" type="button"><span class="kb">R</span>Respawn</button><button id="gmRes" class="go" type="button"><span class="kb">ESC</span>Resume</button></div>
+  </div>
+</div>
+
+<div id="tags"></div>
+<div id="board"><div class="hd"><span>Players</span><span id="pcount">1</span></div><div id="rows"></div></div>
+<div id="namebox"><label for="nameInput" id="nameLbl">Name</label><input id="nameInput" maxlength="20" autocomplete="off" spellcheck="false"><button id="nameBtn" type="button">Set</button><span id="acctWho"></span><button id="acctBtn" type="button">Log in</button></div>
+<div id="gfx"><span>Graphics</span><button data-l="1">1</button><button data-l="2">2</button><button data-l="3">3</button><button data-l="4">4</button><button data-l="5">5</button></div>
+<div id="hotbar"><div class="slot" id="slotBT"><span style="font-size:20px">&#128296;</span><span>1 &middot; BTools</span></div></div>
+<div id="bt"><b>Build Tools</b>
+  <div style="display:flex;gap:6px;margin:6px 0"><button id="btSpawn" type="button">Spawn Part</button><button id="btDel" type="button">Delete</button></div>
+  <div id="btHint" style="opacity:.75">Click a part to select it</div>
+  <div id="btProps" style="display:none">
+    <div style="display:flex;gap:6px;margin:4px 0"><button id="btMove" type="button">Move</button><button id="btSize" type="button">Resize</button></div>
+    <label>Shape <select id="btShape"><option>Block</option><option>Ball</option><option>Cylinder</option></select></label>
+    <label>Size <span><input type="number" id="sx" step="0.5" min="0.2"> <input type="number" id="sy" step="0.5" min="0.2"> <input type="number" id="sz" step="0.5" min="0.2"></span></label>
+    <label>Pos <span><input type="number" id="px" step="0.5"> <input type="number" id="py" step="0.5"> <input type="number" id="pz" step="0.5"></span></label>
+    <label>Transparency <input type="range" id="btT" min="0" max="1" step="0.05"></label>
+    <label>Color <input type="color" id="btC"></label>
+    <label>Anchored <input type="checkbox" id="btA"></label>
+    <label>CanCollide <input type="checkbox" id="btK"></label>
+  </div></div>
+<button id="homeBtn" type="button">&larr; Home</button>
+<div id="home">
+  <header id="hTop">
+    <img id="hLogo" alt="Triangle" src="assets/img/logo.png">
+    <nav id="hTabs"><button class="on" data-tab="home" type="button"><svg class="ico" viewBox="0 0 96.162567 97.000008" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M 16.816406 41.148438 L 25.527344 41.148438 C 29.355469 41.148438 32.457031 44.25 32.457031 48.074219 L 32.457031 89.082031 C 32.457031 92.90625 29.355469 96.011719 25.527344 96.011719 L 16.816406 96.011719 C 12.992188 96.011719 9.890625 92.90625 9.890625 89.082031 L 9.890625 48.074219 C 9.890625 44.25 12.992188 41.148438 16.816406 41.148438 Z M 16.816406 41.148438 "/><path fill="currentColor" d="M 68.824219 39.320312 L 78.515625 39.320312 C 82.34375 39.320312 85.445312 42.421875 85.445312 46.246094 L 85.445312 89.082031 C 85.445312 92.90625 82.34375 96.011719 78.515625 96.011719 L 68.824219 96.011719 C 64.996094 96.011719 61.894531 92.90625 61.894531 89.082031 L 61.894531 46.246094 C 61.894531 42.421875 64.996094 39.320312 68.824219 39.320312 Z M 68.824219 39.320312 "/><path fill="currentColor" d="M 42.433594 6.035156 C 45.195312 2.847656 50.136719 2.847656 52.902344 6.035156 L 85.308594 43.394531 C 89.199219 47.878906 86.015625 54.863281 80.074219 54.863281 L 15.257812 54.863281 C 9.320312 54.863281 6.132812 47.878906 10.023438 43.394531 Z M 42.433594 6.035156 "/><path fill="currentColor" d="M 35.765625 53.277344 C 36.488281 53.527344 36.695312 54.441406 36.144531 54.941406 L 31.785156 58.894531 C 31.222656 59.402344 30.300781 59.101562 30.128906 58.355469 L 28.777344 52.441406 C 28.609375 51.695312 29.320312 51.070312 30.054688 51.320312 Z M 35.765625 53.277344 "/><path fill="currentColor" d="M 63.96875 51.800781 C 64.714844 51.6875 65.335938 52.347656 65.121094 53.023438 L 63.390625 58.460938 C 63.160156 59.175781 62.175781 59.371094 61.640625 58.804688 L 57.363281 54.261719 C 56.828125 53.695312 57.167969 52.808594 57.960938 52.691406 Z M 63.96875 51.800781 "/></svg> Home</button><button data-tab="avatar" type="button"><svg class="ico" viewBox="0 0 105 92" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M 44.328125 17.59375 C 48.308594 11.945312 56.691406 11.945312 60.671875 17.59375 L 86.855469 54.738281 C 91.527344 61.363281 86.789062 70.5 78.683594 70.5 L 26.316406 70.5 C 18.210938 70.5 13.472656 61.363281 18.144531 54.738281 Z M 44.328125 17.59375 "/><path fill="currentColor" d="M 70 19 C 70 29.492188 62.164062 38 52.5 38 C 42.835938 38 35 29.492188 35 19 C 35 8.507812 42.835938 0 52.5 0 C 62.164062 0 70 8.507812 70 19 Z M 70 19 "/></svg> Avatar</button><button data-tab="shop" type="button"><svg class="ico" viewBox="0 0 82 76" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M 9.914062 20.570312 L 18.714844 20.570312 C 22.582031 20.570312 25.714844 23.707031 25.714844 27.570312 L 25.714844 69 C 25.714844 72.867188 22.582031 76 18.714844 76 L 9.914062 76 C 6.046875 76 2.914062 72.867188 2.914062 69 L 2.914062 27.570312 C 2.914062 23.707031 6.046875 20.570312 9.914062 20.570312 Z M 9.914062 20.570312 "/><path fill="currentColor" d="M 62.457031 18.722656 L 72.25 18.722656 C 76.113281 18.722656 79.25 21.859375 79.25 25.722656 L 79.25 69 C 79.25 72.867188 76.113281 76 72.25 76 L 62.457031 76 C 58.589844 76 55.457031 72.867188 55.457031 69 L 55.457031 25.722656 C 55.457031 21.859375 58.589844 18.722656 62.457031 18.722656 Z M 62.457031 18.722656 "/><path fill="currentColor" d="M 8 0 L 74 0 C 78.417969 0 82 3.582031 82 8 L 82 34 C 82 38.417969 78.417969 42 74 42 L 8 42 C 3.582031 42 0 38.417969 0 34 L 0 8 C 0 3.582031 3.582031 0 8 0 Z M 8 0 "/></svg> Shop</button><button data-tab="friends" type="button">Friends <span id="reqBadge"></span></button><button data-tab="profile" type="button">Profile</button><button data-tab="players" type="button"><svg class="ico" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="9" cy="8" r="3.6" fill="currentColor"/><path fill="currentColor" d="M2 20c0-3.9 3.1-6.5 7-6.5s7 2.6 7 6.5z"/><circle cx="17.2" cy="9" r="2.8" fill="currentColor"/><path fill="currentColor" d="M17.5 13.6c3 .2 5.5 2.2 5.5 5.4h-4.4c0-2-.4-3.9-1.1-5.4z"/></svg>Players</button><button data-tab="ugc" id="ugcTabBtn" type="button" hidden><svg class="ico" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M12 2 3 7v10l9 5 9-5V7zm0 2.3 5.9 3.3L12 10.9 6.1 7.6zM5 9.3l6 3.4v6.6l-6-3.4zm14 0v6.6l-6 3.4v-6.6z"/></svg>UGC</button><button data-tab="owner" id="ownerTabBtn" type="button" hidden><img class="ico" alt="" src="assets/badges/owner.png">Owner</button></nav>
+    <div id="hAcctBox"><span id="hBal" class="bal" title="Your Triangcles" hidden><svg class="tcI" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 15 14H1z"/></svg><b id="hBalN" style="font-weight:400">0</b></span><span id="hWho"></span><button id="hAcct" type="button">Log out</button></div>
+  </header>
+  <main>
+    <section id="tabHome" class="tabsec">
+      <div id="welcome">
+        <img id="wImg" alt="">
+        <div>
+          <h2 id="wName">Hello!</h2>
+          <div id="wSub"></div>
+          
+        </div>
+      </div>
+      <h3>Game</h3>
+      <div id="gameRow">
+      <div id="gameGrid">
+        <button class="gcard" id="playBase" type="button">
+          <span class="gimg"><img alt="Baseplate" src="assets/img/game-baseplate.png"></span>
+          <span class="gname">Baseplate</span>
+          <span class="gby">made by Owen</span>
+        </button>
+      </div>
+      </div>
+      <h3 id="wTitle">Friends</h3>
+      <div id="wFriends" class="shelf"></div>
+    </section>
+    <section id="tabGames" class="tabsec" hidden>
+      <h2>Games</h2>
+    </section>
+    <section id="tabShop" class="tabsec" hidden>
+      <h2>Shop</h2>
+      <div id="shopBar"><input id="shSearch" placeholder="Search items" autocomplete="off" spellcheck="false" maxlength="40"><select id="shSort" class="plSel" title="Sort by"><option value="new">Newest</option><option value="top">Best selling</option><option value="low">Price: low to high</option><option value="high">Price: high to low</option></select><span id="shBalBox" class="bal" hidden><svg class="tcI" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 15 14H1z"/></svg><b id="shBalN" style="font-weight:400">0</b><span class="muted">Triangcles</span></span></div><div id="shopList" class="grid"></div><div id="shopBox" hidden><svg class="ico" viewBox="0 0 82 76" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M 9.914062 20.570312 L 18.714844 20.570312 C 22.582031 20.570312 25.714844 23.707031 25.714844 27.570312 L 25.714844 69 C 25.714844 72.867188 22.582031 76 18.714844 76 L 9.914062 76 C 6.046875 76 2.914062 72.867188 2.914062 69 L 2.914062 27.570312 C 2.914062 23.707031 6.046875 20.570312 9.914062 20.570312 Z M 9.914062 20.570312 "/><path fill="currentColor" d="M 62.457031 18.722656 L 72.25 18.722656 C 76.113281 18.722656 79.25 21.859375 79.25 25.722656 L 79.25 69 C 79.25 72.867188 76.113281 76 72.25 76 L 62.457031 76 C 58.589844 76 55.457031 72.867188 55.457031 69 L 55.457031 25.722656 C 55.457031 21.859375 58.589844 18.722656 62.457031 18.722656 Z M 62.457031 18.722656 "/><path fill="currentColor" d="M 8 0 L 74 0 C 78.417969 0 82 3.582031 82 8 L 82 34 C 82 38.417969 78.417969 42 74 42 L 8 42 C 3.582031 42 0 38.417969 0 34 L 0 8 C 0 3.582031 3.582031 0 8 0 Z M 8 0 "/></svg><div>Nothing for sale yet. Check back soon.</div></div><div id="shopNote" class="note"></div>
+    </section>
+    <section id="tabFriends" class="tabsec" hidden>
+      <h2>Friends</h2>
+      <input id="fSearch" placeholder="Search players" autocomplete="off" spellcheck="false" maxlength="20">
+      <div id="fResults" style="margin-top:14px"></div>
+      <div id="fReqWrap" hidden><h3 id="fReqT">Requests</h3><div id="fReqs"></div></div>
+      <h3 id="fTitle">Your friends</h3>
+      <div id="fList" class="grid"></div>
+    </section>
+    <section id="tabPlayers" class="tabsec" hidden>
+      <h2>Players</h2>
+      <div id="plBar"><input id="plSearch" placeholder="Search for a player" autocomplete="off" spellcheck="false" maxlength="20">
+        <select id="plSort" class="plSel" title="Sort by"><option value="new">Newest</option><option value="old">Oldest</option><option value="az">Name A to Z</option><option value="za">Name Z to A</option></select>
+        <select id="plFilter" class="plSel" title="Show"><option value="all">Everyone</option><option value="friends">Friends</option><option value="any">Any badge</option><option value="owner">Owner</option><option value="admin">Admin</option><option value="mod">Moderator</option><option value="ugc">Official UGC Creator</option></select></div>
+      <div id="plList" class="grid" style="margin-top:16px"></div>
+      <div id="plNote" class="note" style="margin-top:12px"></div>
+      <button id="plMore" class="btnG" type="button" hidden>Load more</button>
+    </section>
+    <section id="tabUgc" class="tabsec" hidden>
+      <h2>UGC</h2>
+      <div id="ugWrap">
+        <div id="ugView">
+          <canvas id="ugCv"></canvas>
+          <div id="ugModes"><button type="button" class="on" data-m="view">Look around</button><button type="button" data-m="move">Move item</button></div>
+          <span id="ugHint">drag to look around &middot; scroll to zoom</span>
+        </div>
+        <div id="ugPanel" class="box">
+          <div class="ugRow"><button class="btnP" id="ugPick" type="button">Upload GLB</button><button class="btnG" id="ugNew" type="button">New item</button><input type="file" id="ugFile" accept=".glb,model/gltf-binary" hidden></div>
+          <div id="ugInfo" class="note">Pick a .glb file (up to 10 MB) to see it on the player.</div>
+          <label class="ugLbl">Name<input id="ugName" maxlength="40" autocomplete="off" spellcheck="false" placeholder="Item name"></label>
+          <label class="ugLbl">Wear it on<select id="ugAttach"></select></label>
+          <div id="ugSliders"></div>
+          <div class="ugRow"><button class="btnG" id="ugReset" type="button">Reset placement</button><button class="btnP" id="ugSave" type="button">Save item</button></div>
+          <div id="ugMsg" class="note"></div>
+          <div id="ugSale"><h4>Sell in the Shop</h4>
+            <label class="ugLbl">Price in Triangcles (0 = free)<input id="ugPrice" type="number" min="0" max="1000000" step="1" value="0"></label>
+            <div class="ugRow"><button class="btnP" id="ugPublish" type="button">Publish to Shop</button><button class="btnG" id="ugUnpublish" type="button" hidden>Take off sale</button></div>
+            <div id="ugSaleNote" class="note"></div></div>
+        </div>
+      </div>
+      <h3>Your items</h3>
+      <div id="ugList" class="grid"></div>
+    </section>
+    <section id="tabOwner" class="tabsec" hidden>
+      <h2>Owner</h2>
+      <p class="note" style="margin:0 0 14px">Only you can give out badges. Search for a player, then click a badge to give it or take it away.</p>
+      <input id="owSearch" placeholder="Find a player" autocomplete="off" spellcheck="false" maxlength="20">
+      <div id="owMsg" class="note" style="margin:10px 0"></div>
+      <div id="owList" style="margin-top:8px"></div>
+      <h3 style="margin:34px 0 6px">Games</h3>
+      <p class="note" style="margin:0 0 14px">Change a game's name, who it is made by, and its thumbnail and icon. Everyone sees the changes once supabase_game_settings.sql has been run in Supabase.</p>
+      <div id="owGames"></div>
+      <h3 style="margin:26px 0 6px">New game from a Roblox file</h3>
+      <div id="owImport" class="owGame box">
+        <p class="note" style="margin:0">Pick a .rbxl saved from Roblox Studio. Its parts become a new game with studs on the top and bottom, ready to play.</p>
+        <div class="owRow2">
+          <label>Game name<input type="text" id="rbxName" maxlength="40" autocomplete="off" spellcheck="false" placeholder="Uses the file name if empty"></label>
+          <label>Owner (made by)<input type="text" id="rbxBy" maxlength="20" autocomplete="off" spellcheck="false" placeholder="Your name if empty"></label>
+        </div>
+        <div class="owBtnRow" style="margin-top:10px"><button type="button" class="btnP" id="rbxPick">Upload .rbxl</button></div>
+        <input type="file" id="rbxFile" accept=".rbxl" hidden>
+      </div>
+      <div id="owGMsg" class="note" style="margin:10px 0"></div>
+    </section>
+    <section id="tabProfile" class="tabsec" hidden>
+      <div id="pBody"></div>
+    </section>
+    <section id="tabAvatar" class="tabsec" hidden>
+      <h2>Avatar</h2>
+      <div id="avWrap">
+        <div id="prevBox"><canvas id="prevCv"></canvas><span>drag to turn</span></div>
+        <div id="avEdit">
+          <div class="note" style="margin:0 0 6px">Body type</div>
+          <div id="avBody"><button type="button" class="on" data-body="male">Male</button><button type="button" data-body="female">Female</button></div>
+          <div id="avTabs"><button type="button" class="on" data-av="colors">Body colors</button><button type="button" data-av="faces">Faces</button><button type="button" data-av="items">Items</button></div>
+          <div id="avColors">
+          <div id="colParts"></div>
+          <canvas id="wheel" width="200" height="200"></canvas>
+          <label id="valRow">Light <input id="valSlider" type="range" min="0" max="100" value="100"></label>
+          <div id="hexRow"><span id="hexChip"></span><input id="hexIn" maxlength="7" spellcheck="false" autocomplete="off"></div>
+          <div class="gp-row"><button class="pxbtn" id="colReset" type="button">Reset all</button><span id="colSave"></span></div>
+          </div>
+          <div id="avFaces" hidden>
+            <div id="faceGrid"></div>
+            <div id="faceNote" class="note">Pick a face. It shows up on your avatar in games and everywhere else.</div>
+          </div>
+          <div id="avItems" hidden>
+            <div id="itList"></div>
+            <div id="itNote" class="note" style="margin-top:10px"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section id="pageItem" hidden>
+      <button id="ipBack" type="button">&larr; Shop</button>
+      <div id="ipWrap">
+        <div id="ipView"><canvas id="ipCv"></canvas>
+          <button id="ipLock" type="button" title="Lock / unlock rotation"></button>
+          <button id="ipTry" class="btnG" type="button">Try On</button>
+        </div>
+        <div id="ipInfo">
+          <h2 id="ipName"></h2>
+          <div id="ipBy"></div>
+          <div id="ipDesc"></div>
+          <div id="ipPriceRow"><span>Price</span><b id="ipPrice"></b></div>
+          <button id="ipGet" class="btnP" type="button">Get</button>
+          <div id="ipNote" class="note"></div>
+        </div>
+      </div>
+      <div id="ipMeta"><span>Type<b id="ipType"></b></span><span>Created<b id="ipCreated"></b></span><span>Sold<b id="ipSold"></b></span></div>
+    </section>
+    <section id="pageGame" hidden>
+      <button id="gpBack" type="button">&larr; Home</button>
+      <div id="gpBanner"><img id="gpBannerImg" alt="" src="assets/img/game-banner.jpg"></div>
+      <div id="gpHead">
+        <img id="gpIcon" alt="" src="assets/img/game-baseplate.png">
+        <div id="gpInfo">
+          <h2 id="gpTitle">Baseplate</h2>
+          <div id="gpBy">By <b>Owen</b></div>
+          <div id="gpChips"><button class="chip2" id="gpFav" type="button">Favorite</button><button class="chip2" id="gpShare" type="button">Share</button></div>
+        </div>
+        <button id="gpPlay" type="button">&#9654; Play</button>
+      </div>
+      <div id="gpStats"><div><span>Genre</span><b>Sandbox</b></div><div><span>Players</span><b>Multiplayer</b></div><div><span>Chat</span><b>In-game</b></div></div>
+      <div id="gpTabs"><button class="on" data-gp="about" type="button">About</button><button data-gp="controls" type="button">Controls</button></div>
+      <div id="gpAbout" class="gpbody">
+        <p>A plain baseplate to run around on. Jump up ladders and ledges, build with parts that everyone in the server can see, and chat with whoever else is here.</p>
+      </div>
+      <div id="gpControls" class="gpbody" hidden>
+        <table>
+          <tr><td><span class="kc">W</span> <span class="kc">A</span> <span class="kc">S</span> <span class="kc">D</span></td><td>Move</td></tr>
+          <tr><td><span class="kc">Space</span></td><td>Jump</td></tr>
+          <tr><td><span class="kc">Right mouse</span> drag</td><td>Look around</td></tr>
+          <tr><td><span class="kc">Shift</span></td><td>Shift lock</td></tr>
+          <tr><td><span class="kc">Enter</span></td><td>Chat</td></tr>
+          <tr><td><span class="kc">1</span></td><td>BTools (build parts)</td></tr>
+          <tr><td><span class="kc">R</span></td><td>Reset character</td></tr>
+          <tr><td><span class="kc">Tab</span></td><td>Player list</td></tr>
+          <tr><td><span class="kc">`</span></td><td>Show hitboxes</td></tr>
+          <tr><td><span class="kc">/</span></td><td>Hide stats</td></tr>
+        </table>
+      </div>
+    </section>
+  </main>
+</div>
+<div id="rpt"><div id="rptBox"><h3 id="rptT">Report</h3>
+  <label for="rptReason">Reason</label>
+  <select id="rptReason"><option>Harassment or bullying</option><option>Inappropriate name or chat</option><option>Cheating or exploiting</option><option>Scam or spam</option><option>Other</option></select>
+  <label for="rptText">Details (optional)</label><textarea id="rptText" maxlength="300" spellcheck="false"></textarea>
+  <div id="rptMsg"></div>
+  <div class="rrow"><button class="btnP" id="rptSend" type="button">Send report</button><button class="btnG" id="rptCancel" type="button">Cancel</button></div>
+</div></div>
+<div id="veil"></div>
+<div id="auth">
+  <svg id="authBg" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <g transform="translate(140 150)"><polygon class="tri a" points="0,-90 78,45 -78,45"/></g>
+    <g transform="translate(870 110)"><polygon class="tri b" points="0,-50 43,25 -43,25"/></g>
+    <g transform="translate(830 560)"><polygon class="tri c" points="0,-120 104,60 -104,60"/></g>
+    <g transform="translate(170 590)"><polygon class="tri d" points="0,-40 35,20 -35,20"/></g>
+    <g transform="translate(520 60)"><polygon class="tri e" points="0,-28 24,14 -24,14"/></g>
+    <g transform="translate(560 650)"><polygon class="tri f" points="0,-55 48,27 -48,27"/></g>
+  </svg>
+  <div id="authCard">
+    <img id="authLogo" alt="Triangle" src="assets/img/logo.png">
+    <div id="authForm">
+      <h1 id="authTitle">Sign in</h1>
+      <label for="authUser">Username</label>
+      <input id="authUser" maxlength="20" autocomplete="username" autocapitalize="off" spellcheck="false">
+      <label for="authPass">Password</label>
+      <input id="authPass" type="password" maxlength="72" autocomplete="current-password">
+      <div id="authMsg"></div>
+      <button id="authGo" type="button">Sign in</button>
+      <div id="authSwap"><span id="authAsk">No account?</span> <a id="authLink">Create one</a></div>
+    </div>
+  </div>
+</div>
+<div id="cross"></div>
+
+<div id="chatlog"></div>
+<input id="chatInput" maxlength="120" autocomplete="off" spellcheck="false" placeholder="Press Enter to chat">
+<div id="msg"></div>
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/MaskPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0"></script>
+<script>window.supabase || document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"><\/script>');</script>
+
+<!-- game code: order matters (files share one global scope, like the old single <script>) -->
+<script src="js/data/model-parts.js"></script>
+<script src="js/data/sharknado-map.js"></script>
+<script src="js/core/config.js"></script>
+<script src="js/core/renderer.js"></script>
+<script src="js/game/world.js"></script>
+<script src="js/game/character.js"></script>
+<script src="js/game/names.js"></script>
+<script src="js/core/network.js"></script>
+<script src="js/core/input.js"></script>
+<script src="js/core/camera.js"></script>
+<script src="js/game/physics.js"></script>
+<script src="js/game/reset.js"></script>
+<script src="js/game/animation.js"></script>
+<script src="js/game/btools.js"></script>
+<script src="js/core/loop.js"></script>
+<script src="js/ui/colors.js"></script>
+<script src="js/ui/account.js"></script>
+<script src="js/ui/home.js"></script>
+<script src="js/ui/custom-games.js"></script>
+<script src="js/ui/owner-games.js"></script>
+<script src="js/ui/avatar-preview.js"></script>
+<script src="js/ui/tabs.js"></script>
+<script src="js/social/social-core.js"></script>
+<script src="js/social/badges.js"></script>
+<script src="js/social/social.js"></script>
+<script src="js/ui/menu.js"></script>
+<script src="js/ui/chat-ui.js"></script>
+<script src="js/ui/faces.js"></script>
+<script src="js/ui/players.js"></script>
+<script src="js/social/owner.js"></script>
+<script src="js/items/ugc.js"></script>
+<script src="js/items/wallet.js"></script>
+<script src="js/items/item-models.js"></script>
+<script src="js/items/inventory.js"></script>
+<script src="js/items/shop.js"></script>
+<script src="js/items/item-page.js"></script>
+<script src="js/items/ugc-selling.js"></script>
+<script src="js/core/main.js"></script>
+</body>
+</html>

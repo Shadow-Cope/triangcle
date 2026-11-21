@@ -1,0 +1,17 @@
+# Render Blueprint. Default = Static Site (right for Supabase multiplayer: no server needed).
+services:
+  - type: web
+    name: triangle
+    runtime: static
+    staticPublishPath: .
+    buildCommand: echo "no build step"
+
+# Want your own WebSocket relay instead of Supabase Realtime? Delete the block above, use this one,
+# and leave SUPABASE_URL / SUPABASE_ANON_KEY empty in js/core/config.js:
+#
+#  - type: web
+#    name: triangle
+#    runtime: node
+#    buildCommand: echo "no build step"
+#    startCommand: node server.js
+#    healthCheckPath: /healthz
