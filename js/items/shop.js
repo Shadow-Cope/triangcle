@@ -18,7 +18,8 @@ async function renderShop() {
 }
 function paintShop() {
   const q = $("shSearch").value.trim().toLowerCase(), sort = $("shSort").value, me = acct.user && acct.user.id;
-  let rows = SHOP.rows.filter(it => !q || String(it.name).toLowerCase().includes(q));
+  const ty = $("shType").value;
+  let rows = SHOP.rows.filter(it => (!q || String(it.name).toLowerCase().includes(q)) && (ty === "all" || (ty === "acc" ? !isCloth(it.attach) : it.attach === ty)));
   rows.sort(sort === "low" ? (a, b) => a.price - b.price : sort === "high" ? (a, b) => b.price - a.price : sort === "top" ? (a, b) => b.sales - a.sales
     : (a, b) => String(b.published_at).localeCompare(String(a.published_at)));
   $("shopBox").hidden = rows.length > 0;
@@ -34,6 +35,7 @@ function paintShop() {
 $("shSearch").addEventListener("keydown", e => e.stopPropagation());
 $("shSearch").addEventListener("input", paintShop);
 $("shSort").addEventListener("change", paintShop);
+$("shType").addEventListener("change", paintShop);
 $("shopList").addEventListener("click", e => {
   if (e.target.closest("[data-pid]")) return;                      // creator name -> their profile
   const c = e.target.closest(".itCard"); if (c) openItem(c.dataset.id);

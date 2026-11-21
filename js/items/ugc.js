@@ -8,7 +8,10 @@ var ugOn = false, ugRun = false;
 const UGC_ROLES = ["ugc"];
 const UG_SLOTS = [["Head", "Head (hat)"], ["Torso", "Torso"], ["LeftArm", "Left arm"], ["RightArm", "Right arm"], ["LeftLeg", "Left leg"], ["RightLeg", "Right leg"]];
 const UG_ANCHOR = { Head: [0, 5.05, 0], Torso: [0, 3, 0], LeftArm: [0, 3, -1.5], RightArm: [0, 3, 1.5], LeftLeg: [0, 1, -0.5], RightLeg: [0, 1, 0.5] };
-const UG_VIEW = { Head: [4.6, 8], Torso: [3, 12], LeftArm: [3, 12], RightArm: [3, 12], LeftLeg: [1.4, 12], RightLeg: [1.4, 12] };
+const UG_VIEW = { Head: [4.6, 8], Torso: [3, 12], LeftArm: [3, 12], RightArm: [3, 12], LeftLeg: [1.4, 12], RightLeg: [1.4, 12], Shirt: [3, 10], Pants: [2, 10] };
+const CLOTH_SLOTS = [["Shirt", "Shirt"], ["Pants", "Pants"]];       // clothes: a PNG on the 640x512 template instead of a GLB
+const isCloth = a => a === "Shirt" || a === "Pants";
+const UG_KINDS = [["model", "3D accessory (GLB)"], ["Shirt", "Shirt (PNG)"], ["Pants", "Pants (PNG)"]];
 const UG_DEFS = [["pos", 0, "Forward / back", -4, 4, 0.01], ["pos", 1, "Up / down", -4, 4, 0.01], ["pos", 2, "Left / right", -4, 4, 0.01],
   ["rot", 0, "Roll", -180, 180, 1], ["rot", 1, "Turn", -180, 180, 1], ["rot", 2, "Tilt", -180, 180, 1], ["scale", 0, "Size", 0.05, 5, 0.01]];
 function canUgc() {
@@ -16,7 +19,7 @@ function canUgc() {
 }
 function updateUgcBtn() { $("ugcTabBtn").hidden = !canUgc(); }
 
-const UG = { name: "", attach: "Head", pos: [0, 0, 0], rot: [0, 0, 0], scale: 1, file: null, path: null, editId: null, price: 0, published: false, holder: null, inner: null, k: 1, c: null, min: null, mode: "view" };
+const UG = { name: "", attach: "Head", pos: [0, 0, 0], rot: [0, 0, 0], scale: 1, file: null, path: null, editId: null, price: 0, published: false, holder: null, inner: null, k: 1, c: null, min: null, mode: "view", cloth: null };
 const ugv = (function () {
   let r;
   try { r = new THREE.WebGLRenderer({ canvas: $("ugCv"), antialias: true, alpha: true }); } catch (_) { return null; }
@@ -35,6 +38,10 @@ const ugGet = d => d[0] === "scale" ? UG.scale : UG[d[0]][d[1]];
 function ugSet(d, v) { v = ugClamp(+v || 0, d[3], d[4]); if (d[0] === "scale") UG.scale = v; else UG[d[0]][d[1]] = v; }
 
 (function buildUgcUI() {
+  const ks = $("ugKind");
+  for (const [k, l] of UG_KINDS) { const o = document.createElement("option"); o.value = k; o.textContent = l; ks.appendChild(o); }
+  ks.addEventListener("change", () => { if (ks.value !== (isCloth(UG.attach) ? UG.attach : "model")) ugClear(ks.value); });
+  $("ugTpl").addEventListener("click", ugTemplate);
   const sel = $("ugAttach");
   for (const [k, l] of UG_SLOTS) { const o = document.createElement("option"); o.value = k; o.textContent = l; sel.appendChild(o); }
   const box = $("ugSliders");
@@ -52,6 +59,7 @@ function ugSet(d, v) { v = ugClamp(+v || 0, d[3], d[4]); if (d[0] === "scale") U
   $("ugPick").addEventListener("click", () => $("ugFile").click());
   $("ugFile").addEventListener("change", async () => {
     const f = $("ugFile").files[0]; $("ugFile").value = ""; if (!f) return;
+    if (isCloth(UG.attach)) return ugPickCloth(f);
     if (!/\.glb$/i.test(f.name)) return ugMsg("That isn't a .glb file.", true);
     if (f.size > 10 * 1024 * 1024) return ugMsg("That file is over 10 MB.", true);
     ugMsg("Loading…");
@@ -84,13 +92,56 @@ function ugSet(d, v) { v = ugClamp(+v || 0, d[3], d[4]); if (d[0] === "scale") U
   ugSync();
 })();
 
+function ugKindUI() {
+  const c = isCloth(UG.attach);
+  $("ugKind").value = c ? UG.attach : "model";
+  $("ugSliders").hidden = c; $("ugAttachLbl").hidden = c; $("ugModes").hidden = c; $("ugReset").hidden = c; $("ugTpl").hidden = !c;
+  $("ugPick").textContent = c ? "Upload PNG" : "Upload GLB"; $("ugFile").accept = c ? ".png,image/png" : ".glb,model/gltf-binary";
+  if (c && UG.mode === "move") { const b = document.querySelector('#ugModes button[data-m="view"]'); if (b) b.click(); }
+}
+async function ugPickCloth(f) {
+  if (!/\.png$/i.test(f.name)) return ugMsg("That isn't a .png file.", true);
+  if (f.size > 2 * 1024 * 1024) return ugMsg("That file is over 2 MB.", true);
+  ugMsg("Loading…");
+  try {
+    UG.cloth = await clothFromBuffer(await f.arrayBuffer()); UG.file = f;
+    if (!UG.name.trim()) { UG.name = f.name.replace(/\.png$/i, "").slice(0, 40); $("ugName").value = UG.name; }
+    $("ugInfo").textContent = f.name; ugMsg(""); ugApply(); ugSync();
+  } catch (e) {
+    ugMsg(e && e.message === "shape" ? "That image isn't the right shape. Download the template and keep its size (640 × 512, or exactly 2× that)." : "Couldn't read that PNG.", true);
+  }
+}
+function ugClothApply() {
+  if (UG.holder && UG.holder.parent) UG.holder.parent.remove(UG.holder);
+  ugv.clothOn = true;
+  setAvatarCloth(ugv.av, UG.attach === "Shirt" ? UG.cloth : null, UG.attach === "Pants" ? UG.cloth : null);
+}
+function ugTemplate() {                                              // a labelled guide the creator can paint over
+  const cv = document.createElement("canvas"); cv.width = CLOTH_W; cv.height = CLOTH_H;
+  const g = cv.getContext("2d"); g.font = "bold 13px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+  const block = (x, y, cols, title) => {
+    const rows = [64, 128, 64]; let cx = x;
+    const cell = (c, r, rx, ry, w, h, label) => { g.fillStyle = (c + r) % 2 ? "rgba(255,255,255,.55)" : "rgba(210,215,225,.55)"; g.fillRect(rx, ry, w, h); g.strokeStyle = "#3a3f4a"; g.strokeRect(rx + .5, ry + .5, w - 1, h - 1); g.fillStyle = "#222"; g.fillText(label, rx + w / 2, ry + h / 2); };
+    const xs = [0], names = ["RIGHT", "FRONT", "LEFT", "BACK"]; for (let i = 0; i < 3; i++) xs.push(xs[i] + cols[i]);
+    for (let i = 0; i < 4; i++) cell(i, 1, x + xs[i], y + 64, cols[i], 128, names[i]);
+    cell(1, 0, x + xs[1], y, cols[1], 64, "TOP"); cell(1, 2, x + xs[1], y + 192, cols[1], 64, "BOTTOM");
+    g.fillStyle = "#222"; g.fillText(title, x + (xs[3] + cols[3]) / 2 + (cols.length > 4 ? 0 : 0), y + 12);
+  };
+  block(0, 0, [64, 128, 64, 128], "TORSO");
+  block(384, 0, [64, 64, 64, 64], "RIGHT ARM / RIGHT LEG");
+  block(384, 256, [64, 64, 64, 64], "LEFT ARM / LEFT LEG");
+  g.fillStyle = "#222"; g.font = "12px sans-serif"; g.textAlign = "left";
+  g.fillText("Pants use the legs + the bottom strip of the torso. Delete this guide layer before you export.", 8, 300);
+  cv.toBlob(b => { if (!b) return; const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "clothing-template.png"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }, "image/png");
+}
 function ugSync(skip) {
+  ugKindUI();
   for (const row of $("ugSliders").children) {
     const d = UG_DEFS[+row.dataset.i], v = ugGet(d);
     row.children[1].value = v;
     if (row.children[2] !== skip && document.activeElement !== row.children[2]) row.children[2].value = Math.round(v * 100) / 100;
   }
-  $("ugAttach").value = UG.attach; if (document.activeElement !== $("ugName")) $("ugName").value = UG.name;
+  if (!isCloth(UG.attach)) $("ugAttach").value = UG.attach; if (document.activeElement !== $("ugName")) $("ugName").value = UG.name;
   if (document.activeElement !== $("ugPrice")) $("ugPrice").value = UG.price;
   $("ugPublish").textContent = UG.published ? "Update price" : "Publish to Shop";
   $("ugUnpublish").hidden = !UG.published;
@@ -99,7 +150,10 @@ function ugSync(skip) {
 }
 function ugView() { if (ugv) { const v = UG_VIEW[UG.attach]; ugv.ty = v[0]; ugv.dist = v[1]; } }
 function ugApply() {
-  if (!ugv || !UG.holder) return;
+  if (!ugv) return;
+  if (isCloth(UG.attach)) return ugClothApply();
+  if (ugv.clothOn) { ugv.clothOn = false; setAvatarCloth(ugv.av, null, null); }
+  if (!UG.holder) return;
   const pv = ugv.av.rig[UG.attach], pp = MODEL_PARTS[UG.attach].pivot, an = UG_ANCHOR[UG.attach], h = UG.holder, rad = Math.PI / 180;
   if (h.parent !== pv) pv.add(h);
   h.position.set(an[0] - pp[0] + UG.pos[0], an[1] - pp[1] + UG.pos[1], an[2] - pp[2] + UG.pos[2]);
@@ -134,25 +188,28 @@ function ugLoad(buf, label) {
     } catch (e) { rej(e); }
   }, rej));
 }
-function ugClear() {
+function ugClear(kind) {
+  kind = kind || (isCloth(UG.attach) ? UG.attach : "model");
   if (UG.holder && UG.holder.parent) UG.holder.parent.remove(UG.holder);
-  Object.assign(UG, { name: "", attach: "Head", pos: [0, 0, 0], rot: [0, 0, 0], scale: 1, file: null, path: null, editId: null, price: 0, published: false, holder: null, inner: null });
-  $("ugInfo").textContent = "Pick a .glb file (up to 10 MB) to see it on the player.";
-  ugView(); ugSync(); ugMsg("");
+  Object.assign(UG, { name: "", attach: kind === "model" ? "Head" : kind, pos: [0, 0, 0], rot: [0, 0, 0], scale: 1, file: null, path: null, editId: null, price: 0, published: false, holder: null, inner: null, cloth: null });
+  $("ugInfo").textContent = kind === "model" ? "Pick a .glb file (up to 10 MB) to see it on the player."
+    : "Pick a .png file (up to 2 MB) made on the template. Press Template to download the guide.";
+  ugView(); ugSync(); ugApply(); ugMsg("");
 }
 async function ugSave() {
   const sb = getSB(); if (!sb || !acct.user) return;
   if (!canUgc()) return ugMsg("Your account can't make UGC.", true);
   const name = UG.name.trim();
-  if (!UG.holder) return ugMsg("Upload a GLB first.", true);
+  const cloth = isCloth(UG.attach);
+  if (cloth ? !UG.cloth : !UG.holder) return ugMsg(cloth ? "Upload a PNG first." : "Upload a GLB first.", true);
   if (!name) return ugMsg("Give the item a name.", true);
   $("ugSave").disabled = true; ugMsg("Saving…");
   try {
     const me = acct.user.id, id = UG.editId || (crypto.randomUUID ? crypto.randomUUID() : (Date.now() + "-" + Math.random().toString(16).slice(2)));
     let path = UG.path, old = null;
     if (UG.file) {
-      old = UG.path; path = me + "/" + id + "-" + Date.now() + ".glb";
-      const up = await sb.storage.from("ugc").upload(path, UG.file, { contentType: "model/gltf-binary", upsert: false });
+      old = UG.path; path = me + "/" + id + "-" + Date.now() + (cloth ? ".png" : ".glb");
+      const up = await sb.storage.from("ugc").upload(path, UG.file, { contentType: cloth ? "image/png" : "model/gltf-binary", upsert: false });
       if (up.error) throw up.error;
     }
     const row = { name, attach: UG.attach, file_path: path, pos: UG.pos, rot: UG.rot, scale: UG.scale };
@@ -162,7 +219,7 @@ async function ugSave() {
     if (old && old !== path) { try { await sb.storage.from("ugc").remove([old]); } catch (_) {} }
     UG.editId = id; UG.path = path; UG.file = null;
     ugMsg("Saved “" + name + "”."); renderUgcList(); ugSync(); if (typeof refreshWorn === "function") refreshWorn(id);
-  } catch (e) { ugMsg("Couldn't save. Run supabase_badges.sql once, and check your badge lets you make UGC.", true); }
+  } catch (e) { ugMsg("Couldn't save. Run supabase_badges.sql once, and check your badge lets you make UGC." + (cloth ? " Clothes also need supabase_clothing.sql run once." : ""), true); }
   $("ugSave").disabled = false;
 }
 async function renderUgcList() {
@@ -172,7 +229,7 @@ async function renderUgcList() {
     if (r.error) r = await sb.from("ugc_items").select("id, name, attach, file_path, pos, rot, scale").eq("creator", acct.user.id).order("created_at", { ascending: false });
     if (r.error) throw r.error;
     const rows = r.data || []; box._rows = rows;
-    box.innerHTML = rows.length ? rows.map(it => `<div class="ugCard box" data-id="${esc(it.id)}"><b>${esc(it.name)}</b><div class="note">${esc((UG_SLOTS.find(x => x[0] === it.attach) || [0, it.attach])[1])}</div><div class="note ugSt">${esc(it.published ? (it.price ? Number(it.price).toLocaleString() + " Triangcles" : "Free") + " · " + (it.sales || 0) + " sold" : "Not for sale")}</div><div class="ugRow"><button class="btnG" data-ug="edit" type="button">Edit</button><button class="btnG" data-ug="del" type="button">Delete</button></div></div>`).join("")
+    box.innerHTML = rows.length ? rows.map(it => `<div class="ugCard box" data-id="${esc(it.id)}"><b>${esc(it.name)}</b><div class="note">${esc(slotName(it.attach))}</div><div class="note ugSt">${esc(it.published ? (it.price ? Number(it.price).toLocaleString() + " Triangcles" : "Free") + " · " + (it.sales || 0) + " sold" : "Not for sale")}</div><div class="ugRow"><button class="btnG" data-ug="edit" type="button">Edit</button><button class="btnG" data-ug="del" type="button">Delete</button></div></div>`).join("")
       : '<div class="note">Nothing saved yet. Upload a GLB above to make your first item.</div>';
   } catch (_) { box.innerHTML = '<div class="note">Couldn\'t load your items. Run supabase_badges.sql in Supabase once.</div>'; }
 }
@@ -194,7 +251,12 @@ $("ugList").addEventListener("click", async e => {
   try {
     const url = sb.storage.from("ugc").getPublicUrl(it.file_path).data.publicUrl, resp = await fetch(url);
     if (!resp.ok) throw new Error("fetch");
-    await ugLoad(await resp.arrayBuffer(), it.name + ".glb");
+    const buf = await resp.arrayBuffer();
+    if (isCloth(it.attach)) {
+      const cv = await clothFromBuffer(buf);
+      if (UG.holder && UG.holder.parent) UG.holder.parent.remove(UG.holder);
+      UG.holder = null; UG.inner = null; UG.cloth = cv; $("ugInfo").textContent = it.name + ".png";
+    } else { await ugLoad(buf, it.name + ".glb"); UG.cloth = null; }
     Object.assign(UG, { name: it.name, attach: it.attach, pos: (it.pos || [0, 0, 0]).slice(), rot: (it.rot || [0, 0, 0]).slice(), scale: +it.scale || 1, file: null, path: it.file_path, editId: it.id, price: +it.price || 0, published: !!it.published });
     ugView(); ugSync(); ugApply(); ugMsg("Editing “" + it.name + "”.");
   } catch (_) { ugMsg("Couldn't load that item's file.", true); }

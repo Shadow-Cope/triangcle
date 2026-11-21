@@ -23,6 +23,47 @@ function loadItemModel(path) {
   ITM.models.set(path, p);
   return p;
 }
+/* ---- clothing images (PNG on the 640x512 template) ---- */
+function decodePng(buf) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(new Blob([buf], { type: "image/png" })), im = new Image();
+    im.onload = () => { URL.revokeObjectURL(url); res(im); };
+    im.onerror = () => { URL.revokeObjectURL(url); rej(new Error("png")); };
+    im.src = url;
+  });
+}
+async function clothFromBuffer(buf) {                             // -> 640x512 canvas, or throws Error("png" | "shape")
+  const u8 = new Uint8Array(buf);
+  if (!(u8[0] === 0x89 && u8[1] === 0x50 && u8[2] === 0x4e && u8[3] === 0x47)) throw new Error("png");
+  const im = await decodePng(buf), w = im.naturalWidth, h = im.naturalHeight;
+  if (!w || !h || Math.abs(w / h - CLOTH_W / CLOTH_H) > 0.01 || w < 320 || w > 2560) throw new Error("shape");
+  const cv = document.createElement("canvas"); cv.width = CLOTH_W; cv.height = CLOTH_H;
+  const g = cv.getContext("2d"); g.imageSmoothingQuality = "high"; g.drawImage(im, 0, 0, CLOTH_W, CLOTH_H);
+  return cv;
+}
+function loadClothImg(path) {
+  if (ITM.models.has(path)) return ITM.models.get(path);
+  const sb = getSB();
+  const p = (async () => {
+    if (!sb) throw new Error("no sb");
+    const resp = await fetch(sb.storage.from("ugc").getPublicUrl(path).data.publicUrl);
+    if (!resp.ok) throw new Error("fetch");
+    const buf = await resp.arrayBuffer();
+    if (buf.byteLength > 3 * 1024 * 1024) throw new Error("big");
+    return await clothFromBuffer(buf);
+  })().catch(() => { ITM.models.delete(path); return null; });
+  ITM.models.set(path, p);
+  return p;
+}
+function paintClothFor(av, ids) {                                   // one shirt + one pants at a time: the last one in the list wins
+  let shirt = null, pants = null, sk = "", pk = "";
+  for (const id of ids) {
+    const c = av.clothItems && av.clothItems.get(id); if (!c) continue;
+    if (c.attach === "Shirt") { shirt = c.cv; sk = id; } else if (c.attach === "Pants") { pants = c.cv; pk = id; }
+  }
+  const sig = sk + "|" + pk; if (av.clothSig === sig) return;
+  av.clothSig = sig; setAvatarCloth(av, shirt, pants);
+}
 function buildHolder(av, it, m) {                                  // same maths as the UGC editor's ugApply()
   const pv = av.rig[it.attach], an = UG_ANCHOR[it.attach], md = MODEL_PARTS[it.attach];
   if (!pv || !an || !md) return null;
@@ -48,18 +89,26 @@ async function fetchItemRows(ids) {
 }
 async function applyItemsToAvatar(av, ids) {
   const want = ids.join(",");
-  av.itemHolders = av.itemHolders || new Map();
+  av.itemHolders = av.itemHolders || new Map(); av.clothItems = av.clothItems || new Map();
   for (const [id, h] of Array.from(av.itemHolders)) if (!ids.includes(id)) { if (h.parent) h.parent.remove(h); av.itemHolders.delete(id); }
-  const need = ids.filter(id => !av.itemHolders.has(id));
-  if (!need.length) return;
+  for (const id of Array.from(av.clothItems.keys())) if (!ids.includes(id)) av.clothItems.delete(id);
+  const need = ids.filter(id => !av.itemHolders.has(id) && !av.clothItems.has(id));
+  if (!need.length) { paintClothFor(av, ids); return; }
   const rows = await fetchItemRows(need);
   for (const id of need) {
     const it = rows.get(id); if (!it) continue;
+    if (isCloth(it.attach)) {
+      const cv = await loadClothImg(it.file_path); if (!cv) continue;
+      if (av.itemSig !== want) return;
+      av.clothItems.set(id, { attach: it.attach, cv });
+      continue;
+    }
     const m = await loadItemModel(it.file_path); if (!m) continue;
     if (av.itemSig !== want) return;                              // a newer outfit replaced this one while loading
     if (av.itemHolders.has(id)) continue;
     const h = buildHolder(av, it, m); if (h) av.itemHolders.set(id, h);
   }
+  paintClothFor(av, ids);
 }
 function syncAvatarItems(av, ids) {
   const sig = ids.join(",");
@@ -86,6 +135,19 @@ function itemThumb(it) {
     if (ITM.thumbs.has(key)) return;
     let url = "";
     try {
+      if (isCloth(it.attach)) {                                    // clothes: the item on a plain player
+        const cv = thumbs && await loadClothImg(it.file_path);
+        if (cv) {
+          const av = thumbs.av, v = UG_VIEW[it.attach]; setAvatarColors(av, sanitizeColors(null));
+          setAvatarCloth(av, it.attach === "Shirt" ? cv : null, it.attach === "Pants" ? cv : null);
+          av.group.rotation.y = -Math.PI / 2 + 0.45; av.group.position.y = 0;
+          thumbs.r.setSize(200, 200, false); thumbs.cam.aspect = 1; thumbs.cam.updateProjectionMatrix();
+          thumbs.cam.position.set(0, v[0] + 0.5, v[1]); thumbs.cam.lookAt(0, v[0], 0);
+          thumbs.r.render(thumbs.sc, thumbs.cam);
+          url = thumbs.r.domElement.toDataURL("image/png");
+          setAvatarCloth(av, null, null);
+        }
+      } else {
       const m = thumbs && await loadItemModel(it.file_path);
       if (m) {
         const av = thumbs.av; setAvatarColors(av, sanitizeColors(null));
@@ -100,7 +162,8 @@ function itemThumb(it) {
           if (h.parent) h.parent.remove(h);
         }
       }
-    } catch (_) {}
+      }
+    } catch (_) { try { setAvatarCloth(thumbs.av, null, null); } catch (_) {} }
     ITM.thumbs.set(key, url);
   }).catch(() => {});
   return ITM.q.then(() => ITM.thumbs.get(key) || "");

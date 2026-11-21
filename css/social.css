@@ -120,3 +120,6 @@
 .ugCard .note { margin: 2px 0 10px; font-size: 13px; }
 .ugCard .ugRow { margin: 0; }
 .ugCard .ugRow button { padding: 5px 12px; font-size: 13px; }
+
+/* clothing: the editor hides controls that don't apply to the chosen type */
+#ugWrap [hidden] { display: none !important; }

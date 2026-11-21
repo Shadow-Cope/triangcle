@@ -45,8 +45,14 @@ async function ipLoadExtras(id, tok) {                              // descripti
   if (row) { IP.desc = String(row.description || "").slice(0, 600); IP.created = row.created_at || (it && it.published_at) || ""; }
   ipPaint();
 }
+async function ipClothAlone(tok) {                                 // clothes are shown on a plain player (Try On = on your own player)
+  const S = ipGL(), it = ITM.rows.get(IP.id); if (!S || !it) return;
+  setAvatarColors(S.av, sanitizeColors(null));
+  S.av.itemSig = it.id; await applyItemsToAvatar(S.av, [it.id]);
+}
 async function ipBuildItem(tok) {                                   // the item on its own, centred, in the preview
   const S = ipGL(), it = ITM.rows.get(IP.id); if (!S || !it) return;
+  if (isCloth(it.attach)) return ipClothAlone(tok);
   while (S.stage.children.length) S.stage.remove(S.stage.children[0]);
   const m = await loadItemModel(it.file_path); if (!m || tok !== IP.tok) return;
   const inner = new THREE.Group(), k = m.k * (2.3 / 1.2);
@@ -63,7 +69,8 @@ async function ipTryOn(tok) {                                       // the item 
 }
 function ipMode() {
   const S = IP.S; if (!S) return;
-  S.stage.visible = !IP.tryOn; S.av.group.visible = IP.tryOn;
+  const cl = isCloth((ITM.rows.get(IP.id) || {}).attach);
+  S.stage.visible = !IP.tryOn && !cl; S.av.group.visible = IP.tryOn || cl;
   $("ipTry").classList.toggle("on", IP.tryOn); $("ipTry").textContent = IP.tryOn ? "Take Off" : "Try On";
 }
 function ipLoop(now) {
@@ -73,7 +80,7 @@ function ipLoop(now) {
   if (w && (cv.width !== Math.round(w * pr) || cv.height !== Math.round(h * pr))) { S.r.setPixelRatio(pr); S.r.setSize(w, h, false); S.cam.aspect = w / h; S.cam.updateProjectionMatrix(); }
   if (!IP.lock && !IP.drag) IP.yaw += 0.008;
   const it = ITM.rows.get(IP.id);
-  if (IP.tryOn) {
+  if (IP.tryOn || (it && isCloth(it.attach))) {
     const v = (it && UG_VIEW[it.attach]) || [4.6, 8];
     S.av.group.rotation.y = -Math.PI / 2 + IP.yaw; S.av.group.position.y = 0;
     S.cam.position.set(0, v[0] + 0.5, v[1] + 1); S.cam.lookAt(0, v[0], 0);
@@ -110,6 +117,7 @@ $("ipLock").addEventListener("click", () => { IP.lock = !IP.lock; ipLockUI(); })
 $("ipTry").addEventListener("click", async () => {
   IP.tryOn = !IP.tryOn; ipMode();
   if (IP.tryOn) await ipTryOn(IP.tok);
+  else { const it = ITM.rows.get(IP.id); if (it && isCloth(it.attach)) await ipClothAlone(IP.tok); }
 });
 $("ipBack").addEventListener("click", () => showTab("shop"));
 $("ipGet").addEventListener("click", async () => {

@@ -30,5 +30,6 @@ function refreshWorn(id) {
   for (const [path, p] of Array.from(ITM.models)) ITM.models.delete(path);
   const h = localAvatar.itemHolders && localAvatar.itemHolders.get(id);
   if (h) { if (h.parent) h.parent.remove(h); localAvatar.itemHolders.delete(id); }
-  localAvatar.itemSig = null; syncAvatarItems(localAvatar, WEAR.mine);
+  if (localAvatar.clothItems) localAvatar.clothItems.delete(id);
+  localAvatar.clothSig = null; localAvatar.itemSig = null; syncAvatarItems(localAvatar, WEAR.mine);
 }
