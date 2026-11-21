@@ -2,7 +2,7 @@
 
 /* owner page: edit games */
 const OWG = {};                                                        // drafts while editing: { id: { name, by, thumb, icon } }
-function owDraft(g) { return OWG[g.id] || (OWG[g.id] = { name: gv(g, "name"), by: gv(g, "by"), thumb: gv(g, "thumb"), icon: gv(g, "icon") }); }
+function owDraft(g) { return OWG[g.id] || (OWG[g.id] = { name: gv(g, "name"), by: gv(g, "by"), thumb: gv(g, "thumb"), icon: gv(g, "icon"), btools: g.btools || "all" }); }
 function renderOwnerGames() {
   if (!isOwner()) return;
   $("owGames").innerHTML = GAMES.map(g => { const d = owDraft(g); return `<div class="owGame box" data-gid="${g.id}">
@@ -10,6 +10,7 @@ function renderOwnerGames() {
     <div class="owFields">
       <label>Game name<input type="text" data-f="name" maxlength="40" value="${gesc(d.name)}" autocomplete="off" spellcheck="false"></label>
       <label>Owner (made by)<input type="text" data-f="by" maxlength="20" value="${gesc(d.by)}" autocomplete="off" spellcheck="false"></label>
+      <label>Building tools (BTools)<select data-f="btools" class="plSel"><option value="all"${d.btools === "all" ? " selected" : ""}>Everyone can use them</option><option value="staff"${d.btools === "staff" ? " selected" : ""}>Admins &amp; Owner only</option><option value="off"${d.btools === "off" ? " selected" : ""}>Off for everyone</option></select></label>
       <div class="owBtnRow"><button type="button" class="btnG" data-pick="thumb">Thumbnail…</button><button type="button" class="btnG" data-pick="icon">Icon…</button><button type="button" class="btnG" data-reset="1">Reset</button>${g.custom ? '<button type="button" class="btnG" data-del="1">Delete</button>' : ""}<button type="button" class="btnP" data-save="1">Save</button></div>
       <input type="file" accept="image/*" data-file="thumb" hidden><input type="file" accept="image/*" data-file="icon" hidden>
     </div></div>`; }).join("");
@@ -69,22 +70,24 @@ $("owGames").addEventListener("click", async e => {
   }
   if (e.target.closest("[data-reset]")) {
     g.ovr = {}; delete OWG[g.id]; msg.textContent = "Reset to the original. Press Save on this game to keep it.";
-    OWG[g.id] = { name: g.def.name, by: g.def.by, thumb: g.def.thumb, icon: g.def.icon }; renderOwnerGames(); return;
+    g.btools = "all"; OWG[g.id] = { name: g.def.name, by: g.def.by, thumb: g.def.thumb, icon: g.def.icon, btools: "all" }; renderOwnerGames(); return;
   }
   if (e.target.closest("[data-save]")) {
-    const row = { name: okTxt(d.name, 40), by: okTxt(d.by, 20), thumb: d.thumb, icon: d.icon };
+    const row = { name: okTxt(d.name, 40), by: okTxt(d.by, 20), thumb: d.thumb, icon: d.icon, btools: d.btools };
     if (!row.name || !row.by) { msg.textContent = "Give the game a name and an owner first."; return; }
     const o = {}; if (row.name !== g.def.name) o.name = row.name; if (row.by !== g.def.by) o.by = row.by;
-    if (row.thumb !== g.def.thumb) o.thumb = row.thumb; if (row.icon !== g.def.icon) o.icon = row.icon;
+    if (row.thumb !== g.def.thumb) o.thumb = row.thumb; if (row.icon !== g.def.icon) o.icon = row.icon; o.btools = row.btools;
     g.ovr = {}; applyGameRow(g.id, o);
-    try { const all = JSON.parse(localStorage.getItem(GAME_LS) || "{}"); all[g.id] = { name: gv(g, "name"), by: gv(g, "by"), thumb: gv(g, "thumb"), icon: gv(g, "icon") }; localStorage.setItem(GAME_LS, JSON.stringify(all)); } catch (_) {}
+    try { const all = JSON.parse(localStorage.getItem(GAME_LS) || "{}"); all[g.id] = { name: gv(g, "name"), by: gv(g, "by"), thumb: gv(g, "thumb"), icon: gv(g, "icon"), btools: g.btools || "all" }; localStorage.setItem(GAME_LS, JSON.stringify(all)); } catch (_) {}
     renderGames(); renderOwnerGames();
     const sb = getSB(); msg.textContent = "Saving…";
     try {
       if (!sb) throw new Error("no supabase");
-      const r = await sb.from(GAME_TABLE).upsert({ id: g.id, name: gv(g, "name"), owner_name: gv(g, "by"), thumb: gv(g, "thumb"), icon: gv(g, "icon"), updated_by: acct.user.id, updated_at: new Date().toISOString() });
+      const base = { id: g.id, name: gv(g, "name"), owner_name: gv(g, "by"), thumb: gv(g, "thumb"), icon: gv(g, "icon"), updated_by: acct.user.id, updated_at: new Date().toISOString() };
+      let r = await sb.from(GAME_TABLE).upsert(Object.assign({ btools: g.btools || "all" }, base)), noBT = false;
+      if (r.error) { r = await sb.from(GAME_TABLE).upsert(base); noBT = true; }                  // btools column missing: save the rest
       if (r.error) throw r.error;
-      msg.textContent = "Saved. Everyone will see the new " + gv(g, "name") + " details.";
+      msg.textContent = noBT ? "Saved, but the building-tools setting needs supabase_account.sql run once in Supabase." : "Saved. Everyone will see the new " + gv(g, "name") + " details.";
     } catch (_) { msg.textContent = "Saved on this device only. Run supabase_game_settings.sql in Supabase once so everyone sees it."; }
   }
 });

@@ -105,8 +105,13 @@ async function submitAuth() {
   if (pw.length < 6) return authMsg("Password must be at least 6 characters.", true);
   acct.busy = true; authGo.disabled = true;
   authMsg(acct.mode === "signup" ? "Creating account…" : "Logging in…");
-  const email = u.toLowerCase() + "@" + CFG.AUTH_EMAIL_DOMAIN;
+  let email = u.toLowerCase() + "@" + CFG.AUTH_EMAIL_DOMAIN;
   try {
+    if (acct.mode === "signup") {                                  // old usernames can't be taken by someone else
+      try { const a = await sb.rpc("username_available", { p_username: u }); if (!a.error && a.data === false) { authMsg("That username is taken.", true); return; } } catch (_) {}
+    } else {                                                       // logging in uses your CURRENT username, even after you changed it
+      try { const r = await sb.rpc("login_email_for", { p_username: u }); if (!r.error && r.data) { if (r.data === "!") { authMsg("Wrong username or password.", true); return; } email = r.data; } } catch (_) {}
+    }
     const res = acct.mode === "signup"
       ? await sb.auth.signUp({ email, password: pw, options: { data: { username: u } } })
       : await sb.auth.signInWithPassword({ email, password: pw });

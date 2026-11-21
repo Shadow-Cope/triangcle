@@ -9,7 +9,7 @@ function startGame() {
   const veil = $("veil"); veil.classList.add("on");                  // quick fade to black, swap to the game, fade back in
   setTimeout(async () => {
     if (curGame.custom && !curGame.map) { try { await loadCustomMap(curGame); } catch (_) { veil.classList.remove("on"); starting = false; alert("Couldn't load that map."); return; } }
-    buildWorld(curGame); CFG.ROOM = curGame.room;                // the map you picked, and its own multiplayer room
+    buildWorld(curGame); CFG.ROOM = curGame.room; applyBuildAccess();                // the map you picked, and its own multiplayer room
     inGame = true; document.body.classList.remove("home");
     if (document.activeElement) document.activeElement.blur();
     last = performance.now();
@@ -43,6 +43,7 @@ function applyGameRow(id, r) {                                        // r = { n
   if (okTxt(r.by, 20)) o.by = okTxt(r.by, 20);
   if (okImg(r.thumb)) o.thumb = r.thumb;
   if (okImg(r.icon)) o.icon = r.icon;
+  if (r.btools === "all" || r.btools === "staff" || r.btools === "off") g.btools = r.btools;
   g.ovr = o;
 }
 function renderGames() {
@@ -61,9 +62,11 @@ renderGames();
 async function loadGameSettings() {                                    // everyone reads the owner's saved names / pictures from Supabase
   const sb = getSB(); if (!sb) return;
   try {
-    const r = await sb.from(GAME_TABLE).select("id, name, owner_name, thumb, icon"); if (r.error) throw r.error;
+    let r = await sb.from(GAME_TABLE).select("id, name, owner_name, thumb, icon, btools");
+    if (r.error) r = await sb.from(GAME_TABLE).select("id, name, owner_name, thumb, icon");     // btools column not added yet (supabase_account.sql)
+    if (r.error) throw r.error;
     const cache = {};
-    for (const row of (r.data || [])) { const v = { name: row.name, by: row.owner_name, thumb: row.thumb, icon: row.icon }; applyGameRow(row.id, v); cache[row.id] = v; }
+    for (const row of (r.data || [])) { const v = { name: row.name, by: row.owner_name, thumb: row.thumb, icon: row.icon, btools: row.btools }; applyGameRow(row.id, v); cache[row.id] = v; }
     try { localStorage.setItem(GAME_LS, JSON.stringify(cache)); } catch (_) {}
     renderGames(); if (!$("pageGame").hidden) fillGamePage(); if (!$("tabOwner").hidden) renderOwnerGames();
   } catch (_) {}

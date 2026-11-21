@@ -98,3 +98,10 @@ Run `supabase_catalog.sql` once in the Supabase SQL editor, then log in as the O
    "Can upload and sell UGC" works like the Official UGC Creator badge; "Can edit and delete Catalog items" works like Owner for items.
 
 Faces are Catalog items (`ugc_items.attach = 'Face'`) with a number in `face_meta`; the number is what `body_colors.face` stores.
+
+## Account settings, username changes, building tools (supabase_account.sql)
+
+Run `supabase_account.sql` once in the Supabase SQL editor (check the wallet table names at the top first).
+
+- **Settings tab**: change your display name (free) or your username (150 Triangcles each time, charged inside Supabase by `change_username()`). Old usernames are kept in `username_history` and shown on the player's profile. Nobody can take an old username, and you log in with your current one (`login_email_for()`).
+- **Building tools per game**: Owner tab > each game > *Building tools*: Everyone / Admins & Owner only / Off. Stored in `game_settings.btools`; checked in `js/game/btools.js` (`canBuild()`).

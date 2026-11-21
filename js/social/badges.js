@@ -47,6 +47,6 @@ function isOwner() { return !!(acct.user && (String(acct.user.email || "").toLow
 const pcard = (id, sub) => {
   const p = SOC.cache.get(id); if (!p) return "";
   const bd = smallBadges(id), meta = [sub].filter(Boolean).join(" · ");
-  return `<button class="pcard box" type="button" data-pid="${esc(id)}"><img class="pface" alt="" src="${thumb(p.body_colors, "face", id)}"><span class="pn">${esc(p.username)}</span>${bd ? `<span class="pbd">${bd}</span>` : ""}${meta ? `<span class="ps">${esc(meta)}</span>` : ""}</button>`;
+  return `<button class="pcard box" type="button" data-pid="${esc(id)}"><img class="pface" alt="" src="${thumb(p.body_colors, "face", id)}"><span class="pn" title="@${esc(p.username)}">${esc(dn(p))}</span>${bd ? `<span class="pbd">${bd}</span>` : ""}${meta ? `<span class="ps">${esc(meta)}</span>` : ""}</button>`;
 };
 const noteSQL = '<div class="note">Run supabase_social.sql in Supabase once to turn on friends.</div>';

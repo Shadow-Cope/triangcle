@@ -5,8 +5,9 @@
    (click one -> its Catalog page) and the friends row with a "more" tile.
    Called from renderProfile() in social.js.
    ===================================================================== */
-const PV = { r: null, sc: null, cam: null, av: null, cv: null, fail: false, running: false, t: 0, yaw: 0, drag: null, back: false, sig: "", colors: null, items: [], tok: 0 };
-const PF_SHOW = 4;                                                   // friends shown before the "more" tile
+const PV = { r: null, sc: null, cam: null, av: null, cv: null, fail: false, running: false, t: 0, yaw: 0, drag: null, locked: false, sw: 1, sig: "", colors: null, items: [], tok: 0 };
+const PV_LOCK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 10V7a5 5 0 0 1 10 0v3h1a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2zm2 0h6V7a3 3 0 0 0-6 0z"/></svg>';
+const PV_OPEN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M17 10h1a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h1V7a5 5 0 0 1 9.6-2l-1.9.8A3 3 0 0 0 9 7v3z"/></svg>';
 
 function pvInit() {                                                  // one renderer for the page, made on first use
   if (PV.r) return true;
@@ -34,9 +35,10 @@ function pvLoop(now) {
   if (cv.width !== Math.round(w * pr) || cv.height !== Math.round(h * pr)) { PV.r.setPixelRatio(pr); PV.r.setSize(w, h, false); PV.cam.aspect = w / h; PV.cam.updateProjectionMatrix(); }
   if (PV.colors) { const sig = colorSig(PV.colors); if (sig !== PV.sig) { PV.sig = sig; setAvatarColors(PV.av, sanitizeColors(PV.colors)); } }
   syncAvatarItems(PV.av, PV.items);
-  if (PV.back && PV.drag === null) { PV.yaw *= Math.exp(-dt * 7); if (Math.abs(PV.yaw) < 0.002) { PV.yaw = 0; PV.back = false; } }
+  PV.sw += ((PV.locked ? 0 : 1) - PV.sw) * Math.min(1, dt * 6);        // locked: stop swaying and face the front
+  if (PV.locked && PV.drag === null) PV.yaw *= Math.exp(-dt * 7);
   const t = now / 1000, rg = PV.av.rig, s = Math.sin(t * 1.7);
-  PV.av.group.rotation.y = -Math.PI / 2 + PV.yaw + Math.sin(t * 0.7) * 0.35;
+  PV.av.group.rotation.y = -Math.PI / 2 + PV.yaw + Math.sin(t * 0.7) * 0.35 * PV.sw;
   PV.av.group.position.y = s * 0.02;
   rg.LeftArm.rotation.z = s * 0.05; rg.RightArm.rotation.z = -s * 0.05;
   PV.r.render(PV.sc, PV.cam);
@@ -45,13 +47,14 @@ function pvLoop(now) {
 async function profileStage(id, colors, wornP) {
   const tok = ++PV.tok, box = $("pvBox"), list = $("pItems");
   if (!box || !list) return;
-  PV.items = []; PV.colors = sanitizeColors(colors); PV.yaw = 0; PV.back = false; PV.sig = "";
+  PV.items = []; PV.colors = sanitizeColors(colors); PV.yaw = 0; PV.locked = false; PV.sw = 1; PV.sig = "";
   if (pvInit()) {
     box.insertBefore(PV.cv, box.firstChild);
-    box.addEventListener("pointerdown", e => { if (e.target.closest("button")) return; PV.drag = e.clientX; box.setPointerCapture(e.pointerId); });
+    box.addEventListener("pointerdown", e => { if (PV.locked || e.target.closest("button")) return; PV.drag = e.clientX; box.setPointerCapture(e.pointerId); });
     box.addEventListener("pointermove", e => { if (PV.drag !== null) { PV.yaw += (e.clientX - PV.drag) * 0.012; PV.drag = e.clientX; } });
     const end = () => { PV.drag = null; }; box.addEventListener("pointerup", end); box.addEventListener("pointercancel", end);
-    $("pvReset").addEventListener("click", () => { PV.back = true; });
+    const lk = $("pvLock"), paintLock = () => { lk.classList.toggle("locked", PV.locked); lk.innerHTML = PV.locked ? PV_LOCK : PV_OPEN; };
+    lk.addEventListener("click", () => { PV.locked = !PV.locked; paintLock(); }); paintLock();
     if (!PV.running) { PV.running = true; PV.t = performance.now(); requestAnimationFrame(pvLoop); }
   } else box.insertAdjacentHTML("beforeend", '<div class="note pvNo">3D view isn\'t available on this device.</div>');
 

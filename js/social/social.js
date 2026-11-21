@@ -22,7 +22,7 @@ async function renderFriends() {
   await loadSocial();
   $("fReqWrap").hidden = !SOC.incoming.length; $("fReqT").textContent = "Requests (" + SOC.incoming.length + ")";
   $("fReqs").innerHTML = SOC.incoming.map(id => { const p = SOC.cache.get(id); if (!p) return "";
-    return `<div class="reqRow box"><img alt="" data-pid="${esc(id)}" src="${thumb(p.body_colors, "face", id)}"><b data-pid="${esc(id)}">${esc(p.username)}</b><button class="btnP" data-act="accept" data-id="${esc(id)}" type="button">Accept</button><button class="btnG" data-act="remove" data-id="${esc(id)}" type="button">Decline</button></div>`; }).join("");
+    return `<div class="reqRow box"><img alt="" data-pid="${esc(id)}" src="${thumb(p.body_colors, "face", id)}"><b data-pid="${esc(id)}">${esc(dn(p))}</b><button class="btnP" data-act="accept" data-id="${esc(id)}" type="button">Accept</button><button class="btnG" data-act="remove" data-id="${esc(id)}" type="button">Decline</button></div>`; }).join("");
   $("fTitle").textContent = "Your friends (" + SOC.friends.length + ")";
   $("fList").innerHTML = !SOC.ok ? noteSQL : (SOC.friends.length ? SOC.friends.map(id => pcard(id)).join("") : '<div class="note">No friends yet. Search for a username above.</div>');
 }
@@ -37,7 +37,7 @@ $("fSearch").addEventListener("input", () => {
     try { let r = await sb.from(CFG.SAVE_TABLE).select("id, username, body_colors, player_number").ilike("username", q + "%").limit(12);
       if (r.error) r = await sb.from(CFG.SAVE_TABLE).select("id, username, body_colors").ilike("username", q + "%").limit(12); rows = r.data || []; } catch (_) {}
     rows = rows.filter(p => p.id !== acct.user.id);
-    for (const p of rows) SOC.cache.set(p.id, p);
+    for (const p of rows) SOC.cache.set(p.id, Object.assign({}, SOC.cache.get(p.id) || {}, p));
     await getBadges(rows.map(p => p.id));
     $("fResults").innerHTML = rows.length ? '<div class="grid">' + rows.map(p => pcard(p.id)).join("") + "</div>" : '<div class="note">No players found.</div>';
   }, 250);
@@ -53,6 +53,8 @@ async function renderProfile(id) {
   if (!p) { body.innerHTML = '<div class="note">Couldn\'t find that player.</div>'; return; }
   const colors = mine ? myColors : p.body_colors;
   const wornP = mine ? Promise.resolve() : fetchWorn([id]);
+  let oldNames = [];                                                 // everyone can see a player's earlier usernames
+  try { const h = await getSB().from("username_history").select("old_username").eq("user_id", id).order("changed_at", { ascending: false }); if (!h.error) oldNames = (h.data || []).map(x => x.old_username); } catch (_) {}
   let theirFriends = [];
   if (mine) theirFriends = SOC.friends;
   else {
@@ -75,13 +77,16 @@ async function renderProfile(id) {
     <div id="pHead">
       <img id="pFace" alt="" data-tu="${esc(id)}" src="${thumb(colors, "face", id)}">
       <div id="pInfo">
-        <div id="pNameRow"><h2 id="pName">${esc(p.username)}</h2>${badgeList(id).length ? `<span class="bdgs" id="pBadges">${bigBadges(id)}</span>` : ""}</div>
+        <div id="pNameRow"><h2 id="pName">${esc(dn(p))}</h2>${badgeList(id).length ? `<span class="bdgs" id="pBadges">${bigBadges(id)}</span>` : ""}</div>
+        ${p.display_name && p.display_name !== p.username ? `<div id="pHandle">@${esc(p.username)}</div>` : ""}
+        ${oldNames.length ? `<div id="pOld">Previously: ${oldNames.map(n => esc(n)).join(", ")}</div>` : ""}
         <div id="pStats"><div><b>${theirFriends.length}</b>Friends</div></div>
       </div>
       <div id="pActs">${acts}</div>
     </div>
+    <h3 id="pAvTitle">Avatar</h3>
     <div id="pStage">
-      <div id="pvBox"><span id="pvWear"></span><button id="pvReset" type="button" title="Face the front">Reset</button><em>drag to turn</em></div>
+      <div id="pvBox"><span id="pvWear"></span><button id="pvLock" type="button" title="Lock / unlock rotation"></button></div>
       <div id="pItemsWrap"><div id="pItems" aria-label="Items worn"></div></div>
     </div>
     <div id="pAbout" class="box"><h4>Bio ${mine ? '<button class="linkBtn" id="pEdit" type="button">Edit</button>' : ""}</h4><div id="pAboutBody"><p>${about}</p></div></div>

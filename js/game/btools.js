@@ -75,7 +75,16 @@ function applyPanel(e) {
   rebuildPart(pt); selBox.setFromObject(pt.mesh); markPart(pt);
   if (e.target.type !== "number") e.target.blur();
 }
+/* who may use BTools in this game: the game's setting is "all" (default), "staff" (Owner + Admin badge) or "off" */
+const btMode = () => (curGame && curGame.btools) || "all";
+function canBuild() {
+  const m = btMode(); if (m === "off") return false;
+  if (m === "staff") return !!acct.user && (isOwner() || badgeList(acct.user.id).includes("admin"));
+  return true;
+}
+function applyBuildAccess() { const ok = canBuild(); $("slotBT").style.display = ok ? "" : "none"; if (!ok && btOn) toggleBT(); }
 function toggleBT() {
+  if (!btOn && !canBuild()) return;
   btOn = !btOn; $("bt").style.display = btOn ? "block" : "none"; $("slotBT").classList.toggle("on", btOn);
   if (!btOn) { selectPart(null); placing = false; drag = null; canvas.style.cursor = ""; }
 }
@@ -113,6 +122,7 @@ function applyRemotePart(d, owner) {
   pt.pos.set(d.p[0], d.p[1], d.p[2]); rebuildPart(pt);
 }
 function onPartMsg(m) {
+  if (btMode() === "off") return;                                   // building is switched off in this game: ignore anyone else's parts
   if (!m || !m.id || m.id === NET.id) return;
   const id = String(m.id);
   if (m.t === "parts" && Array.isArray(m.list)) { for (const d of m.list.slice(0, 40)) applyRemotePart(d, id); }

@@ -1,6 +1,6 @@
 "use strict";
 
-const SECID = { ugc: "tabUgc", home: "tabHome", games: "tabGames", avatar: "tabAvatar", friends: "tabFriends", profile: "tabProfile", shop: "tabShop", players: "tabPlayers", owner: "tabOwner" };
+const SECID = { ugc: "tabUgc", home: "tabHome", games: "tabGames", avatar: "tabAvatar", friends: "tabFriends", profile: "tabProfile", shop: "tabShop", players: "tabPlayers", owner: "tabOwner", settings: "tabSettings" };
 function showTab(name) {
   if (name === "owner" && !isOwner()) name = "home";
   if (name === "ugc" && !canUgc()) name = "home";
@@ -18,6 +18,7 @@ function showTab(name) {
   if (name === "shop") renderShop();
   if (name === "avatar") renderAvItems();
   if (name === "ugc") ugStart();
+  if (name === "settings") renderSettings();
   if (name === "profile") renderProfile(SOC.viewId || (acct.user && acct.user.id));
   if (name !== "profile") SOC.viewId = null;
 }

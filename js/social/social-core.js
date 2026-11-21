@@ -6,6 +6,7 @@
 const SOC = { friends: [], incoming: [], outgoing: [], ok: true, cache: new Map(), viewId: null, badges: new Map(), badgeOK: true };
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const FR_TABLE = "friendships";
+const dn = p => (p && (p.display_name || p.username)) || "";                // the name people see: display name if they set one, else username
 
 /* offscreen renderer that turns any set of body colours into a picture */
 const thumbs = (function () {
@@ -105,7 +106,8 @@ async function getProfiles(ids, force) {
   const sb = getSB(); if (!sb) return;
   const need = [...new Set(ids)].filter(i => force || !SOC.cache.has(i)); if (!need.length) return;
   try {
-    let r = await sb.from(CFG.SAVE_TABLE).select("id, username, body_colors, about, created_at, player_number").in("id", need);
+    let r = await sb.from(CFG.SAVE_TABLE).select("id, username, display_name, body_colors, about, created_at, player_number").in("id", need);
+    if (r.error) r = await sb.from(CFG.SAVE_TABLE).select("id, username, body_colors, about, created_at, player_number").in("id", need);
     if (r.error) r = await sb.from(CFG.SAVE_TABLE).select("id, username, body_colors, about, created_at").in("id", need);
     if (r.error) r = await sb.from(CFG.SAVE_TABLE).select("id, username, body_colors").in("id", need);
     for (const p of (r.data || [])) SOC.cache.set(p.id, p);
