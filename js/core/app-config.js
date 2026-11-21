@@ -6,8 +6,8 @@ const APP_CFG = {
   //   "https://github.com/<you>/<repo>/releases/latest/download/"
   // Leave empty until the first release exists (buttons then say downloads aren't published yet).
   RELEASES_URL: "",
-  WIN_FILE: "Triangle-Setup.exe",
-  MAC_FILE: "Triangle-mac.dmg",
+  WIN_FILE: "Triancle-Setup.exe",
+  MAC_FILE: "Triancle-mac.dmg",
   VERSION: "1.0.0",
   // true  = games only start inside the desktop app (the browser shows the download / open prompt)
   // false = browser play works again (handy while you're still building the app)

@@ -37,3 +37,4 @@ summary { cursor: pointer; } details p { margin: 8px 0 2px; color: var(--dim); f
 code { padding: 1px 6px; border-radius: 5px; background: #0b0905; font: 13px ui-monospace, Menlo, Consolas, monospace; color: #e8dcc0; word-break: break-all; }
 [hidden] { display: none !important; }
 @media (max-width: 640px) { .cards { grid-template-columns: 1fr; } .top { padding: 12px 16px; } }
+.nameLogo { height: 1.1em; width: auto; vertical-align: -0.2em; }

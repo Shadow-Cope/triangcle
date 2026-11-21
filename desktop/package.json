@@ -1,9 +1,9 @@
 {
-  "name": "triangle-desktop",
-  "productName": "Triangle",
+  "name": "triancle-desktop",
+  "productName": "Triancle",
   "version": "1.0.0",
-  "description": "Triangle desktop app (Windows and macOS)",
-  "author": "Triangle",
+  "description": "Triancle desktop app (Windows and macOS)",
+  "author": "Triancle",
   "private": true,
   "main": "main.js",
   "scripts": {
@@ -16,21 +16,21 @@
     "electron-builder": "^26.0.0"
   },
   "build": {
-    "appId": "com.triangle.app",
-    "productName": "Triangle",
+    "appId": "com.triancle.app",
+    "productName": "Triancle",
     "directories": { "output": "dist", "buildResources": "build" },
     "files": ["main.js", "preload.js", "offline.html", "config.json", "build/icon.png", "package.json"],
-    "protocols": [{ "name": "Triangle", "schemes": ["triangle"] }],
+    "protocols": [{ "name": "Triancle", "schemes": ["triancle"] }],
     "win": {
       "target": [{ "target": "nsis", "arch": ["x64"] }],
-      "artifactName": "Triangle-Setup.${ext}"
+      "artifactName": "Triancle-Setup.${ext}"
     },
     "nsis": { "oneClick": true, "perMachine": false, "createDesktopShortcut": true, "runAfterFinish": true },
     "mac": {
       "category": "public.app-category.games",
       "target": [{ "target": "dmg", "arch": ["universal"] }],
-      "artifactName": "Triangle-mac.${ext}"
+      "artifactName": "Triancle-mac.${ext}"
     },
-    "dmg": { "title": "Triangle" }
+    "dmg": { "title": "Triancle" }
   }
 }

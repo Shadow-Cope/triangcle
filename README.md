@@ -1,4 +1,4 @@
-# Triangle
+# Triancle
 
 Roblox-style 3D game site. Plain HTML/CSS/JavaScript + Three.js, with Supabase for accounts, saving and
 multiplayer. **No build step** - the repo root is the site.
@@ -77,7 +77,7 @@ Transparent pixels show the body colour.
 
 ## Desktop app (Windows + macOS)
 
-Games now start only in the Triangle desktop app. In a browser, **Play** tries to open the app (`triangle://join/<game>`) and shows a
+Games now start only in the Triancle desktop app. In a browser, **Play** tries to open the app (`triancle://join/<game>`) and shows a
 download prompt if nothing opens; `download.html` is the download page. The app itself lives in `desktop/` (Electron) and is built for
 Windows and macOS by `.github/workflows/build-desktop.yml`. Setup steps: `desktop/README.md`.
 

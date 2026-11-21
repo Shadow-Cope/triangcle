@@ -116,4 +116,4 @@ setInterval(() => {
   }
 }, 30000).unref();
 
-server.listen(PORT, () => console.log("Triangle server on http://localhost:" + PORT));
+server.listen(PORT, () => console.log("Triancle server on http://localhost:" + PORT));

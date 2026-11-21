@@ -1,14 +1,14 @@
 "use strict";
-/* Triangle desktop app (Electron). It is the website in its own window, plus:
-     - it tells the site "you're in the app" (window.TriangleApp + a TriangleApp/x.y.z user-agent), which unlocks Play
-     - it handles triangle://join/<gameId> links, which is how the website's Play button opens a game here
+/* Triancle desktop app (Electron). It is the website in its own window, plus:
+     - it tells the site "you're in the app" (window.TriancleApp + a TriancleApp/x.y.z user-agent), which unlocks Play
+     - it handles triancle://join/<gameId> links, which is how the website's Play button opens a game here
    The site address comes from (first match): --url=...  |  TRIANGLE_URL env var  |  config.json -> siteUrl */
 const { app, BrowserWindow, Menu, ipcMain, session, shell, dialog } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { pathToFileURL } = require("url");
 
-const SCHEME = "triangle";
+const SCHEME = "triancle";
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const OFFLINE = path.join(__dirname, "offline.html");
 
@@ -21,7 +21,7 @@ function readSite() {
 const SITE = readSite();
 let win = null, pendingLink = null;
 
-/* triangle://join/<id> -> id;  triangle://open (or anything else of ours) -> "";  not our scheme -> null */
+/* triancle://join/<id> -> id;  triancle://open (or anything else of ours) -> "";  not our scheme -> null */
 function linkToGame(raw) {
   try {
     const u = new URL(raw);
@@ -44,12 +44,12 @@ function openExternal(url) { if (/^https:\/\//i.test(url)) shell.openExternal(ur
 function createWindow() {
   const iconFile = path.join(__dirname, "build", "icon.png");
   win = new BrowserWindow({
-    width: 1280, height: 800, minWidth: 900, minHeight: 600, show: false, backgroundColor: "#120f09", title: "Triangle",
+    width: 1280, height: 800, minWidth: 900, minHeight: 600, show: false, backgroundColor: "#120f09", title: "Triancle",
     icon: fs.existsSync(iconFile) ? iconFile : undefined,
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: false },
   });
   const wc = win.webContents, origin = new URL(SITE).origin;
-  wc.setUserAgent(wc.getUserAgent() + " TriangleApp/" + app.getVersion());
+  wc.setUserAgent(wc.getUserAgent() + " TriancleApp/" + app.getVersion());
   win.once("ready-to-show", () => win.show());
   win.on("closed", () => { win = null; });
 
@@ -72,7 +72,7 @@ function buildMenu() {
   const mac = process.platform === "darwin";
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     ...(mac ? [{ role: "appMenu" }] : []),
-    { label: "Triangle", submenu: [
+    { label: "Triancle", submenu: [
       { label: "Home", accelerator: "CmdOrCtrl+Shift+H", click: () => win && win.loadURL(SITE + "/") },
       { role: "reload" }, { role: "togglefullscreen" },
       ...(app.isPackaged ? [] : [{ role: "toggleDevTools" }]),
@@ -82,7 +82,7 @@ function buildMenu() {
   ]));
 }
 
-/* register triangle:// (the installer's Info.plist handles macOS; this covers Windows and dev runs) */
+/* register triancle:// (the installer's Info.plist handles macOS; this covers Windows and dev runs) */
 if (process.defaultApp) { if (process.argv.length >= 2) app.setAsDefaultProtocolClient(SCHEME, process.execPath, [path.resolve(process.argv[1])]); }
 else app.setAsDefaultProtocolClient(SCHEME);
 
@@ -98,7 +98,7 @@ if (!app.requestSingleInstanceLock()) {
   });
   app.whenReady().then(() => {
     if (!SITE) {
-      dialog.showErrorBox("Triangle isn't set up", "This build has no website address. Put your site's URL in desktop/config.json (siteUrl) and rebuild.");
+      dialog.showErrorBox("Triancle isn't set up", "This build has no website address. Put your site's URL in desktop/config.json (siteUrl) and rebuild.");
       app.quit(); return;
     }
     session.defaultSession.setPermissionRequestHandler((_wc, perm, cb) => cb(perm === "fullscreen" || perm === "clipboard-sanitized-write"));

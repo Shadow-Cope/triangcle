@@ -6,7 +6,7 @@
 const GEO_CACHE = {};
 
 /* ---- clothing (Shirt / Pants) ----
-   Clothes are a 512x512 PNG made on the Triangle templates (assets/templates). Each body part (except the head) gets
+   Clothes are a 512x512 PNG made on the Triancle templates (assets/templates). Each body part (except the head) gets
    UVs that point straight at its own cells of that template, and the shader lays the shirt / pants over the body colour.
    Cells are [x, y, w, h] in template pixels; F front (+X), B back (-X), R avatar's right side (+Z), L left side (-Z), U top, D bottom.
    Torso: T.  Right arm / right leg: A.  Left arm / left leg: C. */

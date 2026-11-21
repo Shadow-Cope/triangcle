@@ -24,3 +24,4 @@ html.inapp .webonly { display: none !important; }
 #appPrompt .apMore { display: flex; justify-content: center; gap: 18px; margin-top: 14px; font-size: 14px; }
 #appPrompt .apMore a { color: var(--dim, #a79b80); text-decoration: underline; }
 #appPrompt .apMore a:hover { color: var(--y, #ffbf2f); }
+#appPrompt h2 .apName { height: 1.15em; width: auto; vertical-align: -0.22em; }
