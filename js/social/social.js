@@ -52,6 +52,7 @@ async function renderProfile(id) {
   const me = acct.user.id, mine = id === me, p = SOC.cache.get(id);
   if (!p) { body.innerHTML = '<div class="note">Couldn\'t find that player.</div>'; return; }
   const colors = mine ? myColors : p.body_colors;
+  const wornP = mine ? Promise.resolve() : fetchWorn([id]);
   let theirFriends = [];
   if (mine) theirFriends = SOC.friends;
   else {
@@ -69,7 +70,7 @@ async function renderProfile(id) {
     rel === "incoming" ? `<button class="btnP" data-act="accept" data-id="${I}" type="button">Accept</button><button class="btnG" data-act="remove" data-id="${I}" type="button">Decline</button>` :
     rel === "outgoing" ? `<button class="btnG" data-act="remove" data-id="${I}" type="button">Request sent</button>` :
     `<button class="btnP" data-act="add" data-id="${I}" type="button">Add friend</button>`;
-  const about = p.about && p.about.trim() ? esc(p.about) : '<span class="muted">' + (mine ? "Nothing here yet." : "No bio.") + "</span>";
+  const about = p.about && p.about.trim() ? esc(p.about) : '<span class="muted">' + (mine ? "You haven't written a bio yet." : "This user has no bio yet.") + "</span>";
   body.innerHTML = `
     <div id="pHead">
       <img id="pFace" alt="" data-tu="${esc(id)}" src="${thumb(colors, "face", id)}">
@@ -79,9 +80,14 @@ async function renderProfile(id) {
       </div>
       <div id="pActs">${acts}</div>
     </div>
-    <div id="pAbout" class="box"><h4>About ${mine ? '<button class="linkBtn" id="pEdit" type="button">Edit</button>' : ""}</h4><div id="pAboutBody"><p>${about}</p></div></div>
-    <h3>Friends (${theirFriends.length})</h3>
-    <div class="shelf">${theirFriends.length ? theirFriends.map(f => pcard(f)).join("") : '<div class="note">No friends yet.</div>'}</div>`;
+    <div id="pStage">
+      <div id="pvBox"><span id="pvWear"></span><button id="pvReset" type="button" title="Face the front">Reset</button><em>drag to turn</em></div>
+      <div id="pItemsWrap"><div id="pItems" aria-label="Items worn"></div></div>
+    </div>
+    <div id="pAbout" class="box"><h4>Bio ${mine ? '<button class="linkBtn" id="pEdit" type="button">Edit</button>' : ""}</h4><div id="pAboutBody"><p>${about}</p></div></div>
+    <div id="pFriends" class="box"><h4>Friends</h4><div id="pFrRow"></div></div>`;
+  profileFriends(theirFriends, false);
+  profileStage(id, colors, wornP);
   if (!mine) addSafetyBtns(p);
   if (mine) {
     $("pEditAv").addEventListener("click", () => showTab("avatar"));
