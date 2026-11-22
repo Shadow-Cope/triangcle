@@ -926,3 +926,121 @@ html.inapp .webonly { display: none !important; }
 
 .balLink { cursor: pointer; }
 .balLink:hover { border-color: var(--y); }
+
+
+/* ---- top-right account menu + real pictures in Transactions ---- */
+#hUserWrap { position: relative; }
+#hUser { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 12px 0 5px; border: 0; border-radius: 12px; background: var(--panel); color: #fff; cursor: pointer; font-size: 17px; }
+#hUser[hidden], #hLogin[hidden], #hMenu[hidden] { display: none; }
+#hUser:hover, #hUser.open { background: #2a2418; }
+#hUserImg { width: 36px; height: 36px; flex: none; border-radius: 9px; object-fit: cover; background: #2a2418; }
+#hUser #hWho { color: #fff; font-size: 17px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#hUser .hChev { flex: none; transition: transform .15s; transform: rotate(180deg); color: #fff; }
+#hUser.open .hChev { transform: none; }
+#hMenu { position: absolute; right: 0; top: calc(100% + 8px); z-index: 45; min-width: 250px; box-sizing: border-box; padding: 16px; border: 1px solid var(--bd); border-radius: 14px; background: #0c0b10; box-shadow: 0 16px 40px rgba(0, 0, 0, .55); display: flex; flex-direction: column; gap: 4px; }
+#hMenu button { display: block; width: 100%; padding: 12px 14px; border: 0; border-radius: 8px; background: transparent; color: #fff; font-size: 19px; text-align: left; cursor: pointer; }
+#hMenu button:hover { background: #1f1b12; }
+#hMenu button.hOut { margin-top: 8px; background: #e05555; color: #fff; }
+#hMenu button.hOut:hover { background: #ec6767; }
+#hLogin { padding: 8px 18px; border: 1px solid var(--bd); border-radius: 10px; background: var(--panel); color: #fff; cursor: pointer; font-size: 15px; }
+#hLogin:hover { border-color: var(--y); }
+.txUser .txAv { flex: none; width: 30px; height: 30px; border-radius: 8px; object-fit: cover; background: #2a2418; border: 1px solid var(--bd); }
+@media (max-width: 700px) { #hUser #hWho { display: none; } #hUser { padding: 0 8px 0 5px; } }
+
+
+/* ---- name colors / badge name tags ---- */
+.tag.bdgTag { text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 0 0 9px currentColor; }
+
+/* ---- Home: no scroll bars, "N+ Friends" button ---- */
+body.onHome #home, body.onHome #home *, #tabHome, #tabHome * { scrollbar-width: none; -ms-overflow-style: none; }
+body.onHome #home::-webkit-scrollbar, body.onHome #home *::-webkit-scrollbar, #tabHome *::-webkit-scrollbar { display: none; width: 0; height: 0; }
+#wFriends.shelf { overflow: hidden; flex-wrap: nowrap; padding-bottom: 6px; }
+.pcard[hidden] { display: none; }
+.pcard.moreCard { flex-direction: column; gap: 2px; width: 92px; height: auto; min-height: 84px; align-self: flex-start; background: #2a2418; border: 1px solid var(--bd); border-radius: 14px; color: #fff; }
+.pcard.moreCard b { font-size: 22px; color: var(--y); }
+.pcard.moreCard span { font-size: 13px; color: var(--dim); }
+.pcard.moreCard:hover { border-color: var(--y); }
+
+/* ---- Catalog: sidebar + wide grid ---- */
+body.shopWide #home main { max-width: none; padding: 24px 32px 60px; }
+#shHead { display: flex; align-items: center; gap: 16px; margin: 0 0 18px; }
+#shHead h2 { margin: 0; font-size: 40px; }
+#shLayout { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 28px; align-items: start; }
+#shSide { position: sticky; top: 12px; display: flex; flex-direction: column; gap: 14px; }
+#shSearchBox { display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 14px; border: 1px solid var(--bd); border-radius: 12px; background: #0e0c08; color: var(--dim); }
+#shSearchBox svg { width: 20px; height: 20px; flex: none; }
+#shSearchBox input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; color: #fff; font-size: 17px; }
+#shSearchBox:focus-within { border-color: var(--y); }
+#shSide #shSort { width: 100%; height: 46px; padding: 0 14px; border-radius: 12px; font-size: 17px; background: #231e13; border: 1px solid var(--bd); color: #fff; }
+#shCats { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.shCat { display: flex; align-items: center; gap: 14px; width: 100%; padding: 12px 16px; border: 0; border-radius: 12px; background: transparent; color: #fff; font-size: 18px; text-align: left; cursor: pointer; }
+.shCat svg { width: 24px; height: 24px; flex: none; }
+.shCat:hover { background: #231e13; }
+.shCat.on { background: var(--y); color: #1a1203; }
+#shFilt { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.shFh { font-size: 18px; margin-bottom: 2px; }
+.shChk { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border: 1px solid var(--bd); border-radius: 12px; background: #0e0c08; font-size: 16px; cursor: pointer; }
+.shChk input { width: 18px; height: 18px; accent-color: var(--y); }
+.shIn { box-sizing: border-box; width: 100%; height: 46px; padding: 0 14px; border: 1px solid var(--bd); border-radius: 12px; background: #0e0c08; color: #fff; font-size: 16px; outline: 0; }
+.shIn:focus { border-color: var(--y); }
+.shPr { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+#shClear { padding: 8px; border: 0; background: none; color: var(--dim); font-size: 15px; cursor: pointer; }
+#shClear:hover { color: #fff; }
+#shopList { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 18px; }
+#shopList .itCard { width: auto; padding: 0; gap: 0; border-radius: 14px; overflow: hidden; background: #0e0c08; border: 1px solid #2a2418; transition: transform .12s, border-color .12s; }
+#shopList .itCard:hover { transform: translateY(-3px); border-color: var(--y); }
+.itPic { position: relative; background: radial-gradient(circle at 50% 35%, #1f1a10, #0e0c08 75%); }
+#shopList .itImg { border-radius: 0; background: transparent; }
+.itPic .itTag { position: absolute; left: 10px; top: 10px; background: rgba(27,23,16,.92); color: #fff; }
+.itInfo { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px 16px; background: #17130c; }
+.itInfo b { font-size: 19px; }
+.itInfo .itMeta .pr { font-size: 19px; color: var(--y); }
+.itInfo .itBy { font-size: 13px; }
+
+/* ---- touch controls ---- */
+#touchUI { display: none; }
+html.touch body:not(.home) #touchUI { display: block; }
+html.touch body.chatopen #touchUI { display: none; }
+#touchUI #joy { position: fixed; left: 26px; bottom: 34px; width: 128px; height: 128px; border-radius: 50%; background: rgba(255,255,255,.12); border: 2px solid rgba(255,255,255,.28); touch-action: none; z-index: 6; display: grid; place-items: center; }
+#touchUI #joyK { width: 54px; height: 54px; border-radius: 50%; background: rgba(255,255,255,.55); pointer-events: none; }
+#touchUI #tJump { position: fixed; right: 30px; bottom: 50px; width: 88px; height: 88px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); background: rgba(255,191,47,.55); color: #1a1203; font-size: 18px; touch-action: none; z-index: 6; }
+#touchUI #tJump:active { background: rgba(255,191,47,.9); }
+html.touch #board { display: none; }
+
+/* ---- phones and small tablets (website only; the desktop app is untouched) ---- */
+@media (max-width: 860px) {
+  html:not(.inapp) #shLayout { grid-template-columns: minmax(0, 1fr); gap: 16px; } html:not(.inapp) #shSide, html:not(.inapp) #shMain { min-width: 0; }
+  html:not(.inapp) #shSide { position: static; }
+  html:not(.inapp) #shCats { flex-direction: row; overflow-x: auto; gap: 8px; margin-top: 0; scrollbar-width: none; }
+  html:not(.inapp) #shCats::-webkit-scrollbar { display: none; }
+  html:not(.inapp) .shCat { width: auto; flex: none; padding: 10px 14px; font-size: 16px; background: #231e13; }
+  html:not(.inapp) .shCat.on { background: var(--y); }
+  html:not(.inapp) #shFilt { display: grid; grid-template-columns: 1fr 1fr; }
+  html:not(.inapp) #shFilt .shFh, html:not(.inapp) #shClear, html:not(.inapp) #shFilt .shPr { grid-column: 1 / -1; }
+}
+@media (max-width: 760px) {
+  html:not(.inapp) #hTop { flex-wrap: wrap; gap: 10px 12px; padding: 10px 14px; }
+  html:not(.inapp) #hLogo { height: 30px; }
+  html:not(.inapp) #hTabs { order: 3; width: 100%; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  html:not(.inapp) #hTabs::-webkit-scrollbar { display: none; }
+  html:not(.inapp) #hTabs button { flex: none; padding: 8px 12px; font-size: 15px; }
+  html:not(.inapp) #hAcctBox { gap: 8px; }
+  html:not(.inapp) #hGetApp { display: none; }
+  html:not(.inapp) #hMenu { min-width: 220px; }
+  html:not(.inapp) #notifPanel { top: 110px; }
+  html:not(.inapp) #home main, html:not(.inapp) body.shopWide #home main, html:not(.inapp) body.avWide #home main { padding: 16px 14px 60px; }
+  html:not(.inapp) #shopList { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  html:not(.inapp) .itInfo { padding: 10px 12px 12px; } html:not(.inapp) .itInfo b { font-size: 16px; }
+  html:not(.inapp) #shHead h2 { font-size: 30px; }
+  html:not(.inapp) #welcome { gap: 14px; }
+  html:not(.inapp) #wImg { width: 68px; height: 68px; border-radius: 12px; }
+  html:not(.inapp) #home #wName { font-size: 24px; }
+  html:not(.inapp) #gameGrid { gap: 14px; }
+  html:not(.inapp) .gcard { width: 160px; }
+  html:not(.inapp) .pcard.box { width: calc(50% - 8px); }
+  html:not(.inapp) .pcard.box .pface { width: 100%; height: auto; aspect-ratio: 1; }
+  html:not(.inapp) #chatlog, html:not(.inapp) #chatInput { width: calc(100vw - 24px); }
+  html:not(.inapp) #chatlog { height: 200px; } html:not(.inapp) #chatInput { top: 268px; }
+  html:not(.inapp) #gmenu { max-width: 100vw; }
+  html:not(.inapp) #auth .authCard, html:not(.inapp) #auth > div { max-width: calc(100vw - 24px); }
+}

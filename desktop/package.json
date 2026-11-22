@@ -1,7 +1,7 @@
 {
   "name": "triancle-desktop",
   "productName": "Triancle",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Triancle desktop app (Windows and macOS)",
   "author": "Triancle",
   "private": true,

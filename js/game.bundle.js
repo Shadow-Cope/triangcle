@@ -53,7 +53,7 @@ const APP = (function () {
   const os = mobile ? "mobile" : /Windows/i.test(ua) ? "win" : /Macintosh|Mac OS X/i.test(ua) ? "mac" : "other";
   const inApp = !!window.TriancleApp || !!m;
   if (inApp) document.documentElement.classList.add("inapp");
-  return { in: inApp, os, version: m ? m[1] : "", required: !!APP_CFG.REQUIRE_APP, pendingJoin: null };
+  return { in: inApp, os, version: m ? m[1] : "", required: !!APP_CFG.REQUIRE_APP && !mobile, pendingJoin: null };
 })();
 const APP_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 function appDownloadUrl(os) {                                        // direct installer link, or the download page when none is published yet
@@ -673,6 +673,7 @@ function updateTags() {
   const tanH = Math.tan(CFG.CAM_FOV * Math.PI / 360);
   for (const pl of players.values()) {
     const g = pl.avatar.group;
+    if (pl.tagFor !== pl.name) { pl.tagFor = pl.name; try { refreshTagColor(pl); } catch (_) {} }   // name (re)set: look up their badge colour
     let show = g.visible, sc = 1, px = 0, py = 0;
     if (show) {
       _tp.set(g.position.x, g.position.y + 5.9, g.position.z);
@@ -699,9 +700,25 @@ function updateTags() {
 const chatLog = document.getElementById("chatlog"), chatInput = document.getElementById("chatInput");
 let lastChat = 0;
 function cleanChat(s) { return String(s == null ? "" : s).replace(/[\u0000-\u001f\u007f<>]/g, "").trim().slice(0, 120); }
+/* each username gets its own colour in chat (the same name always gets the same colour) */
+function nameColor(name) {
+  let h = 2166136261; const t = String(name);
+  for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return "hsl(" + (h % 360) + ",78%,68%)";
+}
+/* name tag colour = your most important badge (owner > admin > mod > ...); no badge = plain white */
+async function refreshTagColor(pl) {
+  const name = pl.name; let col = "";
+  try {
+    const id = pl.local && acct.user ? acct.user.id : await uidFor(name);
+    if (id) { if (!SOC.badges.has(id)) await getBadges([id]); const top = badgeList(id)[0]; if (top) col = badgeColor(top); }
+  } catch (_) {}
+  if (pl.name !== name || !pl.tag) return;
+  pl.tag.style.color = col; pl.tag.classList.toggle("bdgTag", !!col);
+}
 function addChatLine(name, text) {
   const d = document.createElement("div"); d.className = "line";
-  const b = document.createElement("b"); b.textContent = name + ":"; d.appendChild(b); d.appendChild(document.createTextNode(text));
+  const b = document.createElement("b"); b.textContent = name + ":"; b.style.color = nameColor(name); d.appendChild(b); d.appendChild(document.createTextNode(text));
   chatLog.appendChild(d); chatLog.scrollTop = chatLog.scrollHeight;
   if (!document.body.classList.contains("chatopen")) $("tbChat").classList.add("dot");
   while (chatLog.children.length > 80) chatLog.removeChild(chatLog.firstChild);
@@ -2040,7 +2057,9 @@ function acctUI() {
   $("acctWho").style.display = on ? "block" : "none";
   $("acctWho").textContent = on ? acct.username : "";
   $("acctBtn").textContent = on ? "Log out" : "Log in";
-  $("hWho").textContent = on ? acct.username : ""; $("hAcct").textContent = on ? "Log out" : "Log in";
+  $("hWho").textContent = on ? acct.username : ""; $("hUser").hidden = !on; $("hLogin").hidden = on;
+  if (!on) hMenuToggle(false);
+  hdrAv();
   $("ownerTabBtn").hidden = !isOwner();
   updateUgcBtn();
 }
@@ -2137,6 +2156,26 @@ async function submitAuth() {
 authGo.addEventListener("click", submitAuth);
 $("authLink").addEventListener("click", () => setAuthMode(acct.mode === "signup" ? "login" : "signup"));
 const signOutNow = () => logOut().then(() => location.reload(), () => location.reload());
+/* top-right account menu: your picture + name, opens Profile / Customize avatar / Settings / Sign out */
+function hdrAv() {                                                  // your picture (with whatever you wear) in the corner
+  const img = $("hUserImg"); if (!img || !acct.user) return;
+  img.dataset.tu = acct.user.id;
+  try { const u = thumb(myColors, "face", acct.user.id); if (u) img.src = u; } catch (_) {}
+}
+function hMenuToggle(open) {
+  const m = $("hMenu"), b = $("hUser"); if (!m || !b) return;
+  m.hidden = !open; b.setAttribute("aria-expanded", open ? "true" : "false"); b.classList.toggle("open", !!open);
+}
+$("hUser").addEventListener("click", e => { e.stopPropagation(); hMenuToggle($("hMenu").hidden); });
+$("hMenu").addEventListener("click", e => {
+  e.stopPropagation();
+  const b = e.target.closest("button"); if (!b) return;
+  hMenuToggle(false);
+  if (b.dataset.go) showTab(b.dataset.go);
+});
+document.addEventListener("click", () => hMenuToggle(false));
+document.addEventListener("keydown", e => { if (e.key === "Escape") hMenuToggle(false); });
+$("hLogin").addEventListener("click", () => location.reload());
 $("acctBtn").addEventListener("click", signOutNow);
 $("hAcct").addEventListener("click", signOutNow);
 for (const el of [authUser, authPass]) el.addEventListener("keydown", e => {
@@ -2591,8 +2630,10 @@ function showTab(name) {
   if (name === "ugc" && !canUgc()) name = "home";
   for (const b of document.querySelectorAll("#hTabs button")) b.classList.toggle("on", b.dataset.tab === name);
   $("pageGame").hidden = true; $("pageItem").hidden = true;
+  try { hdrAv(); } catch (_) {}                                    // keep the corner picture in step with your avatar
   for (const s of document.querySelectorAll(".tabsec")) s.hidden = s.id !== SECID[name];
   prevOn = name === "avatar"; document.body.classList.toggle("avWide", prevOn);
+  document.body.classList.toggle("shopWide", name === "shop"); document.body.classList.toggle("onHome", name === "home");
   ugOn = name === "ugc";
   playIn($(SECID[name]));
   if (prevOn) { openColors(); if (!prevRunning) { prevRunning = true; requestAnimationFrame(prevLoop); } }
@@ -2766,6 +2807,8 @@ const BADGES = { owner: "Owner", admin: "Admin", mod: "Moderator", ugc: "Officia
 const BADGE_ORDER = ["owner", "admin", "mod", "ugc", "bugfinder"];
 const BADGE_PERMS = { owner: { can_ugc: true, can_edit_items: true }, ugc: { can_ugc: true } };   // what each badge lets you do
 const BADGE_BUILTIN = BADGE_ORDER.slice();
+const BADGE_COLOR = { owner: "#ffd23f", admin: "#ff5d5d", mod: "#4aa8ff", ugc: "#b879ff", bugfinder: "#4be08a" };   // name tag colour per badge
+const badgeColor = k => BADGE_COLOR[k] || ("hsl(" + ([...String(k)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 360, 7)) + ",80%,62%)");
 const BADGE_IMG = {"owner": "assets/badges/owner.png", "admin": "assets/badges/admin.png", "mod": "assets/badges/mod.png", "ugc": "assets/badges/ugc.png", "bugfinder": "assets/badges/bugfinder.png"};
 /* Badges the Owner made in the site (table badge_defs, see supabase_catalog.sql). They join the built-in five. */
 async function loadBadgeDefs() {
@@ -2827,10 +2870,25 @@ async function renderHome() {
   const f = SOC.friends.length, q = SOC.incoming.length;
   $("wSub").textContent = SOC.ok ? (q ? `You have ${q} friend request${q === 1 ? "" : "s"}.` : "Welcome back.") : "Welcome back.";
   $("wTitle").textContent = "Friends (" + f + ")";
-  const shelf = SOC.ok ? SOC.friends.slice(0, 10).map(id => pcard(id)).join("") : "";
-  $("wFriends").innerHTML = !SOC.ok ? noteSQL : (shelf + (f > 10 ? '<button class="pcard moreCard" type="button" data-go="friends">+' + (f - 10) + '</button>' : "")
-    || '<div class="note">No friends yet.</div>');
+  const shelf = SOC.ok ? SOC.friends.slice(0, 60).map(id => pcard(id)).join("") : "";
+  $("wFriends").innerHTML = !SOC.ok ? noteSQL : (shelf || '<div class="note">No friends yet.</div>');
+  fitFriends();
 }
+/* show only the friends that fit on one line; the rest turn into a "7+ Friends" button that opens the Friends page */
+function fitFriends() {
+  const box = $("wFriends"); if (!box || $("tabHome").hidden) return;
+  const total = SOC.ok ? SOC.friends.length : 0, old = box.querySelector(".moreCard"); if (old) old.remove();
+  const cards = [...box.querySelectorAll(".pcard")]; if (!cards.length) return;
+  for (const c of cards) c.hidden = false;
+  const W = box.clientWidth, gap = 12, chipW = 92;
+  if (cards.every(c => c.offsetLeft + c.offsetWidth <= W) && total <= cards.length) return;      // everyone fits
+  let keep = 0; for (const c of cards) { if (c.offsetLeft + c.offsetWidth + gap + chipW <= W) keep++; else break; }
+  keep = Math.max(1, keep);
+  cards.forEach((c, i) => { c.hidden = i >= keep; });
+  const chip = document.createElement("button"); chip.type = "button"; chip.className = "pcard moreCard"; chip.dataset.go = "friends";
+  chip.innerHTML = "<b>" + (total - keep) + "+</b><span>Friends</span>"; box.appendChild(chip);
+}
+window.addEventListener("resize", () => { try { fitFriends(); } catch (_) {} });
 
 /* ---- friends tab ---- */
 let searchT = 0;
@@ -4444,7 +4502,13 @@ async function renderShop() {
 function paintShop() {
   const q = $("shSearch").value.trim().toLowerCase(), sort = $("shSort").value, me = acct.user && acct.user.id;
   const ty = $("shType").value;
-  let rows = SHOP.rows.filter(it => (!q || String(it.name).toLowerCase().includes(q)) && (ty === "all" || (ty === "acc" ? !isCloth(it.attach) && !isFace(it.attach) : it.attach === ty)));
+  const au = $("shAuthor").value.trim().toLowerCase(), mn = $("shMin").value === "" ? null : +$("shMin").value, mx = $("shMax").value === "" ? null : +$("shMax").value;
+  const free = $("shFree").checked, hideOwned = $("shOwned").checked;
+  for (const b of document.querySelectorAll("#shCats .shCat")) b.classList.toggle("on", b.dataset.type === ty);
+  let rows = SHOP.rows.filter(it => (!q || String(it.name).toLowerCase().includes(q)) && (ty === "all" || (ty === "acc" ? !isCloth(it.attach) && !isFace(it.attach) : it.attach === ty))
+    && (!au || String((SOC.cache.get(it.creator) || {}).username || "").toLowerCase().includes(au))
+    && (mn === null || (+it.price || 0) >= mn) && (mx === null || (+it.price || 0) <= mx)
+    && (!free || !(+it.price)) && (!hideOwned || !INV.owned.has(it.id)));
   rows.sort(sort === "low" ? (a, b) => a.price - b.price : sort === "high" ? (a, b) => b.price - a.price : sort === "top" ? (a, b) => b.sales - a.sales
     : (a, b) => String(b.published_at).localeCompare(String(a.published_at)));
   $("shopBox").hidden = rows.length > 0;
@@ -4452,8 +4516,8 @@ function paintShop() {
   $("shopList").innerHTML = rows.map(it => {
     const p = SOC.cache.get(it.creator), by = p ? p.username : "Someone", price = +it.price || 0;
     const tag = it.published === false ? '<span class="itTag">Off sale</span>' : me && it.creator === me ? '<span class="itTag">Your item</span>' : me && INV.owned.has(it.id) ? '<span class="itTag">Owned</span>' : "";
-    return `<div class="itCard box" data-id="${esc(it.id)}"><img class="itImg" alt="" data-it="${esc(it.id)}" src=""><b title="${esc(it.name)}">${esc(it.name)}</b>`
-      + `<div class="itBy" data-pid="${esc(it.creator)}">by ${esc(by)}</div><div class="itMeta"><span class="pr">${price ? TRI_SVG + fmtT(price) : "Free"}</span><span>${esc(slotName(it.attach))}</span></div>${tag}</div>`;
+    return `<div class="itCard box" data-id="${esc(it.id)}"><div class="itPic"><img class="itImg" alt="" data-it="${esc(it.id)}" src="">${tag}</div><div class="itInfo"><b title="${esc(it.name)}">${esc(it.name)}</b>`
+      + `<div class="itMeta"><span class="pr">${price ? TRI_SVG + fmtT(price) : "Free"}</span></div><div class="itBy" data-pid="${esc(it.creator)}">${esc(slotName(it.attach))} · by ${esc(by)}</div></div></div>`;
   }).join("");
   fillThumbs($("shopList"));
 }
@@ -4461,6 +4525,13 @@ $("shSearch").addEventListener("keydown", e => e.stopPropagation());
 $("shSearch").addEventListener("input", paintShop);
 $("shSort").addEventListener("change", paintShop);
 $("shType").addEventListener("change", paintShop);
+for (const id of ["shAuthor", "shMin", "shMax"]) { $(id).addEventListener("keydown", e => e.stopPropagation()); $(id).addEventListener("input", paintShop); }
+for (const id of ["shFree", "shOwned"]) $(id).addEventListener("change", paintShop);
+$("shCats").addEventListener("click", e => { const b = e.target.closest(".shCat"); if (!b) return; $("shType").value = b.dataset.type; paintShop(); });
+$("shClear").addEventListener("click", () => {
+  for (const id of ["shSearch", "shAuthor", "shMin", "shMax"]) $(id).value = "";
+  $("shFree").checked = false; $("shOwned").checked = false; $("shType").value = "all"; $("shSort").value = "new"; paintShop();
+});
 $("shopList").addEventListener("click", e => {
   if (e.target.closest("[data-pid]")) return;                      // creator name -> their profile
   const c = e.target.closest(".itCard"); if (c) openItem(c.dataset.id);
@@ -4641,6 +4712,10 @@ const NOTIF = { rows: [], fresh: new Set(), freshPatch: new Set(), timer: 0 };
 /* Patch notes: add a new entry at the TOP of this list for every patch / update / version.
    Each one shows up as its own numbered notification. sections: New / Changed / Fixed / Removed. */
 const PATCHES = [
+  { v: "1.0.7", date: "2026-11-22", title: "Name colors, new Catalog and mobile", sections: [
+    ["New", ["Every username gets its own color in chat", "Name tags are colored by your most important badge", "The website now works on phones, with touch controls to play", "Catalog filters: author, min and max price, free only"]],
+    ["Changed", ["A bigger, cleaner Catalog that fills the whole screen", "Home has no scroll bars; extra friends show as \u201c7+ Friends\u201d and open the Friends page"]]
+  ] },
   { v: "1.0.6", date: "2026-11-22", title: "Transactions: click your Shapes", sections: [
     ["Changed", ["Click your Shapes amount at the top to open Transactions", "Transactions is no longer a tab in the menu"]]
   ] },
@@ -4731,6 +4806,11 @@ function txSummaryHtml(d) {
     + card("Outgoing Shapes", row("Purchases", g("purchase")) + row("Fees", g("fee")) + (g("other_out") ? row("Other", g("other_out")) : "") + row("Total", out, true))
     + card("Net", row("Total change", inc + out, true));
 }
+function txAvatar(uid, nm) {                                       // their real picture (with what they wear); the first letter only if we can't draw one
+  const mine = acct.user && uid === acct.user.id, p = mine ? { body_colors: myColors } : SOC.cache.get(uid);
+  let url = ""; try { if (p && p.body_colors) url = thumb(p.body_colors, "face", uid); } catch (_) {}
+  return url ? `<img class="txAv pface" alt="" data-tu="${esc(uid)}" src="${esc(url)}">` : `<i>${esc(nm.slice(0, 1).toUpperCase())}</i>`;
+}
 async function renderTransactions() {
   const sb = getSB(), box = $("txBody"); if (!sb || !acct.user) return;
   const my = ++TX.busy, sum = TX.type === "summary";
@@ -4754,11 +4834,12 @@ async function renderTransactions() {
     if (!rows.length) { box.innerHTML = '<div class="note">No transactions yet.</div>'; return; }
     const ids = Array.from(new Set(rows.map(x => x.other_user).filter(Boolean).concat([acct.user.id]))), names = new Map();
     try { const p = await sb.from("player_profiles").select("id, username").in("id", ids); for (const u of (p.data || [])) names.set(u.id, u.username); } catch (_) {}
+    try { await getProfiles(ids); } catch (_) {}                    // so we can draw each person's picture
     if (my !== TX.busy) return;
     const body = rows.map(x => {
       const who = x.other_user || acct.user.id, nm = names.get(who) || "Player";
       const thumb = x.item_id ? `<span class="txThumb" data-item="${esc(x.item_id)}"></span>` : `<span class="txThumb">${TX_ICON}</span>`;
-      return `<div class="txRow"><span class="txDate">${esc(txWhen(x.created_at))}</span><span class="txSrc"><button type="button" class="txUser" data-uid="${esc(who)}"><i>${esc(nm.slice(0, 1).toUpperCase())}</i>${esc(nm)}</button></span><span class="txDesc">${thumb}<span>${esc(x.description)}</span></span><span class="txAmt${x.amount < 0 ? " neg" : ""}">${TX_ICON}${txSigned(x.amount)}</span></div>`;
+      return `<div class="txRow"><span class="txDate">${esc(txWhen(x.created_at))}</span><span class="txSrc"><button type="button" class="txUser" data-uid="${esc(who)}">${txAvatar(who, nm)}${esc(nm)}</button></span><span class="txDesc">${thumb}<span>${esc(x.description)}</span></span><span class="txAmt${x.amount < 0 ? " neg" : ""}">${TX_ICON}${txSigned(x.amount)}</span></div>`;
     }).join("");
     box.innerHTML = `<div class="txTable box"><div class="txRow txH"><span>Date</span><span>Source</span><span>Description</span><span class="txAmtH">Amount</span></div>${body}</div>`
       + `<div class="txPager"><button type="button" class="btnG" data-tx="prev"${TX.page === 0 ? " disabled" : ""}>Previous</button><span>Page ${TX.page + 1} of ${pages}</span><button type="button" class="btnG" data-tx="next"${TX.page + 1 >= pages ? " disabled" : ""}>Next</button></div>`;
@@ -5022,3 +5103,50 @@ requestAnimationFrame(frame);
 setTimeout(() => setGraphics(Math.max(1, Math.min(5, _gl))), 0);
 
 ;
+
+;
+
+/* ---- touch controls (website on a phone/tablet only; the desktop app never shows them) ---- */
+(function () {
+  if (APP.in || !(("ontouchstart" in window) || navigator.maxTouchPoints > 0)) return;
+  document.documentElement.classList.add("touch");
+  const ui = document.createElement("div"); ui.id = "touchUI";
+  ui.innerHTML = '<div id="joy"><i id="joyK"></i></div><button id="tJump" type="button" aria-label="Jump">Jump</button>';
+  document.body.appendChild(ui);
+  const joy = $("joy"), knob = $("joyK"), R = 52;
+  let jid = null, jc = null;
+  const setKeys = (f, b, l, r) => { keys.KeyW = f; keys.KeyS = b; keys.KeyA = l; keys.KeyD = r; };
+  const joyEnd = () => { jid = null; knob.style.transform = ""; setKeys(false, false, false, false); };
+  function joyMove(e) {
+    const dx = e.clientX - jc.x, dy = e.clientY - jc.y, d = Math.hypot(dx, dy) || 1, k = Math.min(d, R) / d;
+    knob.style.transform = "translate(" + (dx * k) + "px," + (dy * k) + "px)";
+    const T = R * 0.32;
+    setKeys(dy < -T, dy > T, dx < -T, dx > T);
+  }
+  joy.addEventListener("pointerdown", e => { e.preventDefault(); e.stopPropagation(); jid = e.pointerId; try { joy.setPointerCapture(jid); } catch (_) {} const b = joy.getBoundingClientRect(); jc = { x: b.left + b.width / 2, y: b.top + b.height / 2 }; joyMove(e); });
+  joy.addEventListener("pointermove", e => { if (e.pointerId === jid) joyMove(e); });
+  for (const t of ["pointerup", "pointercancel"]) joy.addEventListener(t, e => { if (e.pointerId === jid) joyEnd(); });
+  const jb = $("tJump");
+  jb.addEventListener("pointerdown", e => { e.preventDefault(); e.stopPropagation(); keys.Space = true; });
+  for (const t of ["pointerup", "pointercancel", "pointerleave"]) jb.addEventListener(t, () => { keys.Space = false; });
+
+  /* one finger on the world turns the camera, two fingers pinch to zoom */
+  const ptr = new Map(); let pinch = 0;
+  canvas.style.touchAction = "none";
+  canvas.addEventListener("pointerdown", e => { if (e.pointerType === "mouse") return; ptr.set(e.pointerId, { x: e.clientX, y: e.clientY }); try { canvas.setPointerCapture(e.pointerId); } catch (_) {} pinch = 0; });
+  canvas.addEventListener("pointermove", e => {
+    const p = ptr.get(e.pointerId); if (!p || !inGame || uiOpen()) return;
+    if (ptr.size === 1) {
+      cam.yaw -= (e.clientX - p.x) * CFG.CAM_SENS * 1.6;
+      cam.pitch = Math.max(-CFG.CAM_PITCH_LIMIT, Math.min(CFG.CAM_PITCH_LIMIT, cam.pitch + (e.clientY - p.y) * CFG.CAM_SENS * 1.6));
+    }
+    p.x = e.clientX; p.y = e.clientY;
+    if (ptr.size === 2) {
+      const [a, b] = [...ptr.values()], d = Math.hypot(a.x - b.x, a.y - b.y);
+      if (pinch) cam.zoomTarget = Math.max(CFG.CAM_ZOOM_MIN, Math.min(CFG.CAM_ZOOM_MAX, cam.zoomTarget * (pinch / d)));
+      pinch = d;
+    }
+  });
+  for (const t of ["pointerup", "pointercancel"]) canvas.addEventListener(t, e => { ptr.delete(e.pointerId); pinch = 0; });
+  setInterval(() => { if (!inGame || uiOpen()) { if (jid !== null) joyEnd(); keys.Space = false; } }, 300);
+})();
