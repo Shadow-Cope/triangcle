@@ -121,20 +121,21 @@
           <span id="ugHint">drag to look around &middot; scroll to zoom</span>
         </div>
         <div id="ugPanel" class="box">
-          <div class="ugRow"><button class="btnP" id="ugPick" type="button">Upload GLB</button><button class="btnG" id="ugNew" type="button">New item</button><input type="file" id="ugFile" accept=".glb,model/gltf-binary" hidden></div>
+          <div id="ugKinds" class="ugKinds"><button type="button" data-k="Shirt">Shirt</button><button type="button" data-k="Pants">Pants</button><button type="button" data-k="model">Accessory</button></div>
+          <div class="ugRow"><button class="btnP" id="ugPick" type="button">Choose GLB file</button><button class="btnG" id="ugNew" type="button">New item</button><input type="file" id="ugFile" accept=".glb,model/gltf-binary" hidden></div>
           <div id="ugInfo" class="note">Pick a .glb file (up to 10 MB) to see it on the player.</div>
           <div id="ugTpl" class="ugRow" hidden><button class="btnG" data-tpl="template" type="button">Template</button><button class="btnG" data-tpl="transparent" type="button">Transparent</button><button class="btnG" data-tpl="guide" type="button">Labeled guide</button></div>
-          <label class="ugLbl">Type<select id="ugKind"></select></label>
-          <label class="ugLbl">Name<input id="ugName" maxlength="40" autocomplete="off" spellcheck="false" placeholder="Item name"></label>
+                    <label class="ugLbl">Name<input id="ugName" maxlength="40" autocomplete="off" spellcheck="false" placeholder="Item name"></label>
           <label class="ugLbl" id="ugAttachLbl">Wear it on<select id="ugAttach"></select></label>
           <div id="ugSliders"></div>
-          <div class="ugRow"><button class="btnG" id="ugReset" type="button">Reset placement</button><button class="btnP" id="ugSave" type="button">Save item</button></div>
-          <div id="ugMsg" class="note"></div>
-          <div id="ugSale"><h4>Sell in the Shop</h4>
-            <label class="ugLbl"><span id="ugPriceLbl">Price in Shapes</span><input id="ugPrice" type="number" min="0" max="1000000" step="1" value="0"></label>
-            <div id="ugFeeNote" class="note"></div>
-            <div class="ugRow"><button class="btnP" id="ugPublish" type="button">Publish to Shop</button><button class="btnG" id="ugUnpublish" type="button" hidden>Take off sale</button></div>
-            <div id="ugSaleNote" class="note"></div></div>
+          <div class="ugRow"><button class="btnG" id="ugReset" type="button">Reset placement</button></div>
+          <div id="ugSale">
+            <div id="ugPriceBox"><label class="ugLbl"><span id="ugPriceLbl">Price</span><input id="ugPrice" type="number" min="0" max="1000000" step="1" value="50"></label>
+            <div id="ugFeeNote" class="note"></div></div>
+            <label class="ugToggle"><input type="checkbox" id="ugOnSale" checked><span class="ugSw"></span><b>On sale</b></label>
+            <div id="ugMsg" class="note"></div>
+            <button class="btnP" id="ugGo" type="button" disabled>Upload</button>
+          </div>
         </div>
       </div>
       <h3>Your items</h3>

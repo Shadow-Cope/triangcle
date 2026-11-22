@@ -3833,7 +3833,7 @@ function canUgc() {
 }
 function updateUgcBtn() { $("ugcTabBtn").hidden = !canUgc(); }
 
-const UG = { name: "", attach: "Head", pos: [0, 0, 0], rot: [0, 0, 0], scale: 1, file: null, path: null, editId: null, price: 0, published: false, holder: null, inner: null, k: 1, c: null, min: null, mode: "view", cloth: null };
+const UG = { name: "", attach: "Head", pos: [0, 0, 0], rot: [0, 0, 0], scale: 1, file: null, path: null, editId: null, price: 50, livePrice: 0, sale: true, busy: false, published: false, holder: null, inner: null, k: 1, c: null, min: null, mode: "view", cloth: null };
 const ugv = (function () {
   let r;
   try { r = new THREE.WebGLRenderer({ canvas: $("ugCv"), antialias: true, alpha: true }); } catch (_) { return null; }
@@ -3852,9 +3852,10 @@ const ugGet = d => d[0] === "scale" ? UG.scale : UG[d[0]][d[1]];
 function ugSet(d, v) { v = ugClamp(+v || 0, d[3], d[4]); if (d[0] === "scale") UG.scale = v; else UG[d[0]][d[1]] = v; }
 
 (function buildUgcUI() {
-  const ks = $("ugKind");
-  for (const [k, l] of UG_KINDS) { const o = document.createElement("option"); o.value = k; o.textContent = l; ks.appendChild(o); }
-  ks.addEventListener("change", () => { if (ks.value !== (isCloth(UG.attach) ? UG.attach : "model")) ugClear(ks.value); });
+  $("ugKinds").addEventListener("click", e => {
+    const b = e.target.closest("[data-k]"); if (!b) return;
+    if (b.dataset.k !== (isCloth(UG.attach) ? UG.attach : "model")) ugClear(b.dataset.k);
+  });
   $("ugTpl").addEventListener("click", e => {                        // template downloads: normal / transparent / labelled guide
     const b = e.target.closest("[data-tpl]"); if (!b || !isCloth(UG.attach)) return;
     const a = document.createElement("a"); a.href = "assets/templates/" + UG.attach.toLowerCase() + "-" + b.dataset.tpl + ".png";
@@ -3873,7 +3874,7 @@ function ugSet(d, v) { v = ugClamp(+v || 0, d[3], d[4]); if (d[0] === "scale") U
   });
   $("ugPanel").addEventListener("keydown", e => e.stopPropagation());
   sel.addEventListener("change", () => { UG.attach = sel.value; UG.pos = [0, 0, 0]; ugView(); ugSync(); ugApply(); });
-  $("ugName").addEventListener("input", () => { UG.name = $("ugName").value; });
+  $("ugName").addEventListener("input", () => { UG.name = $("ugName").value; ugFeeNote(); });
   $("ugPick").addEventListener("click", () => $("ugFile").click());
   $("ugFile").addEventListener("change", async () => {
     const f = $("ugFile").files[0]; $("ugFile").value = ""; if (!f) return;
@@ -3885,12 +3886,12 @@ function ugSet(d, v) { v = ugClamp(+v || 0, d[3], d[4]); if (d[0] === "scale") U
       await ugLoad(await f.arrayBuffer(), f.name);
       UG.file = f;
       if (!UG.name.trim()) { UG.name = f.name.replace(/\.glb$/i, "").slice(0, 40); $("ugName").value = UG.name; }
-      ugMsg("");
+      ugMsg(""); ugFeeNote();
     } catch (e) { ugMsg("Couldn't read that GLB. Compressed (Draco/Meshopt) models aren't supported, so export without compression.", true); }
   });
   $("ugReset").addEventListener("click", () => { UG.pos = [0, 0, 0]; UG.rot = [0, 0, 0]; UG.scale = 1; ugSync(); ugApply(); });
   $("ugNew").addEventListener("click", () => ugClear());
-  $("ugSave").addEventListener("click", ugSave);
+  $("ugGo").addEventListener("click", ugUpload);
   for (const b of document.querySelectorAll("#ugModes button")) b.addEventListener("click", () => {
     UG.mode = b.dataset.m;
     for (const x of document.querySelectorAll("#ugModes button")) x.classList.toggle("on", x === b);
@@ -3912,9 +3913,9 @@ function ugSet(d, v) { v = ugClamp(+v || 0, d[3], d[4]); if (d[0] === "scale") U
 
 function ugKindUI() {
   const c = isCloth(UG.attach);
-  $("ugKind").value = c ? UG.attach : "model";
+  for (const b of document.querySelectorAll("#ugKinds button")) b.classList.toggle("on", b.dataset.k === (c ? UG.attach : "model"));
   $("ugSliders").hidden = c; $("ugAttachLbl").hidden = c; $("ugModes").hidden = c; $("ugReset").hidden = c; $("ugTpl").hidden = !c;
-  $("ugPick").textContent = c ? "Upload PNG" : "Upload GLB"; $("ugFile").accept = c ? ".png,image/png" : ".glb,model/gltf-binary";
+  $("ugPick").textContent = c ? "Choose image" : "Choose GLB file"; $("ugFile").accept = c ? ".png,image/png" : ".glb,model/gltf-binary";
   if (c && UG.mode === "move") { const b = document.querySelector('#ugModes button[data-m="view"]'); if (b) b.click(); }
 }
 async function ugPickCloth(f) {
@@ -3943,12 +3944,9 @@ function ugSync(skip) {
   }
   if (!isCloth(UG.attach)) $("ugAttach").value = UG.attach; if (document.activeElement !== $("ugName")) $("ugName").value = UG.name;
   if (document.activeElement !== $("ugPrice")) $("ugPrice").value = UG.price;
-  $("ugPriceLbl").textContent = priceRuleText(UG.attach); $("ugPrice").min = minPrice(UG.attach);
+  $("ugPriceLbl").textContent = "Price (min " + fmtN(minPrice(UG.attach)) + ")"; $("ugPrice").min = minPrice(UG.attach);
+  $("ugOnSale").checked = UG.sale; $("ugPriceBox").hidden = !UG.sale;
   ugFeeNote();
-  $("ugPublish").textContent = UG.published ? "Update price" : "Publish to Shop";
-  $("ugUnpublish").hidden = !UG.published;
-  $("ugSaleNote").textContent = !UG.editId ? "Save the item first."
-    : UG.published ? "On sale for " + (UG.price ? UG.price.toLocaleString() + " Shapes" : "free") + "." : "Not for sale yet.";
 }
 function ugView() { if (ugv) { const v = UG_VIEW[UG.attach]; ugv.ty = v[0]; ugv.dist = v[1]; } }
 function ugApply() {
@@ -3993,25 +3991,26 @@ function ugLoad(buf, label) {
 function ugClear(kind) {
   kind = kind || (isCloth(UG.attach) ? UG.attach : "model");
   if (UG.holder && UG.holder.parent) UG.holder.parent.remove(UG.holder);
-  Object.assign(UG, { name: "", attach: kind === "model" ? "Head" : kind, pos: [0, 0, 0], rot: [0, 0, 0], scale: 1, file: null, path: null, editId: null, price: 0, livePrice: 0, published: false, holder: null, inner: null, cloth: null });
+  Object.assign(UG, { name: "", attach: kind === "model" ? "Head" : kind, pos: [0, 0, 0], rot: [0, 0, 0], scale: 1, file: null, path: null, editId: null, price: minPrice(kind === "model" ? "Head" : kind), livePrice: 0, sale: true, published: false, holder: null, inner: null, cloth: null });
   $("ugInfo").textContent = kind === "model" ? "Pick a .glb file (max 10 MB)."
     : "Pick a .png file (max 2 MB).";
   ugView(); ugSync(); ugApply(); ugMsg("");
 }
-async function ugSave() {
+async function ugUpload() {
+  if (UG.busy) return;
   const sb = getSB(); if (!sb || !acct.user) return;
   if (!canUgc()) return ugMsg("Your account can't make UGC.", true);
-  const name = UG.name.trim();
-  const cloth = isCloth(UG.attach);
-  if (cloth ? !UG.cloth : !UG.holder) return ugMsg(cloth ? "Upload a PNG first." : "Upload a GLB first.", true);
+  const name = UG.name.trim(), cloth = isCloth(UG.attach);
+  if (cloth ? !UG.cloth : !UG.holder) return ugMsg(cloth ? "Choose an image first." : "Choose a GLB file first.", true);
   if (!name) return ugMsg("Give the item a name.", true);
-  const upFee = UG.editId ? 0 : uploadFee(UG.attach);
-  if (upFee > 0) {
-    if (WAL.bal != null && WAL.bal < upFee) return ugMsg("Not enough Shapes (" + fmtT(upFee) + " needed).", true);
-    if (!(await uiConfirm("Upload “" + name + "” for " + fmtT(upFee) + " Shapes?", "Upload"))) return;
-  }
-  $("ugSave").disabled = true; ugMsg("Saving…");
-  let upPath = null;
+  const price = ugClamp(Math.floor(+$("ugPrice").value || 0), 0, TAX_MAX);
+  if (UG.sale && price < minPrice(UG.attach)) return ugMsg("Lowest price: " + fmtT(minPrice(UG.attach)) + " Shapes.", true);
+  UG.price = price;
+  const upFee = UG.editId ? 0 : uploadFee(UG.attach), total = ugCost();
+  if (total > 0 && WAL.bal != null && WAL.bal < total) return ugMsg("Not enough Shapes (" + fmtT(total) + " needed).", true);
+  UG.busy = true; ugMsg(""); ugFeeNote();
+  let upPath = null, saved = false;
+  const wasNew = !UG.editId;
   try {
     const me = acct.user.id, id = UG.editId || (crypto.randomUUID ? crypto.randomUUID() : (Date.now() + "-" + Math.random().toString(16).slice(2)));
     let path = UG.path, old = null;
@@ -4026,16 +4025,26 @@ async function ugSave() {
                         : await sb.from("ugc_items").insert(Object.assign(row, { id, creator: me }));
     if (r.error) throw r.error;
     if (old && old !== path) { try { await sb.storage.from("ugc").remove([old]); } catch (_) {} }
-    const wasNew = !UG.editId;
-    UG.editId = id; UG.path = path; UG.file = null; UG.livePrice = 0;
-    ugMsg("Saved “" + name + "”." + (wasNew && upFee ? " (-" + fmtT(upFee) + ")" : "")); renderUgcList(); ugSync(); if (typeof refreshWorn === "function") refreshWorn(id);
-    if (wasNew) { loadWallet(); loadNotifs(); }
+    UG.editId = id; UG.path = path; UG.file = null; saved = true;
+    // then the shop listing, in the same click
+    const changed = UG.sale ? (!UG.published || price !== UG.livePrice) : UG.published;
+    if (changed) {
+      const s = await sb.rpc("set_item_sale", { p_item: id, p_price: UG.sale ? price : UG.livePrice, p_published: UG.sale });
+      if (s.error) { UG.busy = false; renderUgcList(); loadWallet(); if (wasNew) loadNotifs(); ugSync(); return ugMsg("Uploaded, but couldn't put it on sale: " + (feeErr(s.error, UG.attach) || "try again.") , true); }
+      UG.published = UG.sale; if (UG.sale) UG.livePrice = price;
+    }
+    renderUgcList(); loadWallet(); if (wasNew) loadNotifs();
+    if (typeof refreshWorn === "function") refreshWorn(id);
+    UG.busy = false;
+    if (wasNew) { ugClear(cloth ? UG.attach : "model"); ugMsg("Uploaded “" + name + "”.", false); }
+    else { ugSync(); ugMsg("Updated “" + name + "”.", false); }
+    return;
   } catch (e) {
-    if (upPath && !UG.editId) { try { await sb.storage.from("ugc").remove([upPath]); } catch (_) {} }     // the upload was refused: don't leave the file behind
-    if (/insufficient_funds/.test(String(e && e.message || ""))) { ugMsg("Not enough Shapes (" + fmtT(upFee) + " needed).", true); $("ugSave").disabled = false; loadWallet(); return; }
-    console.error("save failed", e); ugMsg("Couldn't save.", true);
+    if (upPath && !saved && wasNew) { try { await sb.storage.from("ugc").remove([upPath]); } catch (_) {} }     // the upload was refused: don't leave the file behind
+    if (/insufficient_funds/.test(String(e && e.message || ""))) { ugMsg("Not enough Shapes (" + fmtT(total) + " needed).", true); loadWallet(); }
+    else { console.error("upload failed", e); ugMsg("Couldn't upload. Try again.", true); }
   }
-  $("ugSave").disabled = false;
+  UG.busy = false; ugSync();
 }
 async function renderUgcList() {
   const sb = getSB(), box = $("ugList"); if (!sb || !acct.user) return;
@@ -4073,7 +4082,7 @@ $("ugList").addEventListener("click", async e => {
       if (UG.holder && UG.holder.parent) UG.holder.parent.remove(UG.holder);
       UG.holder = null; UG.inner = null; UG.cloth = cv; $("ugInfo").textContent = it.name + ".png";
     } else { await ugLoad(buf, it.name + ".glb"); UG.cloth = null; }
-    Object.assign(UG, { name: it.name, attach: it.attach, pos: (it.pos || [0, 0, 0]).slice(), rot: (it.rot || [0, 0, 0]).slice(), scale: +it.scale || 1, file: null, path: it.file_path, editId: it.id, price: +it.price || 0, livePrice: +it.price || 0, published: !!it.published });
+    Object.assign(UG, { name: it.name, attach: it.attach, pos: (it.pos || [0, 0, 0]).slice(), rot: (it.rot || [0, 0, 0]).slice(), scale: +it.scale || 1, file: null, path: it.file_path, editId: it.id, price: +it.price || minPrice(it.attach), livePrice: +it.price || 0, sale: !!it.published, published: !!it.published });
     ugView(); ugSync(); ugApply(); ugMsg("Editing “" + it.name + "”.");
   } catch (_) { ugMsg("Couldn't load that item's file.", true); }
 });
@@ -4626,17 +4635,39 @@ $("ipGet").addEventListener("click", async () => {
 ;
 
 /* ---- notifications: the bell in the header ---- */
-const NOTIF = { rows: [], fresh: new Set(), timer: 0 };
+const NOTIF = { rows: [], fresh: new Set(), freshPatch: new Set(), timer: 0 };
+/* Patch notes: add a new entry at the TOP of this list for every patch / update / version.
+   Each one shows up as its own numbered notification. sections: New / Changed / Fixed / Removed. */
+const PATCHES = [
+  { v: "1.0.4", date: "2026-11-22", title: "UGC uploads are now one step", sections: [
+    ["New", ["Pick Shirt, Pants or Accessory with one tap", "On sale toggle: list your item while you upload it", "“You get” shows what you earn from each sale"]],
+    ["Changed", ["One Upload button does everything and shows the total cost", "Price starts at the lowest allowed for each type"]],
+    ["Removed", ["The Save item button", "The separate Publish to Shop step"]]
+  ] }
+];
+const patchStore = {
+  get(k) { try { return JSON.parse(localStorage.getItem("tri_patch_" + k) || "[]"); } catch (_) { return []; } },
+  add(k, id) { try { const a = this.get(k); if (!a.includes(id)) { a.push(id); localStorage.setItem("tri_patch_" + k, JSON.stringify(a)); } } catch (_) {} }
+};
+const patchList = () => { const gone = patchStore.get("gone"); return PATCHES.filter(p => !gone.includes(p.v)); };
+const patchUnread = () => { const seen = patchStore.get("seen"); return patchList().filter(p => !seen.includes(p.v)); };
+function patchCard(p) {
+  const fresh = NOTIF.freshPatch.has(p.v) ? " fresh" : "";
+  const d = new Date(p.date + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const secs = p.sections.map(([h, items]) => `<div class="nfSec nfSec${esc(h)}">${esc(h)}</div><ul class="nfList">${items.map(t => `<li>${esc(t)}</li>`).join("")}</ul>`).join("");
+  return `<div class="nfCard nfPatch${fresh}" data-nid="patch-${esc(p.v)}"><div class="nfTop"><span class="nfTag">Patch v${esc(p.v)}</span><span class="nfTime">${esc(d)}</span></div><div class="nfTitle">${esc(p.title)}</div>${secs}<button class="nfBtn" type="button" data-nf="dismiss">Dismiss</button></div>`;
+}
 const ago = t => { const s = Math.max(0, (Date.now() - new Date(t).getTime()) / 1000); return s < 60 ? "now" : s < 3600 ? Math.floor(s / 60) + "m" : s < 86400 ? Math.floor(s / 3600) + "h" : Math.floor(s / 86400) + "d"; };
 function notifPaint() {
   const bell = $("hBell"); if (!bell) return;
   bell.hidden = !acct.user;
-  const unread = NOTIF.rows.filter(r => !r.read).length, n = $("hBellN");
+  const unread = NOTIF.rows.filter(r => !r.read).length + patchUnread().length, n = $("hBellN");
   n.hidden = unread === 0; n.textContent = unread > 9 ? "9+" : String(unread);
   bell.title = unread ? unread + " new notification" + (unread === 1 ? "" : "s") : "Notifications";
   if ($("notifPanel").hidden) return;
-  $("notifList").innerHTML = NOTIF.rows.length ? NOTIF.rows.map(r => `<div class="nfCard${NOTIF.fresh.has(r.id) ? " fresh" : ""}" data-nid="${esc(String(r.id))}"><div class="nfTop"><span class="nfTitle">${esc(r.title)}</span><span class="nfTime">${esc(ago(r.created_at))}</span></div><div class="nfBody">${esc(r.body)}</div><button class="nfBtn" type="button" data-nf="dismiss">Dismiss</button></div>`).join("")
-    : '<div class="nfEmpty">Nothing new.</div>';
+  const pc = patchList().map(patchCard).join("");
+  const rc = NOTIF.rows.map(r => `<div class="nfCard${NOTIF.fresh.has(r.id) ? " fresh" : ""}" data-nid="${esc(String(r.id))}"><div class="nfTop"><span class="nfTitle">${esc(r.title)}</span><span class="nfTime">${esc(ago(r.created_at))}</span></div><div class="nfBody">${esc(r.body)}</div><button class="nfBtn" type="button" data-nf="dismiss">Dismiss</button></div>`).join("");
+  $("notifList").innerHTML = (pc || rc) ? pc + rc : '<div class="nfEmpty">Nothing new.</div>';
 }
 async function loadNotifs() {
   const sb = getSB(); if (!sb || !acct.user) { NOTIF.rows = []; notifPaint(); return; }
@@ -4654,8 +4685,10 @@ function notifToggle(open) {
   p.hidden = !open;
   if (open) {
     NOTIF.fresh = new Set(NOTIF.rows.filter(r => !r.read).map(r => r.id));
+    NOTIF.freshPatch = new Set(patchUnread().map(p => p.v));
+    for (const p of patchList()) patchStore.add("seen", p.v);
     const sb = getSB(); if (NOTIF.fresh.size && sb) { sb.rpc("mark_notifications_read").then(() => {}, () => {}); for (const r of NOTIF.rows) r.read = true; }
-  } else NOTIF.fresh.clear();
+  } else { NOTIF.fresh.clear(); NOTIF.freshPatch.clear(); }
   notifPaint();
 }
 $("hBell").addEventListener("click", e => { e.stopPropagation(); notifToggle(); });
@@ -4663,6 +4696,7 @@ $("notifPanel").addEventListener("click", async e => {
   e.stopPropagation();
   const b = e.target.closest("[data-nf]"); if (!b) return;
   const id = b.closest("[data-nid]").dataset.nid, sb = getSB();
+  if (id.startsWith("patch-")) { patchStore.add("gone", id.slice(6)); notifPaint(); return; }
   NOTIF.rows = NOTIF.rows.filter(r => String(r.id) !== id); notifPaint();
   if (sb) { try { await sb.from("notifications").delete().eq("id", id); } catch (_) {} }
 });
@@ -4760,37 +4794,18 @@ function ugPendingFee() {                                        // what the lis
   const price = ugClamp(Math.floor(+$("ugPrice").value || 0), 0, TAX_MAX);
   return (UG.published && price === UG.livePrice) ? 0 : listFee(price, UG.attach);
 }
+function ugCost() { return (UG.editId ? 0 : uploadFee(UG.attach)) + (UG.sale ? ugPendingFee() : 0); }   // everything one click will charge
 function ugFeeNote() {
-  const n = $("ugFeeNote"); if (!n) return;
-  const f = ugPendingFee();
-  n.textContent = kindOfItem(UG.attach) === "face" ? "" : (f ? "Fee: " + fmtN(f) + " Shapes" : "No fee") + " · You earn 80% of each sale";
+  const n = $("ugFeeNote"), go = $("ugGo"); if (!n || !go) return;
+  const price = ugClamp(Math.floor(+$("ugPrice").value || 0), 0, TAX_MAX), up = UG.editId ? 0 : uploadFee(UG.attach), lf = UG.sale ? ugPendingFee() : 0, total = up + lf;
+  n.innerHTML = kindOfItem(UG.attach) === "face" ? "" : "You get " + fmtN(Math.floor(price * 0.8)) + ' <img class="tcI" src="assets/img/shapes.png" alt="">'
+    + (total ? '<span class="ugBreak">' + (up ? fmtN(up) + " upload" : "") + (up && lf ? " + " : "") + (lf ? fmtN(lf) + " listing fee" : "") + "</span>" : "");
+  const ready = !!(isCloth(UG.attach) ? UG.cloth : UG.holder) && !!UG.name.trim();
+  go.textContent = UG.busy ? "Uploading…" : (UG.editId ? "Update item" : "Upload") + (total ? " for " + fmtN(total) + " Shapes" : "");
+  go.disabled = !ready || UG.busy;
 }
 $("ugPrice").addEventListener("input", () => { UG.price = ugClamp(Math.floor(+$("ugPrice").value || 0), 0, TAX_MAX); ugFeeNote(); });
-$("ugPublish").addEventListener("click", () => ugSetSale(true));
-$("ugUnpublish").addEventListener("click", () => ugSetSale(false));
-async function ugSetSale(on) {
-  const sb = getSB(); if (!sb || !acct.user) return;
-  if (!canUgc()) return ugMsg("Your account can't make UGC.", true);
-  if (!UG.editId) return ugMsg("Save the item first.", true);
-  if (UG.file) return ugMsg("Press Save item first, so your new file is uploaded.", true);
-  const price = ugClamp(Math.floor(+$("ugPrice").value || 0), 0, TAX_MAX);
-  if (on && price < minPrice(UG.attach)) return ugMsg("Lowest price: " + fmtT(minPrice(UG.attach)) + " Shapes.", true);
-  const fee = on ? ugPendingFee() : 0;
-  if (fee > 0) {
-    if (WAL.bal != null && WAL.bal < fee) return ugMsg("Not enough Shapes (" + fmtT(fee) + " needed).", true);
-    if (!(await uiConfirm("List for " + fmtT(price) + " Shapes? Fee: " + fmtT(fee) + ".", "List"))) return;
-  }
-  $("ugPublish").disabled = $("ugUnpublish").disabled = true;
-  try {
-    const r = await sb.rpc("set_item_sale", { p_item: UG.editId, p_price: on ? price : UG.livePrice, p_published: on });
-    if (r.error) throw r.error;
-    UG.published = on; if (on) { UG.price = price; UG.livePrice = price; }
-    ugMsg(on ? "On sale." + (fee ? " (-" + fmtT(fee) + ")" : "") : "Off sale.");
-    renderUgcList(); loadWallet();
-  } catch (e) { console.error("sale failed", e); ugMsg(feeErr(e, UG.attach) || "Couldn't change the listing.", true); }
-  $("ugPublish").disabled = $("ugUnpublish").disabled = false;
-  ugSync();
-}
+$("ugOnSale").addEventListener("change", () => { UG.sale = $("ugOnSale").checked; $("ugPriceBox").hidden = !UG.sale; ugFeeNote(); });
 
 /* after a creator re-saves an item, drop the cached copy so the worn version updates */
 function refreshWorn(id) {
