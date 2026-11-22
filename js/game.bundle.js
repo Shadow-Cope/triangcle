@@ -4505,6 +4505,8 @@ function paintShop() {
   const au = $("shAuthor").value.trim().toLowerCase(), mn = $("shMin").value === "" ? null : +$("shMin").value, mx = $("shMax").value === "" ? null : +$("shMax").value;
   const free = $("shFree").checked, hideOwned = $("shOwned").checked;
   for (const b of document.querySelectorAll("#shCats .shCat")) b.classList.toggle("on", b.dataset.type === ty);
+  const nf = (free ? 1 : 0) + (hideOwned ? 1 : 0) + (au ? 1 : 0) + (mn !== null ? 1 : 0) + (mx !== null ? 1 : 0);
+  $("shFiltN").textContent = nf; $("shFiltN").hidden = !nf;
   let rows = SHOP.rows.filter(it => (!q || String(it.name).toLowerCase().includes(q)) && (ty === "all" || (ty === "acc" ? !isCloth(it.attach) && !isFace(it.attach) : it.attach === ty))
     && (!au || String((SOC.cache.get(it.creator) || {}).username || "").toLowerCase().includes(au))
     && (mn === null || (+it.price || 0) >= mn) && (mx === null || (+it.price || 0) <= mx)
@@ -4517,7 +4519,7 @@ function paintShop() {
     const p = SOC.cache.get(it.creator), by = p ? p.username : "Someone", price = +it.price || 0;
     const tag = it.published === false ? '<span class="itTag">Off sale</span>' : me && it.creator === me ? '<span class="itTag">Your item</span>' : me && INV.owned.has(it.id) ? '<span class="itTag">Owned</span>' : "";
     return `<div class="itCard box" data-id="${esc(it.id)}"><div class="itPic"><img class="itImg" alt="" data-it="${esc(it.id)}" src="">${tag}</div><div class="itInfo"><b title="${esc(it.name)}">${esc(it.name)}</b>`
-      + `<div class="itMeta"><span class="pr">${price ? TRI_SVG + fmtT(price) : "Free"}</span></div><div class="itBy" data-pid="${esc(it.creator)}">${esc(slotName(it.attach))} · by ${esc(by)}</div></div></div>`;
+      + `<div class="itBy" data-pid="${esc(it.creator)}">${esc(by)}</div><div class="itMeta"><span class="pr">${price ? TRI_SVG + fmtT(price) : "Free"}</span><span class="itSlot">${esc(slotName(it.attach))}</span></div></div></div>`;
   }).join("");
   fillThumbs($("shopList"));
 }
@@ -4528,6 +4530,10 @@ $("shType").addEventListener("change", paintShop);
 for (const id of ["shAuthor", "shMin", "shMax"]) { $(id).addEventListener("keydown", e => e.stopPropagation()); $(id).addEventListener("input", paintShop); }
 for (const id of ["shFree", "shOwned"]) $(id).addEventListener("change", paintShop);
 $("shCats").addEventListener("click", e => { const b = e.target.closest(".shCat"); if (!b) return; $("shType").value = b.dataset.type; paintShop(); });
+$("shFiltBtn").addEventListener("click", e => { e.stopPropagation(); $("shFilt").hidden = !$("shFilt").hidden; });
+$("shFilt").addEventListener("click", e => e.stopPropagation());
+document.addEventListener("click", () => { $("shFilt").hidden = true; });
+document.addEventListener("keydown", e => { if (e.key === "Escape") $("shFilt").hidden = true; });
 $("shClear").addEventListener("click", () => {
   for (const id of ["shSearch", "shAuthor", "shMin", "shMax"]) $(id).value = "";
   $("shFree").checked = false; $("shOwned").checked = false; $("shType").value = "all"; $("shSort").value = "new"; paintShop();
