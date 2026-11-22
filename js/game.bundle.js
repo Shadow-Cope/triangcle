@@ -1,5 +1,26 @@
 /* ---- js/core/app.js ---- */
 "use strict";
+/* ---- in-page popups (replaces the browser's own confirm / alert boxes) ---- */
+function uiPopup(msg, okLabel, cancelLabel, danger) {
+  return new Promise(resolve => {
+    const ov = document.createElement("div"); ov.className = "uiPop";
+    const box = document.createElement("div"); box.className = "uiPopBox"; box.setAttribute("role", "dialog");
+    const t = document.createElement("div"); t.className = "uiPopMsg"; t.textContent = msg;
+    const row = document.createElement("div"); row.className = "uiPopRow";
+    let done = false;
+    const end = v => { if (done) return; done = true; document.removeEventListener("keydown", key, true); ov.remove(); resolve(v); };
+    const key = e => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); end(false); } else if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); end(true); } };
+    if (cancelLabel) { const c = document.createElement("button"); c.type = "button"; c.className = "uiPopBtn"; c.textContent = cancelLabel; c.onclick = () => end(false); row.appendChild(c); }
+    const ok = document.createElement("button"); ok.type = "button"; ok.className = "uiPopBtn ok" + (danger ? " bad" : ""); ok.textContent = okLabel || "OK"; ok.onclick = () => end(true); row.appendChild(ok);
+    box.appendChild(t); box.appendChild(row); ov.appendChild(box);
+    ov.addEventListener("mousedown", e => { if (e.target === ov) end(false); });
+    document.addEventListener("keydown", key, true);
+    document.body.appendChild(ov); ok.focus();
+  });
+}
+const uiConfirm = (msg, okLabel, danger) => uiPopup(msg, okLabel || "OK", "Cancel", danger);
+const uiAlert = msg => uiPopup(msg, "OK", null, false);
+
 /* ---- taxes & fees (the server enforces these in supabase_taxes.sql; this only mirrors them for the screens).
    Kept at the very top with only function declarations so it can be used from anywhere, even at start-up. ---- */
 var TAX_MAX = 1000000;
@@ -10,14 +31,14 @@ function listFee(price, a) { return kindOfItem(a) === "face" ? 0 : Math.ceil(Mat
 function fmtN(n) { return Number(n || 0).toLocaleString(); }
 function feeErr(e, a) {
   const m = String(e && e.message || "");
-  return m.includes("insufficient_funds") ? "You don't have enough Shapes for the fee."
-    : m.includes("price_too_low") ? "The lowest price for that is " + fmtN(minPrice(a)) + " Shapes."
-    : m.includes("bad_price") ? "Price must be a whole number up to 1,000,000."
-    : m.includes("not_allowed") ? "You can only change your own items."
-    : m.includes("not_found") ? "That item doesn't exist anymore."
+  return m.includes("insufficient_funds") ? "Not enough Shapes."
+    : m.includes("price_too_low") ? "Lowest price: " + fmtN(minPrice(a)) + " Shapes."
+    : m.includes("bad_price") ? "Price must be 1,000,000 or less."
+    : m.includes("not_allowed") ? "Not your item."
+    : m.includes("not_found") ? "Item not found."
     : null;
 }
-function priceRuleText(a) { return kindOfItem(a) === "face" ? "Price in Shapes (0 = free)" : "Price in Shapes (" + fmtN(minPrice(a)) + " to 1,000,000)"; }
+function priceRuleText(a) { return kindOfItem(a) === "face" ? "Price (0 = free)" : "Price (" + fmtN(minPrice(a)) + " - 1,000,000)"; }
 
 
 /* =====================================================================
@@ -2138,7 +2159,7 @@ function startGame(web) {
   if (starting) return; starting = true;
   const veil = $("veil"); veil.classList.add("on");                  // quick fade to black, swap to the game, fade back in
   setTimeout(async () => {
-    if (curGame.custom && !curGame.map) { try { await loadCustomMap(curGame); } catch (_) { veil.classList.remove("on"); starting = false; alert("Couldn't load that map."); return; } }
+    if (curGame.custom && !curGame.map) { try { await loadCustomMap(curGame); } catch (_) { veil.classList.remove("on"); starting = false; uiAlert("Couldn't load that map."); return; } }
     buildWorld(curGame); CFG.ROOM = curGame.room; applyBuildAccess();                // the map you picked, and its own multiplayer room
     inGame = true; document.body.classList.remove("home");
     if (document.activeElement) document.activeElement.blur();
@@ -2412,7 +2433,7 @@ $("owGames").addEventListener("click", async e => {
   const pick = e.target.closest("[data-pick]");
   if (pick) { box.querySelector(`[data-file="${pick.dataset.pick}"]`).click(); return; }
   if (e.target.closest("[data-del]")) {
-    if (!g.custom || !confirm("Delete " + gv(g, "name") + " for everyone?")) return;
+    if (!g.custom || !(await uiConfirm("Delete " + gv(g, "name") + " for everyone?", "Delete", true))) return;
     GAMES.splice(GAMES.indexOf(g), 1); delete OWG[g.id]; saveCustomLocal(); renderGames(); renderOwnerGames();
     try { const all = JSON.parse(localStorage.getItem(GAME_LS) || "{}"); delete all[g.id]; localStorage.setItem(GAME_LS, JSON.stringify(all)); } catch (_) {}
     const sb = getSB(); if (sb) { try { await sb.from(CUSTOM_TABLE).delete().eq("id", g.id); await sb.from(GAME_TABLE).delete().eq("id", g.id); } catch (_) {} }
@@ -3082,7 +3103,7 @@ async function saveUsername() {
   if (!NAME_RE.test(v)) { msg.textContent = RENAME_ERR.invalid; return; }
   if (v.toLowerCase() === acct.username.toLowerCase()) { msg.textContent = RENAME_ERR.same; return; }
   if (WAL.bal != null && WAL.bal < USERNAME_COST) { msg.textContent = RENAME_ERR.not_enough; return; }
-  if (!confirm("Change your username to \"" + v + "\" for " + USERNAME_COST + " Shapes?\nYour old username will show on your profile.")) return;
+  if (!(await uiConfirm("Change your username to \"" + v + "\" for " + USERNAME_COST + " Shapes?\nYour old username will show on your profile.", "Change"))) return;
   btn.disabled = true; msg.textContent = "Changing…";
   try {
     const r = await sb.rpc("change_username", { p_new: v });
@@ -3503,7 +3524,7 @@ $("bdList").addEventListener("change", async e => {
 $("bdList").addEventListener("click", async e => {
   const del = e.target.closest("[data-bdel]"); if (!del || !isOwner()) return;
   const k = del.closest("[data-bk]").dataset.bk, sb = getSB();
-  if (!confirm("Delete the “" + (BADGES[k] || k) + "” badge? Everyone who has it loses it.")) return;
+  if (!(await uiConfirm("Delete the “" + (BADGES[k] || k) + "” badge? Everyone who has it loses it.", "Delete", true))) return;
   del.disabled = true;
   try {
     const a = await sb.from("badges").delete().eq("badge", k); if (a.error) throw a.error;
@@ -3579,7 +3600,7 @@ $("fcUpload").addEventListener("click", async () => {
   const sb = getSB(); if (!sb || !isOwner() || !acct.user) return;
   const name = $("fcName").value.trim(), desc = $("fcDesc").value.trim().slice(0, 600), price = Math.floor(+$("fcPrice").value);
   if (!name || name.length > 40) return fuMsg("Give the face a name (up to 40 characters).", true);
-  if (!(price >= 0 && price <= 1000000)) return fuMsg("Price must be a whole number from 0 to 1,000,000.", true);
+  if (!(price >= 0 && price <= 1000000)) return fuMsg("Price: 0 to 1,000,000.", true);
   if (!FU.file) return fuMsg("Choose a picture for the face.", true);
   const b = $("fcUpload"); b.disabled = true; fuMsg("Uploading the face…");
   let path = "", id = "";
@@ -3648,7 +3669,7 @@ $("oiList").addEventListener("click", async e => {
   const name = box.querySelector('[data-of="name"]').value.trim(), desc = box.querySelector('[data-of="desc"]').value.trim().slice(0, 600);
   const price = Math.floor(+box.querySelector('[data-of="price"]').value), on = box.querySelector('[data-of="sale"]').checked;
   if (!name || name.length > 40) return oiMsg("Give it a name (up to 40 characters).", true);
-  if (!(price >= 0 && price <= 1000000)) return oiMsg("Price must be a whole number from 0 to 1,000,000.", true);
+  if (!(price >= 0 && price <= 1000000)) return oiMsg("Price: 0 to 1,000,000.", true);
   btn.disabled = true; oiMsg("Saving…");
   try {
     const r = await sb.rpc("owner_update_item", { p_item: id, p_name: name, p_desc: desc, p_price: price, p_published: on });
@@ -3926,7 +3947,7 @@ function ugSync(skip) {
   ugFeeNote();
   $("ugPublish").textContent = UG.published ? "Update price" : "Publish to Shop";
   $("ugUnpublish").hidden = !UG.published;
-  $("ugSaleNote").textContent = !UG.editId ? "Save the item first, then you can put it on sale."
+  $("ugSaleNote").textContent = !UG.editId ? "Save the item first."
     : UG.published ? "On sale for " + (UG.price ? UG.price.toLocaleString() + " Shapes" : "free") + "." : "Not for sale yet.";
 }
 function ugView() { if (ugv) { const v = UG_VIEW[UG.attach]; ugv.ty = v[0]; ugv.dist = v[1]; } }
@@ -3973,8 +3994,8 @@ function ugClear(kind) {
   kind = kind || (isCloth(UG.attach) ? UG.attach : "model");
   if (UG.holder && UG.holder.parent) UG.holder.parent.remove(UG.holder);
   Object.assign(UG, { name: "", attach: kind === "model" ? "Head" : kind, pos: [0, 0, 0], rot: [0, 0, 0], scale: 1, file: null, path: null, editId: null, price: 0, livePrice: 0, published: false, holder: null, inner: null, cloth: null });
-  $("ugInfo").textContent = kind === "model" ? "Pick a .glb file (up to 10 MB) to see it on the player."
-    : "Pick a .png file (up to 2 MB) made on the template. Download a template below to start.";
+  $("ugInfo").textContent = kind === "model" ? "Pick a .glb file (max 10 MB)."
+    : "Pick a .png file (max 2 MB).";
   ugView(); ugSync(); ugApply(); ugMsg("");
 }
 async function ugSave() {
@@ -3986,8 +4007,8 @@ async function ugSave() {
   if (!name) return ugMsg("Give the item a name.", true);
   const upFee = UG.editId ? 0 : uploadFee(UG.attach);
   if (upFee > 0) {
-    if (WAL.bal != null && WAL.bal < upFee) return ugMsg("Uploading this costs " + fmtT(upFee) + " Shapes and you have " + fmtT(WAL.bal) + ".", true);
-    if (!confirm("Uploading “" + name + "” costs " + fmtT(upFee) + " Shapes. Upload it?")) return;
+    if (WAL.bal != null && WAL.bal < upFee) return ugMsg("Not enough Shapes (" + fmtT(upFee) + " needed).", true);
+    if (!(await uiConfirm("Upload “" + name + "” for " + fmtT(upFee) + " Shapes?", "Upload"))) return;
   }
   $("ugSave").disabled = true; ugMsg("Saving…");
   let upPath = null;
@@ -4007,12 +4028,12 @@ async function ugSave() {
     if (old && old !== path) { try { await sb.storage.from("ugc").remove([old]); } catch (_) {} }
     const wasNew = !UG.editId;
     UG.editId = id; UG.path = path; UG.file = null; UG.livePrice = 0;
-    ugMsg("Saved “" + name + "”." + (wasNew && upFee ? " Upload fee: " + fmtT(upFee) + " Shapes." : "")); renderUgcList(); ugSync(); if (typeof refreshWorn === "function") refreshWorn(id);
+    ugMsg("Saved “" + name + "”." + (wasNew && upFee ? " (-" + fmtT(upFee) + ")" : "")); renderUgcList(); ugSync(); if (typeof refreshWorn === "function") refreshWorn(id);
     if (wasNew) { loadWallet(); loadNotifs(); }
   } catch (e) {
     if (upPath && !UG.editId) { try { await sb.storage.from("ugc").remove([upPath]); } catch (_) {} }     // the upload was refused: don't leave the file behind
-    if (/insufficient_funds/.test(String(e && e.message || ""))) { ugMsg("You don't have enough Shapes for the " + fmtT(upFee) + " Shapes upload fee.", true); $("ugSave").disabled = false; loadWallet(); return; }
-    ugMsg("Couldn't save. Run supabase_badges.sql once, and check your badge lets you make UGC." + (cloth ? " Clothes also need supabase_clothing.sql run once." : "") + " Also run supabase_taxes.sql once.", true);
+    if (/insufficient_funds/.test(String(e && e.message || ""))) { ugMsg("Not enough Shapes (" + fmtT(upFee) + " needed).", true); $("ugSave").disabled = false; loadWallet(); return; }
+    console.error("save failed", e); ugMsg("Couldn't save.", true);
   }
   $("ugSave").disabled = false;
 }
@@ -4024,7 +4045,7 @@ async function renderUgcList() {
     if (r.error) throw r.error;
     const rows = r.data || []; box._rows = rows;
     box.innerHTML = rows.length ? rows.map(it => `<div class="ugCard box" data-id="${esc(it.id)}"><b>${esc(it.name)}</b><div class="note">${esc(slotName(it.attach))}</div><div class="note ugSt">${esc(it.published ? (it.price ? Number(it.price).toLocaleString() + " Shapes" : "Free") + " · " + (it.sales || 0) + " sold" : "Not for sale")}</div><div class="ugRow"><button class="btnG" data-ug="edit" type="button">Edit model</button><button class="btnG" data-ug="page" type="button">Name, description &amp; price</button><button class="btnG" data-ug="del" type="button">Delete</button></div></div>`).join("")
-      : '<div class="note">Nothing saved yet. Upload a GLB above to make your first item.</div>';
+      : '<div class="note">No items yet.</div>';
   } catch (_) { box.innerHTML = '<div class="note">Couldn\'t load your items. Run supabase_badges.sql in Supabase once.</div>'; }
 }
 $("ugList").addEventListener("click", async e => {
@@ -4033,7 +4054,7 @@ $("ugList").addEventListener("click", async e => {
   if (b.dataset.ug === "page") { ITM.rows.set(id, Object.assign({}, ITM.rows.get(id) || {}, it, { creator: acct.user.id })); return openItem(id); }                  // the item page has the name / description / price / on-sale editor
   if (b.dataset.ug === "del") {
     if ((it.sales || 0) > 0) { ugMsg("People have bought that item, so it can't be deleted. Take it off sale instead.", true); return; }
-    if (!confirm("Delete “" + it.name + "”?")) return;
+    if (!(await uiConfirm("Delete “" + it.name + "”?", "Delete", true))) return;
     try {
       const d = await sb.from("ugc_items").delete().eq("id", id).select("id");
       if (d.error) throw d.error;
@@ -4664,7 +4685,7 @@ function ioFeeNote() {
   if (kindOfItem(it.attach) === "face") { n.textContent = ""; return; }
   const price = Math.floor(+$("ioPrice").value || 0), on = $("ioSale").checked, mine = isMyItem(it);
   const f = (on && mine && (!it.published || price !== Math.floor(+it.price || 0))) ? listFee(price, it.attach) : 0;
-  n.textContent = mine ? "Listing fee: 15% of the price (" + fmtN(f) + " Shapes right now), charged when you put it on sale or change the price. Each sale pays you 80% (20% tax)." : "";
+  n.textContent = mine ? (f ? "Fee: " + fmtN(f) + " Shapes" : "No fee") + " · You earn 80% of each sale" : "";
 }
 $("ioPrice").addEventListener("input", ioFeeNote); $("ioSale").addEventListener("change", ioFeeNote);
 function ioFill(id, tok) {                                         // called once the item's description has loaded
@@ -4680,13 +4701,13 @@ function ioFill(id, tok) {                                         // called onc
 }
 function ioErr(e) {
   const m = String(e && e.message || "");
-  return m.includes("not_allowed") ? "You can only edit your own items."
-    : m.includes("bad_name") ? "Names are 1 to 40 characters."
+  return m.includes("not_allowed") ? "Not your item."
+    : m.includes("bad_name") ? "Name: 1-40 characters."
     : m.includes("bad_price") ? "Price must be a whole number from 0 to 1,000,000."
-    : m.includes("price_too_low") ? "That price is under the minimum for this kind of item."
-    : m.includes("insufficient_funds") ? "You don't have enough Shapes for the listing fee."
-    : m.includes("not_found") ? "That item doesn't exist anymore."
-    : "Couldn't do that. Run supabase_taxes.sql in Supabase once. (" + m.slice(0, 80) + ")";
+    : m.includes("price_too_low") ? "Price is too low."
+    : m.includes("insufficient_funds") ? "Not enough Shapes."
+    : m.includes("not_found") ? "Item not found."
+    : "Couldn't do that.";
 }
 $("ioSave").addEventListener("click", async () => {
   const sb = getSB(), it = ITM.rows.get(IP.id); if (!sb || !it || !canEditItem(it)) return;
@@ -4694,11 +4715,11 @@ $("ioSave").addEventListener("click", async () => {
   if (!name || name.length > 40) return ioMsg("Give it a name (up to 40 characters).", true);
   if (!(price >= 0 && price <= 1000000)) return ioMsg("Price must be a whole number from 0 to 1,000,000.", true);
   const on = $("ioSale").checked, b = $("ioSave");
-  if (on && price < minPrice(it.attach)) return ioMsg("The lowest price for this item is " + fmtT(minPrice(it.attach)) + " Shapes.", true);
+  if (on && price < minPrice(it.attach)) return ioMsg("Lowest price: " + fmtT(minPrice(it.attach)) + " Shapes.", true);
   const fee = (on && isMyItem(it) && (!it.published || price !== Math.floor(+it.price || 0))) ? listFee(price, it.attach) : 0;
   if (fee > 0) {
-    if (WAL.bal != null && WAL.bal < fee) return ioMsg("The listing fee is " + fmtT(fee) + " Shapes and you have " + fmtT(WAL.bal) + ".", true);
-    if (!confirm("Listing this for " + fmtT(price) + " Shapes costs a " + fmtT(fee) + " Shapes listing fee. Continue?")) return;
+    if (WAL.bal != null && WAL.bal < fee) return ioMsg("Not enough Shapes (" + fmtT(fee) + " needed).", true);
+    if (!(await uiConfirm("List for " + fmtT(price) + " Shapes? Fee: " + fmtT(fee) + ".", "List"))) return;
   }
   b.disabled = true; ioMsg("Saving…");
   try {
@@ -4708,13 +4729,13 @@ $("ioSave").addEventListener("click", async () => {
     Object.assign(it, patch); ITM.rows.set(it.id, it);
     const row = SHOP.rows.find(x => x.id === it.id); if (row) Object.assign(row, patch);
     IP.desc = desc; ITM.thumbs.clear();
-    ioMsg(fee ? "Saved. Listing fee: " + fmtT(fee) + " Shapes." : "Saved."); ioFeeNote(); ipPaint(); paintShop(); if (fee) loadWallet();
+    ioMsg(fee ? "Saved (-" + fmtT(fee) + ")" : "Saved."); ioFeeNote(); ipPaint(); paintShop(); if (fee) loadWallet();
   } catch (e) { ioMsg(ioErr(e), true); }
   b.disabled = false;
 });
 $("ioDel").addEventListener("click", async () => {
   const sb = getSB(), it = ITM.rows.get(IP.id); if (!sb || !it || !canEditItems()) return;
-  if (!confirm("Delete “" + it.name + "” for good? Everyone who owns it loses it.")) return;
+  if (!(await uiConfirm("Delete “" + it.name + "” for good? Everyone who owns it loses it.", "Delete", true))) return;
   const b = $("ioDel"); b.disabled = true; ioMsg("Deleting…");
   try {
     const r = await sb.rpc("owner_delete_item", { p_item: it.id });
@@ -4742,7 +4763,7 @@ function ugPendingFee() {                                        // what the lis
 function ugFeeNote() {
   const n = $("ugFeeNote"); if (!n) return;
   const f = ugPendingFee();
-  n.textContent = kindOfItem(UG.attach) === "face" ? "" : "Listing fee: 15% of the price (" + fmtN(f) + " Shapes right now), charged each time you put it on sale or change the price. Each sale pays you 80% (20% tax).";
+  n.textContent = kindOfItem(UG.attach) === "face" ? "" : (f ? "Fee: " + fmtN(f) + " Shapes" : "No fee") + " · You earn 80% of each sale";
 }
 $("ugPrice").addEventListener("input", () => { UG.price = ugClamp(Math.floor(+$("ugPrice").value || 0), 0, TAX_MAX); ugFeeNote(); });
 $("ugPublish").addEventListener("click", () => ugSetSale(true));
@@ -4753,20 +4774,20 @@ async function ugSetSale(on) {
   if (!UG.editId) return ugMsg("Save the item first.", true);
   if (UG.file) return ugMsg("Press Save item first, so your new file is uploaded.", true);
   const price = ugClamp(Math.floor(+$("ugPrice").value || 0), 0, TAX_MAX);
-  if (on && price < minPrice(UG.attach)) return ugMsg("The lowest price for a " + slotName(UG.attach).toLowerCase() + " is " + fmtT(minPrice(UG.attach)) + " Shapes.", true);
+  if (on && price < minPrice(UG.attach)) return ugMsg("Lowest price: " + fmtT(minPrice(UG.attach)) + " Shapes.", true);
   const fee = on ? ugPendingFee() : 0;
   if (fee > 0) {
-    if (WAL.bal != null && WAL.bal < fee) return ugMsg("The listing fee is " + fmtT(fee) + " Shapes and you have " + fmtT(WAL.bal) + ".", true);
-    if (!confirm("Putting “" + UG.name + "” on sale for " + fmtT(price) + " Shapes costs a " + fmtT(fee) + " Shapes listing fee. Continue?")) return;
+    if (WAL.bal != null && WAL.bal < fee) return ugMsg("Not enough Shapes (" + fmtT(fee) + " needed).", true);
+    if (!(await uiConfirm("List for " + fmtT(price) + " Shapes? Fee: " + fmtT(fee) + ".", "List"))) return;
   }
   $("ugPublish").disabled = $("ugUnpublish").disabled = true;
   try {
     const r = await sb.rpc("set_item_sale", { p_item: UG.editId, p_price: on ? price : UG.livePrice, p_published: on });
     if (r.error) throw r.error;
     UG.published = on; if (on) { UG.price = price; UG.livePrice = price; }
-    ugMsg(on ? "“" + UG.name + "” is on sale in the Shop." + (fee ? " Listing fee: " + fmtT(fee) + " Shapes." : "") : "“" + UG.name + "” is off sale. People who already bought it keep it.");
+    ugMsg(on ? "On sale." + (fee ? " (-" + fmtT(fee) + ")" : "") : "Off sale.");
     renderUgcList(); loadWallet();
-  } catch (e) { ugMsg(feeErr(e, UG.attach) || ("Couldn't change the listing. Run supabase_taxes.sql once. " + SQL_HINT), true); }
+  } catch (e) { console.error("sale failed", e); ugMsg(feeErr(e, UG.attach) || "Couldn't change the listing.", true); }
   $("ugPublish").disabled = $("ugUnpublish").disabled = false;
   ugSync();
 }
