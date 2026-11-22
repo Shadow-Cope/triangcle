@@ -1,5 +1,24 @@
 /* ---- js/core/app.js ---- */
 "use strict";
+/* ---- taxes & fees (the server enforces these in supabase_taxes.sql; this only mirrors them for the screens).
+   Kept at the very top with only function declarations so it can be used from anywhere, even at start-up. ---- */
+var TAX_MAX = 1000000;
+function kindOfItem(a) { return (a === "Shirt" || a === "Pants") ? "cloth" : a === "Face" ? "face" : "acc"; }
+function uploadFee(a) { return { cloth: 5, acc: 150, face: 0 }[kindOfItem(a)]; }
+function minPrice(a) { return { cloth: 5, acc: 50, face: 0 }[kindOfItem(a)]; }
+function listFee(price, a) { return kindOfItem(a) === "face" ? 0 : Math.ceil(Math.max(0, +price || 0) * 0.15); }
+function fmtN(n) { return Number(n || 0).toLocaleString(); }
+function feeErr(e, a) {
+  const m = String(e && e.message || "");
+  return m.includes("insufficient_funds") ? "You don't have enough Shapes for the fee."
+    : m.includes("price_too_low") ? "The lowest price for that is " + fmtN(minPrice(a)) + " Shapes."
+    : m.includes("bad_price") ? "Price must be a whole number up to 1,000,000."
+    : m.includes("not_allowed") ? "You can only change your own items."
+    : m.includes("not_found") ? "That item doesn't exist anymore."
+    : null;
+}
+function priceRuleText(a) { return kindOfItem(a) === "face" ? "Price in Shapes (0 = free)" : "Price in Shapes (" + fmtN(minPrice(a)) + " to 1,000,000)"; }
+
 
 /* =====================================================================
    Desktop app: detect it, gate Play behind it, and open it with triancle:// links.
@@ -4075,23 +4094,6 @@ const SHOP = { rows: [], busy: false };
 const slotName = k => (UG_SLOTS.concat(CLOTH_SLOTS, [["Face", "Face"]]).find(x => x[0] === k) || [0, k])[1];
 const arr3 = a => (Array.isArray(a) && a.length === 3) ? a.map(x => +x || 0) : [0, 0, 0];
 
-/* ---- taxes & fees (the server enforces these in supabase_taxes.sql; this only mirrors them for the screens) ---- */
-const TAX_MAX = 1000000;
-const kindOfItem = a => (a === "Shirt" || a === "Pants") ? "cloth" : a === "Face" ? "face" : "acc";
-const uploadFee = a => ({ cloth: 5, acc: 150, face: 0 })[kindOfItem(a)];
-const minPrice = a => ({ cloth: 5, acc: 50, face: 0 })[kindOfItem(a)];
-const listFee = (price, a) => kindOfItem(a) === "face" ? 0 : Math.ceil(Math.max(0, +price || 0) * 0.15);
-function feeErr(e, a) {
-  const m = String(e && e.message || "");
-  return m.includes("insufficient_funds") ? "You don't have enough Shapes for the fee."
-    : m.includes("price_too_low") ? "The lowest price for that is " + fmtT(minPrice(a)) + " Shapes."
-    : m.includes("bad_price") ? "Price must be a whole number up to 1,000,000."
-    : m.includes("not_allowed") ? "You can only change your own items."
-    : m.includes("not_found") ? "That item doesn't exist anymore."
-    : null;
-}
-function priceRuleText(a) { const k = kindOfItem(a); return k === "face" ? "Price in Shapes (0 = free)" : "Price in Shapes (" + fmtT(minPrice(a)) + " to 1,000,000)"; }
-
 /* ---- wallet ---- */
 function walletUI() {
   const on = WAL.bal != null && !!acct.user;
@@ -4662,7 +4664,7 @@ function ioFeeNote() {
   if (kindOfItem(it.attach) === "face") { n.textContent = ""; return; }
   const price = Math.floor(+$("ioPrice").value || 0), on = $("ioSale").checked, mine = isMyItem(it);
   const f = (on && mine && (!it.published || price !== Math.floor(+it.price || 0))) ? listFee(price, it.attach) : 0;
-  n.textContent = mine ? "Listing fee: 15% of the price (" + fmtT(f) + " Shapes right now), charged when you put it on sale or change the price. Each sale pays you 80% (20% tax)." : "";
+  n.textContent = mine ? "Listing fee: 15% of the price (" + fmtN(f) + " Shapes right now), charged when you put it on sale or change the price. Each sale pays you 80% (20% tax)." : "";
 }
 $("ioPrice").addEventListener("input", ioFeeNote); $("ioSale").addEventListener("change", ioFeeNote);
 function ioFill(id, tok) {                                         // called once the item's description has loaded
@@ -4740,7 +4742,7 @@ function ugPendingFee() {                                        // what the lis
 function ugFeeNote() {
   const n = $("ugFeeNote"); if (!n) return;
   const f = ugPendingFee();
-  n.textContent = kindOfItem(UG.attach) === "face" ? "" : "Listing fee: 15% of the price (" + fmtT(f) + " Shapes right now), charged each time you put it on sale or change the price. Each sale pays you 80% (20% tax).";
+  n.textContent = kindOfItem(UG.attach) === "face" ? "" : "Listing fee: 15% of the price (" + fmtN(f) + " Shapes right now), charged each time you put it on sale or change the price. Each sale pays you 80% (20% tax).";
 }
 $("ugPrice").addEventListener("input", () => { UG.price = ugClamp(Math.floor(+$("ugPrice").value || 0), 0, TAX_MAX); ugFeeNote(); });
 $("ugPublish").addEventListener("click", () => ugSetSale(true));
