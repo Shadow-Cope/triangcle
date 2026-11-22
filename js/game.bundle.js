@@ -2585,7 +2585,7 @@ function prevLoop(now) {
 /* ---- js/ui/tabs.js ---- */
 "use strict";
 
-const SECID = { ugc: "tabUgc", home: "tabHome", games: "tabGames", avatar: "tabAvatar", friends: "tabFriends", profile: "tabProfile", shop: "tabShop", players: "tabPlayers", owner: "tabOwner", settings: "tabSettings" };
+const SECID = { ugc: "tabUgc", home: "tabHome", games: "tabGames", avatar: "tabAvatar", friends: "tabFriends", profile: "tabProfile", shop: "tabShop", players: "tabPlayers", owner: "tabOwner", settings: "tabSettings", transactions: "tabTransactions" };
 function showTab(name) {
   if (name === "owner" && !isOwner()) name = "home";
   if (name === "ugc" && !canUgc()) name = "home";
@@ -2604,6 +2604,7 @@ function showTab(name) {
   if (name === "avatar") renderAvItems();
   if (name === "ugc") ugStart();
   if (name === "settings") renderSettings();
+  if (name === "transactions") { TX.page = 0; renderTransactions(); }
   if (name === "profile") renderProfile(SOC.viewId || (acct.user && acct.user.id));
   if (name !== "profile") SOC.viewId = null;
 }
@@ -3851,7 +3852,7 @@ const ugClamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ugGet = d => d[0] === "scale" ? UG.scale : UG[d[0]][d[1]];
 function ugSet(d, v) { v = ugClamp(+v || 0, d[3], d[4]); if (d[0] === "scale") UG.scale = v; else UG[d[0]][d[1]] = v; }
 
-(function buildUgcUI() {
+(function buildUgcUI() { try {
   $("ugKinds").addEventListener("click", e => {
     const b = e.target.closest("[data-k]"); if (!b) return;
     if (b.dataset.k !== (isCloth(UG.attach) ? UG.attach : "model")) ugClear(b.dataset.k);
@@ -3909,6 +3910,7 @@ function ugSet(d, v) { v = ugClamp(+v || 0, d[3], d[4]); if (d[0] === "scale") U
   const end = () => { drag = null; }; vw.addEventListener("pointerup", end); vw.addEventListener("pointercancel", end);
   vw.addEventListener("wheel", e => { e.preventDefault(); if (ugv) ugv.dist = ugClamp(ugv.dist * Math.exp(e.deltaY * 0.001), 2.5, 30); }, { passive: false });
   ugSync();
+  } catch (e) { console.error("UGC panel failed to start", e); }
 })();
 
 function ugKindUI() {
@@ -4639,6 +4641,10 @@ const NOTIF = { rows: [], fresh: new Set(), freshPatch: new Set(), timer: 0 };
 /* Patch notes: add a new entry at the TOP of this list for every patch / update / version.
    Each one shows up as its own numbered notification. sections: New / Changed / Fixed / Removed. */
 const PATCHES = [
+  { v: "1.0.5", date: "2026-11-22", title: "Transactions page", sections: [
+    ["New", ["Transactions tab: see everything you bought and sold", "Summary view with your totals for 7, 30 or 90 days", "Filter by Purchases, Sales, Fees or Other", "Sales show who bought your item"]],
+    ["Fixed", ["The site loading to a blank brown screen"]]
+  ] },
   { v: "1.0.4", date: "2026-11-22", title: "UGC uploads are now one step", sections: [
     ["New", ["Pick Shirt, Pants or Accessory with one tap", "On sale toggle: list your item while you upload it", "“You get” shows what you earn from each sale"]],
     ["Changed", ["One Upload button does everything and shows the total cost", "Price starts at the lowest allowed for each type"]],
@@ -4702,6 +4708,77 @@ $("notifPanel").addEventListener("click", async e => {
 });
 document.addEventListener("click", () => { if (!$("notifPanel").hidden) notifToggle(false); });
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("notifPanel").hidden) notifToggle(false); });
+
+/* ---- js/social/transactions.js ---- */
+"use strict";
+
+/* ---- Transactions page: purchases, sales, fees and the rest (needs supabase_transactions.sql) ---- */
+const TX = { type: "summary", days: 30, per: 10, page: 0, busy: 0 };
+const TX_KINDS = { purchases: "purchase", sales: "sale", fees: "fee", other: "other" };
+const TX_ICON = '<img class="tcI" src="assets/img/shapes.png" alt="">';
+const txSigned = n => (n > 0 ? "+" : n < 0 ? "-" : "") + Number(Math.abs(n)).toLocaleString();
+const txWhen = t => new Date(t).toLocaleString([], { year: "2-digit", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" });
+function txMissing(e) { return e && (e.code === "42P01" || e.code === "PGRST205" || e.code === "PGRST202" || /transactions|transaction_summary|schema cache|does not exist/i.test(String(e.message || ""))); }
+function txSummaryHtml(d) {
+  const g = k => Number(d[k] || 0);
+  const row = (label, v, bold) => `<div class="txR${bold ? " txB" : ""}"><span>${label}</span><span class="txAmt${v < 0 ? " neg" : ""}">${TX_ICON}${v < 0 ? "-" : ""}${Number(Math.abs(v)).toLocaleString()}</span></div>`;
+  const inc = g("sale") + g("other_in"), out = g("purchase") + g("fee") + g("other_out");
+  const card = (title, rows) => `<div class="txCard box"><div class="txR txH"><span>${title}</span><span>Amount</span></div>${rows}</div>`;
+  return card("Incoming Shapes", row("Sales", g("sale")) + (g("other_in") ? row("Other", g("other_in")) : "") + row("Total", inc, true))
+    + card("Outgoing Shapes", row("Purchases", g("purchase")) + row("Fees", g("fee")) + (g("other_out") ? row("Other", g("other_out")) : "") + row("Total", out, true))
+    + card("Net", row("Total change", inc + out, true));
+}
+async function renderTransactions() {
+  const sb = getSB(), box = $("txBody"); if (!sb || !acct.user) return;
+  const my = ++TX.busy, sum = TX.type === "summary";
+  $("txType").value = TX.type; $("txDays").value = String(TX.days); $("txPer").value = String(TX.per);
+  $("txDays").hidden = !sum; $("txPer").hidden = sum;
+  box.innerHTML = '<div class="note">Loading…</div>';
+  try {
+    if (sum) {
+      const r = await sb.rpc("transaction_summary", { p_days: TX.days }); if (r.error) throw r.error;
+      if (my !== TX.busy) return;
+      box.innerHTML = txSummaryHtml(r.data || {});
+      return;
+    }
+    let q = sb.from("transactions").select("id, kind, amount, description, item_id, other_user, created_at", { count: "exact" }).eq("user_id", acct.user.id);
+    if (TX_KINDS[TX.type]) q = q.eq("kind", TX_KINDS[TX.type]);
+    const from = TX.page * TX.per, r = await q.order("created_at", { ascending: false }).range(from, from + TX.per - 1);
+    if (r.error) throw r.error;
+    if (my !== TX.busy) return;
+    const rows = r.data || [], pages = Math.max(1, Math.ceil((r.count || 0) / TX.per));
+    if (!rows.length && TX.page > 0) { TX.page = Math.max(0, pages - 1); return renderTransactions(); }
+    if (!rows.length) { box.innerHTML = '<div class="note">No transactions yet.</div>'; return; }
+    const ids = Array.from(new Set(rows.map(x => x.other_user).filter(Boolean).concat([acct.user.id]))), names = new Map();
+    try { const p = await sb.from("player_profiles").select("id, username").in("id", ids); for (const u of (p.data || [])) names.set(u.id, u.username); } catch (_) {}
+    if (my !== TX.busy) return;
+    const body = rows.map(x => {
+      const who = x.other_user || acct.user.id, nm = names.get(who) || "Player";
+      const thumb = x.item_id ? `<span class="txThumb" data-item="${esc(x.item_id)}"></span>` : `<span class="txThumb">${TX_ICON}</span>`;
+      return `<div class="txRow"><span class="txDate">${esc(txWhen(x.created_at))}</span><span class="txSrc"><button type="button" class="txUser" data-uid="${esc(who)}"><i>${esc(nm.slice(0, 1).toUpperCase())}</i>${esc(nm)}</button></span><span class="txDesc">${thumb}<span>${esc(x.description)}</span></span><span class="txAmt${x.amount < 0 ? " neg" : ""}">${TX_ICON}${txSigned(x.amount)}</span></div>`;
+    }).join("");
+    box.innerHTML = `<div class="txTable box"><div class="txRow txH"><span>Date</span><span>Source</span><span>Description</span><span class="txAmtH">Amount</span></div>${body}</div>`
+      + `<div class="txPager"><button type="button" class="btnG" data-tx="prev"${TX.page === 0 ? " disabled" : ""}>Previous</button><span>Page ${TX.page + 1} of ${pages}</span><button type="button" class="btnG" data-tx="next"${TX.page + 1 >= pages ? " disabled" : ""}>Next</button></div>`;
+    const need = Array.from(new Set(rows.map(x => x.item_id).filter(Boolean)));
+    if (need.length) fetchItemRows(need).then(map => {
+      for (const el of box.querySelectorAll(".txThumb[data-item]")) {
+        const it = map.get(el.dataset.item); if (!it) continue;
+        Promise.resolve(itemThumb(it)).then(url => { if (url && el.isConnected) el.innerHTML = '<img alt="" src="' + esc(url) + '">'; }, () => {});
+      }
+    });
+  } catch (e) {
+    if (my !== TX.busy) return;
+    box.innerHTML = txMissing(e) ? '<div class="note">Transactions aren\'t switched on yet. Run <b>supabase_transactions.sql</b> in the Supabase SQL editor.</div>' : '<div class="note">Couldn\'t load your transactions.</div>';
+    if (!txMissing(e)) console.error("transactions failed", e);
+  }
+}
+$("txType").addEventListener("change", () => { TX.type = $("txType").value; TX.page = 0; renderTransactions(); });
+$("txDays").addEventListener("change", () => { TX.days = +$("txDays").value || 0; renderTransactions(); });
+$("txPer").addEventListener("change", () => { TX.per = +$("txPer").value || 10; TX.page = 0; renderTransactions(); });
+$("txBody").addEventListener("click", e => {
+  const pg = e.target.closest("[data-tx]"); if (pg && !pg.disabled) { TX.page = Math.max(0, TX.page + (pg.dataset.tx === "next" ? 1 : -1)); renderTransactions(); return; }
+  const u = e.target.closest("[data-uid]"); if (u) { SOC.viewId = u.dataset.uid; showTab("profile"); }
+});
 
 /* ---- js/items/item-owner.js ---- */
 "use strict";
@@ -4804,8 +4881,8 @@ function ugFeeNote() {
   go.textContent = UG.busy ? "Uploading…" : (UG.editId ? "Update item" : "Upload") + (total ? " for " + fmtN(total) + " Shapes" : "");
   go.disabled = !ready || UG.busy;
 }
-$("ugPrice").addEventListener("input", () => { UG.price = ugClamp(Math.floor(+$("ugPrice").value || 0), 0, TAX_MAX); ugFeeNote(); });
-$("ugOnSale").addEventListener("change", () => { UG.sale = $("ugOnSale").checked; $("ugPriceBox").hidden = !UG.sale; ugFeeNote(); });
+if ($("ugPrice")) $("ugPrice").addEventListener("input", () => { UG.price = ugClamp(Math.floor(+$("ugPrice").value || 0), 0, TAX_MAX); ugFeeNote(); });
+if ($("ugOnSale")) $("ugOnSale").addEventListener("change", () => { UG.sale = $("ugOnSale").checked; $("ugPriceBox").hidden = !UG.sale; ugFeeNote(); });
 
 /* after a creator re-saves an item, drop the cached copy so the worn version updates */
 function refreshWorn(id) {

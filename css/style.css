@@ -890,3 +890,36 @@ html.inapp .webonly { display: none !important; }
 .uiPopBtn:hover { border-color: #6b5b36; }
 .uiPopBtn.ok { background: var(--y); border-color: var(--y); color: #1b1710; }
 .uiPopBtn.bad { background: #e5342b; border-color: #e5342b; color: #fff; }
+
+/* ===== transactions page ===== */
+#tabTransactions { max-width: 1000px; }
+.txHead { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.txBar { display: flex; gap: 10px; flex-wrap: wrap; margin: 4px 0 18px; }
+.txTable, .txCard { overflow: hidden; }
+.txCard { margin-bottom: 18px; }
+.txR, .txRow { display: grid; align-items: center; gap: 12px; padding: 12px 16px; }
+.txR { grid-template-columns: 1fr auto; font-size: 16px; }
+.txR + .txR, .txRow + .txRow { border-top: 1px solid var(--bd); }
+.txR.txH, .txRow.txH { color: var(--dim); font-size: 14px; background: rgba(0,0,0,.18); }
+.txR.txH span:last-child, .txAmtH { text-align: right; }
+.txB { font-weight: 700; }
+.txRow { grid-template-columns: 130px minmax(110px, 190px) 1fr auto; font-size: 15px; }
+.txRow:not(.txH):nth-child(even) { background: rgba(255,255,255,.02); }
+.txDate { color: var(--dim); font-size: 14px; }
+.txSrc, .txDesc { min-width: 0; display: flex; align-items: center; gap: 10px; }
+.txDesc > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.txUser { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 0; border: 0; background: none; color: var(--fg); font: inherit; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.txUser:hover { color: var(--y); }
+.txUser i { flex: none; width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; background: #2a2418; border: 1px solid var(--bd); font-style: normal; font-size: 13px; color: var(--y); }
+.txThumb { flex: none; width: 36px; height: 36px; border-radius: 8px; background: #2a2418; display: grid; place-items: center; overflow: hidden; }
+.txThumb img { width: 100%; height: 100%; object-fit: contain; }
+.txThumb .tcI { width: 18px; height: 18px; }
+.txAmt { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; font-weight: 600; white-space: nowrap; }
+.txAmt.neg { color: #ff7a6b; }
+.txPager { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 18px 0; color: var(--dim); }
+.txPager button:disabled { opacity: .45; cursor: default; }
+@media (max-width: 700px) {
+  .txRow { grid-template-columns: 1fr auto; row-gap: 6px; }
+  .txRow.txH { display: none; }
+  .txDate, .txSrc { grid-column: 1 / -1; }
+}
