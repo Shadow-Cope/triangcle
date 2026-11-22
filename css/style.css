@@ -923,3 +923,6 @@ html.inapp .webonly { display: none !important; }
   .txRow.txH { display: none; }
   .txDate, .txSrc { grid-column: 1 / -1; }
 }
+
+.balLink { cursor: pointer; }
+.balLink:hover { border-color: var(--y); }

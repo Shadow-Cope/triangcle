@@ -4641,8 +4641,11 @@ const NOTIF = { rows: [], fresh: new Set(), freshPatch: new Set(), timer: 0 };
 /* Patch notes: add a new entry at the TOP of this list for every patch / update / version.
    Each one shows up as its own numbered notification. sections: New / Changed / Fixed / Removed. */
 const PATCHES = [
+  { v: "1.0.6", date: "2026-11-22", title: "Transactions: click your Shapes", sections: [
+    ["Changed", ["Click your Shapes amount at the top to open Transactions", "Transactions is no longer a tab in the menu"]]
+  ] },
   { v: "1.0.5", date: "2026-11-22", title: "Transactions page", sections: [
-    ["New", ["Transactions tab: see everything you bought and sold", "Summary view with your totals for 7, 30 or 90 days", "Filter by Purchases, Sales, Fees or Other", "Sales show who bought your item"]],
+    ["New", ["Transactions page: see everything you bought and sold", "Summary view with your totals for 7, 30 or 90 days", "Filter by Purchases, Sales, Fees or Other", "Sales show who bought your item"]],
     ["Fixed", ["The site loading to a blank brown screen"]]
   ] },
   { v: "1.0.4", date: "2026-11-22", title: "UGC uploads are now one step", sections: [
@@ -4772,6 +4775,10 @@ async function renderTransactions() {
     if (!txMissing(e)) console.error("transactions failed", e);
   }
 }
+const txOpen = () => { if (acct.user) showTab("transactions"); };
+$("hBal").addEventListener("click", txOpen);
+$("hBal").addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); txOpen(); } });
+if ($("shBalBox")) { $("shBalBox").style.cursor = "pointer"; $("shBalBox").title = "View your transactions"; $("shBalBox").addEventListener("click", txOpen); }
 $("txType").addEventListener("change", () => { TX.type = $("txType").value; TX.page = 0; renderTransactions(); });
 $("txDays").addEventListener("change", () => { TX.days = +$("txDays").value || 0; renderTransactions(); });
 $("txPer").addEventListener("change", () => { TX.per = +$("txPer").value || 10; TX.page = 0; renderTransactions(); });
