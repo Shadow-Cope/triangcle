@@ -343,7 +343,9 @@ function buildMapWorld(map) {
     m.quaternion.setFromRotationMatrix(new THREE.Matrix4().set(R[0], R[1], R[2], 0, R[3], R[4], R[5], 0, R[6], R[7], R[8], 0, 0, 0, 0, 1));
     m.receiveShadow = true; m.castShadow = tr === 0;
     scene.add(m);
-    if (col) addRotatedCollision(sx, sy, sz, x, y, z, R);
+    if (col && shape === 0 && Math.min(sx, sy, sz) > Math.max(sx, sy, sz) * 0.95) {      // a round ball: exact sphere hitbox
+      solids.push({ minX: x - sx / 2, maxX: x + sx / 2, minY: y - sy / 2, maxY: y + sy / 2, minZ: z - sz / 2, maxZ: z + sz / 2, ball: { cx: x, cy: y, cz: z, r: Math.min(sx, sy, sz) / 2 } });
+    } else if (col) addRotatedCollision(sx, sy, sz, x, y, z, R);
   }
 }
 let worldBuilt = false;
@@ -1017,9 +1019,50 @@ function approach(v, tx, tz, maxDelta) {
 
 function overlaps(p, b) {
   const h = CFG.CHAR_HALF_XZ;
-  return p.x + h > b.minX && p.x - h < b.maxX &&
-         p.z + h > b.minZ && p.z - h < b.maxZ &&
-         p.y + CFG.CHAR_HEIGHT > b.minY && p.y < b.maxY;
+  if (!(p.x + h > b.minX && p.x - h < b.maxX &&
+        p.z + h > b.minZ && p.z - h < b.maxZ &&
+        p.y + CFG.CHAR_HEIGHT > b.minY && p.y < b.maxY)) return false;
+  if (!b.ball) return true;
+  const q = b.ball, dx = nearest(q.cx, p.x - h, p.x + h) - q.cx, dy = nearest(q.cy, p.y, p.y + CFG.CHAR_HEIGHT) - q.cy, dz = nearest(q.cz, p.z - h, p.z + h) - q.cz;
+  return dx * dx + dy * dy + dz * dz < q.r * q.r;                              // a ball is round, not a box
+}
+const nearest = (v, lo, hi) => v < lo ? lo : v > hi ? hi : v;
+
+/* push the player out of anything it is inside (a part was spawned / scaled / moved onto you): the SHORTEST way out, never a teleport */
+function depenetrate() {
+  const p = player.pos, h = CFG.CHAR_HALF_XZ, H = CFG.CHAR_HEIGHT;
+  for (let it = 0; it < 6; it++) {
+    let hit = false;
+    for (const b of solids) {
+      if (!overlaps(p, b)) continue;
+      hit = true;
+      if (b.ball) {
+        const q = b.ball, nx = nearest(q.cx, p.x - h, p.x + h), ny = nearest(q.cy, p.y, p.y + H), nz = nearest(q.cz, p.z - h, p.z + h);
+        let dx = nx - q.cx, dy = ny - q.cy, dz = nz - q.cz; const d = Math.hypot(dx, dy, dz);
+        if (d < 1e-5) { p.y = q.cy + q.r; if (player.vel.y < 0) player.vel.y = 0; continue; }
+        const k = (q.r - d) / d + 1e-3; p.x += dx * k; p.y += dy * k; p.z += dz * k;
+        if (dy * k > 0 && player.vel.y < 0) player.vel.y = 0;
+        continue;
+      }
+      const c = [b.maxX + h - p.x, p.x + h - b.minX, b.maxZ + h - p.z, p.z + h - b.minZ, b.maxY - p.y, (p.y + H - b.minY) * 1.25];
+      let k = 0; for (let i = 1; i < 6; i++) if (c[i] < c[k]) k = i;
+      if (k === 0) p.x = b.maxX + h; else if (k === 1) p.x = b.minX - h;
+      else if (k === 2) p.z = b.maxZ + h; else if (k === 3) p.z = b.minZ - h;
+      else if (k === 4) { p.y = b.maxY; if (player.vel.y < 0) player.vel.y = 0; }
+      else { p.y = b.minY - H; if (player.vel.y > 0) player.vel.y = 0; }
+    }
+    if (!hit) break;
+  }
+}
+
+/* climbing moves the player straight up/down: never into a ceiling / floor / wall it was not already in */
+function climbMoveY(dy) {
+  const p = player.pos, y0 = p.y; p.y = y0 + dy;
+  for (const b of solids) {
+    if (!overlaps(p, b)) continue;
+    p.y = y0; const was = overlaps(p, b); p.y = y0 + dy;
+    if (!was) { p.y = y0; return; }
+  }
 }
 
 /* ---- ladders made of parts: 3+ thin parts stacked up the same wall face (with gaps) are climbed like a real ladder ---- */
@@ -1028,7 +1071,7 @@ function detectPartLadder(axis, dir, b) {
   const faceOf = s => axis === "x" ? (dir > 0 ? s.minX : s.maxX) : (dir > 0 ? s.minZ : s.maxZ), face = faceOf(b);
   const pc = axis === "x" ? p.z : p.x, chain = [];
   for (const s of solids) {
-    if (s.maxY - s.minY > CFG.CLIMB_MAX_SIZE) continue;                       // only thin rungs, never a thick block
+    if (s.ball || s.maxY - s.minY > CFG.CLIMB_MAX_SIZE) continue;             // only thin rungs, never a thick block or a ball
     if (Math.abs(faceOf(s) - face) > 0.75) continue;                           // same wall face
     const lo = axis === "x" ? s.minZ : s.minX, hi = axis === "x" ? s.maxZ : s.maxX;
     if (hi < pc - h + 0.3 || lo > pc + h - 0.3) continue;                      // in front of the player
@@ -1045,25 +1088,36 @@ function detectPartLadder(axis, dir, b) {
     if (g > 0.4) gap = true;                                                    // a solid stack of plates is a wall, not a ladder
     n++; top = chain[i];
   }
-  return n >= 3 && gap ? { top, face } : null;
+  return n >= 3 && gap ? { top, face, rungs: chain.slice(0, n) } : null;
 }
 function startPartLadder(axis, dir, pl) {
   const p = player.pos, h = CFG.CHAR_HALF_XZ + 0.1;
-  const L = { y0: p.y, y1: pl.top.maxY, nx: axis === "x" ? -dir : 0, nz: axis === "z" ? -dir : 0 };
+  const L = { rungs: pl.rungs, y0: p.y, y1: pl.top.maxY, nx: axis === "x" ? -dir : 0, nz: axis === "z" ? -dir : 0 };
+  const ox = p.x, oz = p.z;
   if (axis === "x") { L.snapX = pl.face + L.nx * h; p.x = L.snapX; } else { L.snapZ = pl.face + L.nz * h; p.z = L.snapZ; }
+  if (solids.some(o => overlaps(p, o))) { p.x = ox; p.z = oz; return false; }                 // rails / walls in the way: not a ladder here
   player.climb = { mode: "ladder", L, t: 0, dur: 1, armed: false, face: Math.atan2(L.nz, -L.nx) };
   player.vel.set(0, 0, 0); player.stepOff = 0;
+  return true;
 }
 
 function resolveHorizontal(axis, delta) {
   const p = player.pos, h = CFG.CHAR_HALF_XZ;
   for (const b of solids) {
     if (!overlaps(p, b)) continue;
+    if (b.ball) {                                                              // exact sphere: slide off its curve, don't snag on a hidden box corner
+      const q = b.ball, ny = nearest(q.cy, p.y, p.y + CFG.CHAR_HEIGHT), dy = ny - q.cy;
+      const oc = axis === "x" ? nearest(q.cz, p.z - h, p.z + h) - q.cz : nearest(q.cx, p.x - h, p.x + h) - q.cx;
+      const rr = Math.sqrt(Math.max(0, q.r * q.r - dy * dy - oc * oc)), c = axis === "x" ? q.cx : q.cz, cur = axis === "x" ? p.x : p.z;
+      const to = delta > 0 || (delta === 0 && cur < c) ? c - rr - h : c + rr + h;
+      if (axis === "x") { p.x = to; player.vel.x = 0; } else { p.z = to; player.vel.z = 0; }
+      continue;
+    }
     const rise = b.maxY - p.y;
     const mv = axis === "x" ? player.moveX : player.moveZ;
     if (!player.climb && !(player.noGrab > 0) && mv && (b.maxY - b.minY) <= CFG.CLIMB_MAX_SIZE && rise > 0.3) {   // walked into a ladder made of parts
       const pl = detectPartLadder(axis, mv > 0 ? 1 : -1, b);
-      if (pl) { startPartLadder(axis, mv > 0 ? 1 : -1, pl); return; }
+      if (pl && startPartLadder(axis, mv > 0 ? 1 : -1, pl)) return;
     }
     const big = rise > 0.75, ls = player.lastStep;
     const stuck = big && ls && ls.t < 0.5 && Math.hypot(p.x - ls.x, p.z - ls.z) < 0.8;       // no sideways progress since the last big step: it's a wall, not stairs
@@ -1081,10 +1135,10 @@ function resolveHorizontal(axis, delta) {
       }
     }
     if (axis === "x") {
-      if (delta > 0) p.x = b.minX - h; else p.x = b.maxX + h;
+      if (delta > 0) p.x = b.minX - h; else if (delta < 0) p.x = b.maxX + h; else p.x = (p.x - (b.minX + b.maxX) / 2 < 0) ? b.minX - h : b.maxX + h;   // standing still: nearest side
       player.vel.x = 0;
     } else {
-      if (delta > 0) p.z = b.minZ - h; else p.z = b.maxZ + h;
+      if (delta > 0) p.z = b.minZ - h; else if (delta < 0) p.z = b.maxZ + h; else p.z = (p.z - (b.minZ + b.maxZ) / 2 < 0) ? b.minZ - h : b.maxZ + h;
       player.vel.z = 0;
     }
   }
@@ -1135,7 +1189,8 @@ function physicsStep(dt) {
     v.set(0, 0, 0);
     if (!keys.Space) c.armed = true;
     if (c.armed && keys.Space) { player.climb = null; player.noGrab = 0.3; v.set(L.nx * 10, CFG.JUMP_POWER, L.nz * 10); return; }
-    p.y += ((up ? 1 : 0) - (dn ? 1 : 0)) * 12 * dt;
+    if (L.rungs && !L.rungs.some(r => r.maxY > p.y - 1 && r.minY < p.y + CFG.CHAR_HEIGHT + 1.5 && solids.indexOf(r) >= 0)) { player.climb = null; player.noGrab = 0.3; return; }   // the rungs were deleted / moved: let go
+    climbMoveY(((up ? 1 : 0) - (dn ? 1 : 0)) * 12 * dt);
     if (p.y <= L.y0) { p.y = L.y0; if (dn) { player.climb = null; player.noGrab = 0.3; player.onGround = true; return; } }
     if (p.y >= L.y1 - 0.5) { exitClimb(c, { x: p.x - L.nx, y: L.y1, z: p.z - L.nz }, { x: p.x, y: L.y1 - 1, z: p.z }); return; }   // top: step out, no shove forward
     return;
@@ -1148,7 +1203,8 @@ function physicsStep(dt) {
     if (c.armed && keys.Space) {                                                    // Space = jump off, like off the floor
       player.climb = null; player.noGrab = 0.3; v.set(-c.ax * 10, CFG.JUMP_POWER, -c.az * 10); return;   // hops back off the wall a bit
     }
-    if (fw) p.y += 12 * dt;                                                      // smooth climb
+    if (fw) climbMoveY(12 * dt);                                                  // smooth climb (stops at ceilings)
+    if (!solids.includes(c.b)) { player.climb = null; player.noGrab = 0.3; return; }   // the ledge was deleted: let go
     const rgt = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);                          // A/D shimmy along the ledge
     const tx = c.az !== 0 ? 1 : 0, tz = c.ax !== 0 ? 1 : 0;
     const sh = rgt ? Math.cos(cam.yaw) * rgt * tx - Math.sin(cam.yaw) * rgt * tz : 0;
@@ -1169,6 +1225,8 @@ function physicsStep(dt) {
     if (u >= 1) { p.set(c.to.x, c.to.y, c.to.z); player.climb = null; player.onGround = true; }
     return;
   }
+
+  depenetrate();                                    // something grew / spawned on you: get pushed out the short way
 
   // --- horizontal control ---
   const [mx, mz] = readMoveInput();
@@ -1197,6 +1255,12 @@ function physicsStep(dt) {
   let landed = false;
   for (const b of solids) {
     if (!overlaps(p, b)) continue;
+    if (b.ball) {
+      const q = b.ball, dx = nearest(q.cx, p.x - CFG.CHAR_HALF_XZ, p.x + CFG.CHAR_HALF_XZ) - q.cx, dz = nearest(q.cz, p.z - CFG.CHAR_HALF_XZ, p.z + CFG.CHAR_HALF_XZ) - q.cz;
+      const ry = Math.sqrt(Math.max(0, q.r * q.r - dx * dx - dz * dz));
+      if (v.y <= 0) { p.y = q.cy + ry; landed = true; } else p.y = q.cy - ry - CFG.CHAR_HEIGHT;
+      v.y = 0; continue;
+    }
     if (v.y <= 0) { p.y = b.maxY; landed = true; }
     else          { p.y = b.minY - CFG.CHAR_HEIGHT; }
     v.y = 0;
@@ -1431,6 +1495,8 @@ selBox.visible = false; scene.add(selBox);
 function syncSolid(pt) {
   const h = pt.size.map(v => v / 2), s = pt.solid, p = pt.pos;
   s.minX = p.x - h[0]; s.maxX = p.x + h[0]; s.minY = p.y - h[1]; s.maxY = p.y + h[1]; s.minZ = p.z - h[2]; s.maxZ = p.z + h[2];
+  const u = Math.max(...pt.size), round = pt.shape === "Ball" && Math.min(...pt.size) > u * 0.95;   // (a squashed ball stays a box)
+  s.ball = round ? { cx: p.x, cy: p.y, cz: p.z, r: Math.min(...pt.size) / 2 } : null;
   const i = solids.indexOf(s);
   if (pt.collide && i < 0) solids.push(s); else if (!pt.collide && i >= 0) solids.splice(i, 1);
 }

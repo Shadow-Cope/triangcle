@@ -660,6 +660,17 @@ body.chatopen #chatInput { display: block; }
 #gpPlayWeb:hover { color: var(--y); }
 #gpPlayWeb[hidden] { display: none; }
 
+/* ---- item page: never wider than the window, stacks on narrow screens ---- */
+#home { overflow-x: hidden; }
+#pageItem { width: 100%; box-sizing: border-box; min-width: 0; }
+#ipWrap { display: grid; grid-template-columns: minmax(0, 440px) minmax(0, 1fr); gap: 28px; align-items: start; }
+#ipInfo { min-width: 0; }
+#ipOwner { max-width: 100%; box-sizing: border-box; }
+#ipOwner input, #ipOwner textarea { box-sizing: border-box; width: 100%; max-width: 100%; }
+#ipPriceRow { gap: 12px; flex-wrap: wrap; }
+#ipPrice { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 860px) { #ipWrap { grid-template-columns: minmax(0, 1fr); } #ipView { width: 100%; max-width: 440px; } #ipOwner { max-width: 100%; } }
+
 
 /* ---- css/shop.css ---- */
 /* ===== Shapes: wallet, shop, selling, wearing ===== */
