@@ -117,3 +117,10 @@ Run `supabase_account.sql` once in the Supabase SQL editor (check the wallet tab
 - The currency is now called **Shapes** with the new icon (`assets/img/shapes.png`).
 - Only one Triancle tab/window can be open per browser, and one signed-in account can only play in one place at a time (run `supabase_owner_tools.sql` once for the account part). The desktop app also only runs one copy.
 - `js/core/updater.js` checks for a new version every 45 seconds. The website refreshes itself; the desktop app shows a "Restart Triancle for the new update" box with only a Close button (rebuild the app once so Close can quit it).
+
+## Taxes, fees and notifications
+
+Run `supabase_taxes.sql` once in Supabase (after `supabase_catalog.sql` and `supabase_owner_tools.sql`). First make an account named
+`THETriancleTaxer` - it gets 20% of every sale (the maker gets 80%). Uploading costs 5 Shapes (clothes) / 150 (accessories); putting an item
+on sale or changing its price costs 15% of the new price. Prices: clothes 5-1,000,000, accessories 50-1,000,000. The SQL also charges existing
+items once, never takes a balance under 0, and sends the maker a notification (bell in the home header, red badge, "9+" max).

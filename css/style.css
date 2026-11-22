@@ -833,3 +833,23 @@ html.inapp .webonly { display: none !important; }
 #appPrompt .apMore a:hover { color: var(--y, #ffbf2f); }
 #appPrompt h2 .apName { height: 1.15em; width: auto; vertical-align: -0.22em; }
 
+
+/* ---- notifications bell ---- */
+.bellBtn { position: relative; width: 40px; height: 40px; padding: 0; border: 1px solid var(--bd); border-radius: 50%; background: var(--panel); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.bellBtn[hidden] { display: none; }
+.bellBtn:hover { border-color: #6b5b36; }
+.bellBtn img { width: 24px; height: 24px; }
+.bellN { position: absolute; right: -4px; top: -5px; min-width: 20px; height: 20px; padding: 0 5px; box-sizing: border-box; border-radius: 10px; background: #e5342b; color: #fff; font: 700 12px/20px system-ui, sans-serif; text-align: center; border: 2px solid var(--bg); }
+.bellN[hidden] { display: none; }
+#notifPanel { position: fixed; right: 12px; top: 64px; z-index: 40; width: min(380px, calc(100vw - 24px)); max-height: min(70vh, 640px); overflow-y: auto; box-sizing: border-box; padding: 16px; border: 1px solid var(--bd); border-radius: 14px; background: var(--panel); color: var(--fg); box-shadow: 0 10px 40px rgba(0,0,0,.55); }
+#notifPanel[hidden] { display: none; }
+#notifPanel h3 { margin: 0 0 12px; font-size: 22px; font-weight: 600; }
+.nfEmpty { padding: 18px 4px; color: var(--dim); font-size: 15px; }
+.nfCard { position: relative; margin-bottom: 10px; padding: 12px 14px; border-radius: 10px; background: var(--bg); border: 1px solid var(--bd); }
+.nfCard.fresh { border-color: #e5342b; }
+.nfTop { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.nfTitle { font-size: 16px; font-weight: 600; }
+.nfTime { flex: none; color: var(--dim); font-size: 13px; }
+.nfBody { margin-top: 6px; color: #d8cfb8; font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+.nfBtn { margin-top: 10px; padding: 6px 14px; border: 1px solid var(--bd); border-radius: 8px; background: transparent; color: var(--fg); font-size: 14px; cursor: pointer; }
+.nfBtn:hover { border-color: #6b5b36; }
