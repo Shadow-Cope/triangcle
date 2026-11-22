@@ -2943,7 +2943,7 @@ const NAME_RE = /^[A-Za-z0-9_]{3,20}$/;
 const DISPLAY_RE = /^[\p{L}\p{N}_.'\- ]{1,20}$/u;
 const RENAME_ERR = {
   not_signed_in: "Log in first.", invalid: "Username: 3-20 letters, numbers or _", same: "That's already your username.",
-  taken: "That username is taken (or someone used it before).", not_enough: "You don't have enough Triangcles.",
+  taken: "That username is taken (or someone used it before).", not_enough: "You don't have enough Shapes.",
   no_profile: "Your account isn't saved yet. Try again in a moment."
 };
 
@@ -2997,7 +2997,7 @@ async function saveUsername() {
   if (!NAME_RE.test(v)) { msg.textContent = RENAME_ERR.invalid; return; }
   if (v.toLowerCase() === acct.username.toLowerCase()) { msg.textContent = RENAME_ERR.same; return; }
   if (WAL.bal != null && WAL.bal < USERNAME_COST) { msg.textContent = RENAME_ERR.not_enough; return; }
-  if (!confirm("Change your username to \"" + v + "\" for " + USERNAME_COST + " Triangcles?\nYour old username will show on your profile.")) return;
+  if (!confirm("Change your username to \"" + v + "\" for " + USERNAME_COST + " Shapes?\nYour old username will show on your profile.")) return;
   btn.disabled = true; msg.textContent = "Changing…";
   try {
     const r = await sb.rpc("change_username", { p_new: v });
@@ -3276,7 +3276,7 @@ function ownerRow(id) {
   return `<div class="owPlayer box" data-owid="${esc(id)}">
     <div class="owTop"><img alt="" data-pid="${esc(id)}" src="${thumb(p.body_colors, "face", id)}"><b data-pid="${esc(id)}">${esc(p.username)}</b></div>
     <div class="owSec"><span class="owLab">Badges</span><div class="owBtns">${BADGE_ORDER.map(k => `<button type="button" class="owB${has.includes(k) ? " on" : ""}" data-bk="${k}"><img alt="" src="${BADGE_IMG[k]}">${BADGES[k]}</button>`).join("")}</div></div>
-    <div class="owSec"><span class="owLab">Triangcles</span><div class="owWallet"><input data-wallet-amount type="number" min="1" max="1000000000" step="1" value="1" aria-label="Amount"><button class="btnG" data-wallet="add" type="button">Add</button><button class="btnG" data-wallet="remove" type="button">Remove</button></div></div>
+    <div class="owSec"><span class="owLab">Shapes</span><div class="owWallet"><input data-wallet-amount type="number" min="1" max="1000000000" step="1" value="1" aria-label="Amount"><button class="btnG" data-wallet="add" type="button">Add</button><button class="btnG" data-wallet="remove" type="button">Remove</button></div></div>
   </div>`;
 }
 async function renderOwner() {
@@ -3312,9 +3312,9 @@ $("owList").addEventListener("click", async e => {
     try {
       const result = await getSB().rpc("owner_adjust_wallet", { p_user: row.dataset.owid, p_delta: moneyBtn.dataset.wallet === "add" ? amount : -amount });
       if (result.error) throw result.error;
-      $("owMsg").textContent = "Balance updated: " + Number(result.data).toLocaleString() + " Triangcles.";
+      $("owMsg").textContent = "Balance updated: " + Number(result.data).toLocaleString() + " Shapes.";
       if (row.dataset.owid === acct.user.id) await loadWallet();
-    } catch (err) { $("owMsg").textContent = /insufficient_funds/.test(err.message || "") ? "That player does not have enough Triangcles." : "Couldn't change the balance. Check the owner badge and run supabase_owner_wallet.sql."; }
+    } catch (err) { $("owMsg").textContent = /insufficient_funds/.test(err.message || "") ? "That player does not have enough Shapes." : "Couldn't change the balance. Check the owner badge and run supabase_owner_wallet.sql."; }
     finally { moneyBtn.disabled = false; }
     return;
   }
@@ -3539,7 +3539,7 @@ function oiRow(it) {
     <div class="owHead"><b>${esc(slotName(it.attach))}</b><span class="note">${it.published === false ? "Off sale" : "On sale"}</span></div>
     <label class="owLbl">Name<input type="text" data-of="name" maxlength="40" value="${esc(it.name)}" autocomplete="off" spellcheck="false"></label>
     <label class="owLbl">Description<textarea data-of="desc" maxlength="600" rows="2" spellcheck="false">${esc(it.description || "")}</textarea></label>
-    <div class="owRow2"><label class="owLbl">Price in Triangcles (0 = free)<input type="number" data-of="price" min="0" max="1000000" step="1" value="${Math.max(0, Math.floor(+it.price || 0))}"></label>
+    <div class="owRow2"><label class="owLbl">Price in Shapes (0 = free)<input type="number" data-of="price" min="0" max="1000000" step="1" value="${Math.max(0, Math.floor(+it.price || 0))}"></label>
     <label class="chk" style="align-self:flex-end;padding-bottom:9px"><input type="checkbox" data-of="sale"${it.published !== false ? " checked" : ""}> On sale</label></div>
     <div class="owBtnRow"><button type="button" class="btnP" data-osave="1">Save</button></div></div>`;
 }
@@ -3595,6 +3595,112 @@ $("oiList").addEventListener("click", async e => {
   nav.addEventListener("click", e => { const b = e.target.closest("[data-op]"); if (b) show(b.dataset.op); });
   let saved = "players"; try { saved = sessionStorage.getItem("triangle_op") || "players"; } catch (_) {}
   show(nav.querySelector(`[data-op="${saved}"]`) ? saved : "players");
+})();
+
+;
+
+/* ---- js/core/updater.js ---- */
+"use strict";
+
+/* ---- One copy at a time + automatic updates ----
+   1. Only one Triancle tab/window per browser can be open: extra ones are blocked until the first is closed.
+   2. A signed-in account can only play in one place at once (another browser, a phone, the desktop app...): needs supabase_owner_tools.sql.
+   3. When the site is updated, the website refreshes itself; the desktop app shows a box asking to restart. */
+(function () {
+  const IN_APP = !!(window.TriancleApp && window.TriancleApp.isApp);
+  const TAB_ID = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "t" + Math.random().toString(36).slice(2) + Date.now();
+  const st = document.createElement("style");
+  st.textContent = `#blockBox{position:fixed;inset:0;z-index:2147483000;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(8,6,3,.94);font-family:"Capriola",system-ui,sans-serif}
+#blockBox.on{display:flex}
+#blockBox .bbCard{width:100%;max-width:480px;box-sizing:border-box;padding:34px 30px 28px;text-align:center;background:#1b1710;border:1px solid #3a3322;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.6);color:#fff}
+#blockBox img{width:84px;height:84px;margin:0 auto 12px;display:block}
+#blockBox h2{margin:0 0 10px;font-size:28px;font-weight:400;color:#ffbf2f}
+#blockBox p{margin:0 0 20px;font-size:17px;line-height:1.5;color:#d9cfb6}
+#blockBox button{padding:12px 34px;border:0;border-radius:10px;background:#ffbf2f;color:#1a1203;font:inherit;font-size:19px;cursor:pointer}
+#blockBox button:hover{background:#ffd25e}`;
+  document.head.appendChild(st);
+  const box = document.createElement("div"); box.id = "blockBox";
+  box.innerHTML = '<div class="bbCard"><img alt="" src="assets/img/app-icon.png"><h2></h2><p></p><button type="button" hidden></button></div>';
+  document.body.appendChild(box);
+  const bh = box.querySelector("h2"), bp = box.querySelector("p"), bb = box.querySelector("button");
+  let reason = null, btnFn = null;
+  function block(why, title, text, label, fn) {
+    reason = why; bh.textContent = title; bp.textContent = text; btnFn = fn || null;
+    bb.hidden = !label; bb.textContent = label || ""; box.classList.add("on");
+    try { document.exitPointerLock(); } catch (_) {}
+  }
+  function unblock(why) { if (reason === why) { reason = null; box.classList.remove("on"); } }
+  bb.addEventListener("click", () => { if (btnFn) btnFn(); });
+  for (const t of ["keydown", "keyup", "wheel", "mousemove", "mousedown", "pointerdown", "contextmenu"])        // nothing reaches the game while a box is up
+    window.addEventListener(t, e => { if (reason && !box.contains(e.target)) { e.stopImmediatePropagation(); if (t !== "mousemove" && t !== "wheel") e.preventDefault(); } }, true);
+
+  /* ---------- 1. one tab / window per browser ---------- */
+  const KEY = "triancle_open_tab", since = Date.now();
+  const readTab = () => { try { const v = JSON.parse(localStorage.getItem(KEY) || "null"); return v && Date.now() - v.t < 3500 ? v : null; } catch (_) { return null; } };
+  const writeTab = () => { try { localStorage.setItem(KEY, JSON.stringify({ id: TAB_ID, since, t: Date.now() })); } catch (_) {} };
+  function tabBeat() {
+    const v = readTab();
+    if (!v || v.id === TAB_ID) { writeTab(); unblock("tab"); return; }
+    if (reason === "tab" || v.since < since || (v.since === since && v.id < TAB_ID)) {            // the older window keeps playing
+      block("tab", "Triancle is already open", "Triancle is open in another tab or window. Close that one, or close this one, to keep playing.");
+    } else writeTab();
+  }
+  tabBeat(); setInterval(tabBeat, 1000);
+  window.addEventListener("storage", e => { if (e.key === KEY) tabBeat(); });
+  window.addEventListener("pagehide", () => { const v = readTab(); if (v && v.id === TAB_ID) { try { localStorage.removeItem(KEY); } catch (_) {} } });
+
+  /* ---------- 2. one place per account ---------- */
+  let sessionOff = false, lastUser = null;
+  async function sessionBeat() {
+    const sb = typeof getSB === "function" ? getSB() : null, u = typeof acct !== "undefined" && acct.user;
+    if (!sb || sessionOff) return;
+    if (!u) { if (lastUser) { try { await sb.rpc("release_play_session", { p_sid: TAB_ID }); } catch (_) {} lastUser = null; } unblock("acct"); return; }
+    lastUser = u.id;
+    try {
+      const r = await sb.rpc("claim_play_session", { p_sid: TAB_ID });
+      if (r.error) { sessionOff = true; unblock("acct"); return; }                              // not set up in Supabase yet: don't lock anyone out
+      if (r.data === false) block("acct", "Already playing somewhere else", "This account is open in another window, browser or device. Close it there, and this will continue by itself.");
+      else unblock("acct");
+    } catch (_) {}
+  }
+  setInterval(sessionBeat, 8000); setTimeout(sessionBeat, 1500);
+  window.addEventListener("pagehide", () => { const sb = typeof getSB === "function" ? getSB() : null; if (sb && lastUser) { try { sb.rpc("release_play_session", { p_sid: TAB_ID }); } catch (_) {} } });
+
+  /* ---------- 3. updates ---------- */
+  const FILES = ["index.html", "js/game.bundle.js", "css/style.css"];
+  async function sigOf(url) {
+    try {
+      const r = await fetch(url, { method: "HEAD", cache: "no-store" });
+      if (!r.ok) return "";
+      const s = [r.headers.get("etag"), r.headers.get("last-modified"), r.headers.get("content-length")].filter(Boolean).join("|");
+      if (s) return s;
+      const t = await (await fetch(url, { cache: "no-store" })).text(); let h = 5381; for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0;
+      return t.length + ":" + h;
+    } catch (_) { return ""; }
+  }
+  const siteSig = async () => (await Promise.all(FILES.map(sigOf))).join("#");
+  let base = null, shown = false;
+  async function checkUpdate() {
+    if (shown || !/^https?:$/.test(location.protocol)) return;
+    const now = await siteSig(); if (!now || /^#*$/.test(now)) return;
+    if (base === null) { base = now; return; }
+    if (now === base) return;
+    await new Promise(r => setTimeout(r, 4000));                                                 // a deploy may still be rolling out: confirm once
+    if ((await siteSig()) !== now) return;
+    if (IN_APP) {
+      shown = true;
+      block("update", "Restart Triancle for the new update", "A new version of Triancle is ready. Close the app and open it again to get it.", "Close",
+        () => { try { if (window.TriancleApp && TriancleApp.quit) TriancleApp.quit(); else window.close(); } catch (_) { window.close(); } });
+    } else {
+      let last = 0; try { last = +sessionStorage.getItem("triancle_reload") || 0; } catch (_) {}
+      if (Date.now() - last < 20000) { base = now; return; }                                     // never loop
+      try { sessionStorage.setItem("triancle_reload", String(Date.now())); } catch (_) {}
+      shown = true; location.reload();
+    }
+  }
+  setTimeout(checkUpdate, 3000); setInterval(checkUpdate, 45000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) checkUpdate(); });
+  window.addEventListener("online", checkUpdate);
 })();
 
 ;
@@ -3734,7 +3840,7 @@ function ugSync(skip) {
   $("ugPublish").textContent = UG.published ? "Update price" : "Publish to Shop";
   $("ugUnpublish").hidden = !UG.published;
   $("ugSaleNote").textContent = !UG.editId ? "Save the item first, then you can put it on sale."
-    : UG.published ? "On sale for " + (UG.price ? UG.price.toLocaleString() + " Triangcles" : "free") + "." : "Not for sale yet.";
+    : UG.published ? "On sale for " + (UG.price ? UG.price.toLocaleString() + " Shapes" : "free") + "." : "Not for sale yet.";
 }
 function ugView() { if (ugv) { const v = UG_VIEW[UG.attach]; ugv.ty = v[0]; ugv.dist = v[1]; } }
 function ugApply() {
@@ -3817,7 +3923,7 @@ async function renderUgcList() {
     if (r.error) r = await sb.from("ugc_items").select("id, name, attach, file_path, pos, rot, scale").eq("creator", acct.user.id).order("created_at", { ascending: false });
     if (r.error) throw r.error;
     const rows = r.data || []; box._rows = rows;
-    box.innerHTML = rows.length ? rows.map(it => `<div class="ugCard box" data-id="${esc(it.id)}"><b>${esc(it.name)}</b><div class="note">${esc(slotName(it.attach))}</div><div class="note ugSt">${esc(it.published ? (it.price ? Number(it.price).toLocaleString() + " Triangcles" : "Free") + " · " + (it.sales || 0) + " sold" : "Not for sale")}</div><div class="ugRow"><button class="btnG" data-ug="edit" type="button">Edit model</button><button class="btnG" data-ug="page" type="button">Name, description &amp; price</button><button class="btnG" data-ug="del" type="button">Delete</button></div></div>`).join("")
+    box.innerHTML = rows.length ? rows.map(it => `<div class="ugCard box" data-id="${esc(it.id)}"><b>${esc(it.name)}</b><div class="note">${esc(slotName(it.attach))}</div><div class="note ugSt">${esc(it.published ? (it.price ? Number(it.price).toLocaleString() + " Shapes" : "Free") + " · " + (it.sales || 0) + " sold" : "Not for sale")}</div><div class="ugRow"><button class="btnG" data-ug="edit" type="button">Edit model</button><button class="btnG" data-ug="page" type="button">Name, description &amp; price</button><button class="btnG" data-ug="del" type="button">Delete</button></div></div>`).join("")
       : '<div class="note">Nothing saved yet. Upload a GLB above to make your first item.</div>';
   } catch (_) { box.innerHTML = '<div class="note">Couldn\'t load your items. Run supabase_badges.sql in Supabase once.</div>'; }
 }
@@ -3876,7 +3982,7 @@ function ugLoop() {
    Everything that moves money runs in Supabase (see supabase_triangcles.sql):
    get_wallet(), buy_ugc_item(), set_ugc_equipped(), ugc_items_by_ids().
    ===================================================================== */
-const TRI_SVG = '<svg class="tcI" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 15 14H1z"/></svg>';
+const TRI_SVG = '<img class="tcI" src="assets/img/shapes.png" alt="">';
 const fmtT = n => Number(n || 0).toLocaleString();
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_WORN = 6;
@@ -4383,7 +4489,7 @@ $("ipGet").addEventListener("click", async () => {
     loadInventory(); paintShop();
   } catch (err) {
     const m = String(err && err.message || "");
-    ipNote(m.includes("insufficient_funds") ? "You don't have enough Triangcles for that."
+    ipNote(m.includes("insufficient_funds") ? "You don't have enough Shapes for that."
       : m.includes("already_owned") ? "You already own that item."
       : m.includes("price_changed") ? "The price just changed. Look again and retry."
       : m.includes("not_for_sale") ? "That item isn't for sale anymore."

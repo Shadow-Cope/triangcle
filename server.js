@@ -27,9 +27,11 @@ const server = http.createServer((req, res) => {
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404).end("Not found"); return; }
     const ext = path.extname(file).toLowerCase();
-    res.writeHead(200, { "Content-Type": MIME[ext] || "application/octet-stream",
-      "Cache-Control": ext === ".html" ? "no-cache" : "public, max-age=3600" });
-    res.end(data);
+    const etag = '"' + crypto.createHash("sha1").update(data).digest("hex").slice(0, 20) + '"';          // lets the browser see when a file changed
+    if (req.headers["if-none-match"] === etag) { res.writeHead(304, { ETag: etag }).end(); return; }
+    res.writeHead(200, { "Content-Type": MIME[ext] || "application/octet-stream", ETag: etag,
+      "Cache-Control": [".html", ".js", ".css"].includes(ext) ? "no-cache" : "public, max-age=3600" });
+    req.method === "HEAD" ? res.end() : res.end(data);
   });
 });
 

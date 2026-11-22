@@ -284,6 +284,9 @@ body.boot #home, body.boot #auth { display: none !important; }
 .linkBtn { border: 0; background: none; color: var(--dim); font-size: 15px; cursor: pointer; padding: 0; }
 .linkBtn:hover { color: #fff; }
 
+/* one font everywhere, including inside the game (name tags, chat, menus, leaderboard) */
+body, body *:not(svg):not(svg *) { font-family: "Capriola", system-ui, sans-serif !important; font-weight: 400 !important; letter-spacing: 0 !important; }
+
 
 /* ---- css/menu.css ---- */
 /* ===== in-game menu ===== */
@@ -659,7 +662,7 @@ body.chatopen #chatInput { display: block; }
 
 
 /* ---- css/shop.css ---- */
-/* ===== Triangcles: wallet, shop, selling, wearing ===== */
+/* ===== Shapes: wallet, shop, selling, wearing ===== */
 .bal { display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px; border: 1px solid var(--bd); border-radius: 999px; background: var(--panel); color: #fff; font-size: 15px; }
 .bal[hidden] { display: none; }
 .tcI { width: 14px; height: 14px; fill: var(--y); flex: none; vertical-align: -1px; }

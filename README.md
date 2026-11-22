@@ -103,7 +103,7 @@ Faces are Catalog items (`ugc_items.attach = 'Face'`) with a number in `face_met
 
 Run `supabase_account.sql` once in the Supabase SQL editor (check the wallet table names at the top first).
 
-- **Settings tab**: change your display name (free) or your username (150 Triangcles each time, charged inside Supabase by `change_username()`). Old usernames are kept in `username_history` and shown on the player's profile. Nobody can take an old username, and you log in with your current one (`login_email_for()`).
+- **Settings tab**: change your display name (free) or your username (150 Shapes each time, charged inside Supabase by `change_username()`). Old usernames are kept in `username_history` and shown on the player's profile. Nobody can take an old username, and you log in with your current one (`login_email_for()`).
 - **Building tools per game**: Owner tab > each game > *Building tools*: Everyone / Admins & Owner only / Off. Stored in `game_settings.btools`; checked in `js/game/btools.js` (`canBuild()`).
 
 
@@ -112,3 +112,8 @@ Run `supabase_account.sql` once in the Supabase SQL editor (check the wallet tab
 - **Upload a new face** (Owner tab): pick a picture, name, price and description. It becomes a Catalog face automatically.
 - **Edit Catalog items** (Owner tab): search any item, clothing or face and change its name, description, price and on-sale status.
 - **Games** now have an editable description (shown on the game's About tab).
+
+## Shapes, one-at-a-time and auto-update (update)
+- The currency is now called **Shapes** with the new icon (`assets/img/shapes.png`).
+- Only one Triancle tab/window can be open per browser, and one signed-in account can only play in one place at a time (run `supabase_owner_tools.sql` once for the account part). The desktop app also only runs one copy.
+- `js/core/updater.js` checks for a new version every 45 seconds. The website refreshes itself; the desktop app shows a "Restart Triancle for the new update" box with only a Close button (rebuild the app once so Close can quit it).

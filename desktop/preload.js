@@ -5,4 +5,5 @@ contextBridge.exposeInMainWorld("TriancleApp", Object.freeze({
   isApp: true,
   platform: process.platform,
   retry: () => ipcRenderer.send("retry"),
+  quit: () => ipcRenderer.send("quit-app"),      // the "Restart Triancle for the new update" box closes the app
 }));

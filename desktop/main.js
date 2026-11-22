@@ -102,6 +102,7 @@ if (!app.requestSingleInstanceLock()) {
       app.quit(); return;
     }
     session.defaultSession.setPermissionRequestHandler((_wc, perm, cb) => cb(perm === "fullscreen" || perm === "clipboard-sanitized-write"));
+    ipcMain.on("quit-app", e => { if (win && e.sender === win.webContents) app.quit(); });
     ipcMain.on("retry", e => { if (win && e.sender === win.webContents) win.loadURL(SITE + "/"); });
     buildMenu(); createWindow();
     app.on("activate", () => { if (!win) createWindow(); });
