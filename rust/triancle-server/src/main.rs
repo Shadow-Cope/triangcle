@@ -7,6 +7,7 @@ use std::{
     path::{Component, Path, PathBuf},
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
+        mpsc::{sync_channel, Receiver, SyncSender},
         Arc, Mutex,
     },
     thread,
@@ -16,11 +17,14 @@ use std::{
 const MAX_MESSAGE: usize = 1024 * 1024;
 const MAX_REQUEST: usize = 64 * 1024;
 const WEBSOCKET_GUID: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+const WRITE_TIMEOUT: Duration = Duration::from_secs(5);
+const OUTBOX_CAPACITY: usize = 256;
 
 #[derive(Clone)]
 struct Player {
     id: String,
-    writer: Arc<Mutex<TcpStream>>,
+    outbox: SyncSender<Vec<u8>>,
+    socket: Arc<TcpStream>,
     joined: Arc<AtomicBool>,
     alive: Arc<AtomicBool>,
     details: Arc<Mutex<PlayerDetails>>,
@@ -39,9 +43,11 @@ type Players = Arc<Mutex<HashMap<String, Player>>>;
 fn main() -> io::Result<()> {
     let port = env::var("PORT").unwrap_or_else(|_| "3000".into());
     let address = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".into());
-    let root = env::var_os("TRIANCLE_ROOT")
+    let configured_root = env::var_os("TRIANCLE_ROOT")
         .map(PathBuf::from)
         .unwrap_or(env::current_dir()?);
+    // Resolve symlinks once so later containment checks compare real paths.
+    let root = fs::canonicalize(configured_root)?;
     let listener = TcpListener::bind(format!("{address}:{port}"))?;
     let players: Players = Arc::new(Mutex::new(HashMap::new()));
     let next_id = Arc::new(AtomicU64::new(1));
@@ -120,6 +126,7 @@ fn serve_http(
     target: &str,
     headers: &HashMap<String, String>,
 ) -> io::Result<()> {
+    let head = method == "HEAD";
     let path = target.split('?').next().unwrap_or(target);
     let Some(decoded) = percent_decode(path) else {
         return response(
@@ -138,7 +145,7 @@ fn serve_http(
             "OK",
             &[("Content-Type", "text/plain")],
             b"ok",
-            method == "HEAD",
+            head,
         );
     }
     let requested = if decoded == "/" {
@@ -147,32 +154,22 @@ fn serve_http(
         decoded.trim_start_matches('/')
     };
     let Some(relative) = public_path(requested) else {
-        return response(
-            stream,
-            404,
-            "Not Found",
-            &[("Content-Type", "text/plain")],
-            b"Not found",
-            method == "HEAD",
-        );
+        return not_found(stream, head);
     };
-    let file = root.join(relative);
-    let Ok(data) = fs::read(&file) else {
-        return response(
-            stream,
-            404,
-            "Not Found",
-            &[("Content-Type", "text/plain")],
-            b"Not found",
-            method == "HEAD",
-        );
+    // Resolve symlinks and require the real file to stay inside the root.
+    let real = match fs::canonicalize(root.join(relative)) {
+        Ok(path) if path.starts_with(root) => path,
+        _ => return not_found(stream, head),
+    };
+    let Ok(data) = fs::read(&real) else {
+        return not_found(stream, head);
     };
     let digest = hex(&sha1(&data));
     let etag = format!("\"{}\"", &digest[..20]);
     if headers.get("if-none-match") == Some(&etag) {
         return response(stream, 304, "Not Modified", &[("ETag", &etag)], b"", true);
     }
-    let extension = file
+    let extension = real
         .extension()
         .and_then(|value| value.to_str())
         .unwrap_or("")
@@ -193,7 +190,18 @@ fn serve_http(
             ("Cache-Control", cache),
         ],
         &data,
-        method == "HEAD",
+        head,
+    )
+}
+
+fn not_found(stream: &mut TcpStream, head: bool) -> io::Result<()> {
+    response(
+        stream,
+        404,
+        "Not Found",
+        &[("Content-Type", "text/plain")],
+        b"Not found",
+        head,
     )
 }
 
@@ -292,10 +300,15 @@ fn upgrade(
     stream.flush()?;
     stream.set_nodelay(true)?;
     stream.set_read_timeout(None)?;
+    // Socket options are shared by every clone, so this also bounds the writer thread.
+    stream.set_write_timeout(Some(WRITE_TIMEOUT))?;
     let id = next_id.fetch_add(1, Ordering::Relaxed).to_string();
+    let (outbox, inbox) = sync_channel(OUTBOX_CAPACITY);
+    spawn_writer(stream.try_clone()?, inbox);
     let player = Player {
         id: id.clone(),
-        writer: Arc::new(Mutex::new(stream.try_clone()?)),
+        outbox,
+        socket: Arc::new(stream.try_clone()?),
         joined: Arc::new(AtomicBool::new(false)),
         alive: Arc::new(AtomicBool::new(true)),
         details: Arc::new(Mutex::new(PlayerDetails::default())),
@@ -306,50 +319,76 @@ fn upgrade(
     Ok(())
 }
 
+/// Each player has one writer thread, so a slow client only delays its own frames.
+fn spawn_writer(mut socket: TcpStream, inbox: Receiver<Vec<u8>>) {
+    thread::spawn(move || {
+        for frame in inbox {
+            if socket.write_all(&frame).and_then(|()| socket.flush()).is_err() {
+                let _ = socket.shutdown(Shutdown::Both);
+                break;
+            }
+        }
+    });
+}
+
 fn websocket_loop(stream: &mut TcpStream, player: &Player, players: &Players) {
-    let mut fragmented: Option<(u8, Vec<u8>)> = None;
+    // The data message currently being reassembled from fragments, if any.
+    let mut message: Option<(u8, Vec<u8>)> = None;
     loop {
         let Ok((fin, opcode, payload)) = read_frame(stream) else {
             break;
         };
         match opcode {
             0x8 => {
-                let _ = send_frame(&player.writer, 0x8, &[]);
+                // Echo the close code, if the client sent one, then stop reading.
+                let code: &[u8] = payload.get(..2).unwrap_or_default();
+                enqueue(player, 0x8, code);
                 break;
             }
-            0x9 => {
-                let _ = send_frame(&player.writer, 0xA, &payload);
+            // Control frames must be unfragmented and at most 125 bytes.
+            0x9 | 0xA if !fin || payload.len() > 125 => {
+                close_with(player, 1002);
+                break;
             }
-            0xA => {
-                player.alive.store(true, Ordering::Relaxed);
-            }
+            0x9 => enqueue(player, 0xA, &payload),
+            0xA => player.alive.store(true, Ordering::Relaxed),
             0x1 | 0x2 => {
-                fragmented = Some((opcode, payload));
+                // A new data message may not start while another is unfinished.
+                if message.is_some() {
+                    close_with(player, 1002);
+                    break;
+                }
                 if fin {
-                    let Some((kind, data)) = fragmented.take() else {
-                        break;
-                    };
-                    if kind == 0x1 {
-                        process_message(player, players, &data);
+                    if opcode == 0x1 {
+                        process_message(player, players, &payload);
                     }
+                } else {
+                    message = Some((opcode, payload));
                 }
             }
             0x0 => {
-                let Some((_kind, data)) = fragmented.as_mut() else {
+                // A continuation must follow an unfinished data message.
+                let Some((_, data)) = message.as_mut() else {
+                    close_with(player, 1002);
                     break;
                 };
                 if data.len().saturating_add(payload.len()) > MAX_MESSAGE {
+                    close_with(player, 1009);
                     break;
                 }
                 data.extend_from_slice(&payload);
                 if fin {
-                    let (kind, data) = fragmented.take().unwrap();
-                    if kind == 0x1 {
-                        process_message(player, players, &data);
+                    if let Some((kind, data)) = message.take() {
+                        if kind == 0x1 {
+                            process_message(player, players, &data);
+                        }
                     }
                 }
             }
-            _ => break,
+            _ => {
+                close_with(player, 1002);
+                break;
+            }
         }
     }
 }
@@ -359,6 +398,12 @@ fn read_frame(stream: &mut TcpStream) -> io::Result<(bool, u8, Vec<u8>)> {
     stream.read_exact(&mut head)?;
     let fin = head[0] & 0x80 != 0;
     let opcode = head[0] & 0x0f;
+    if head[0] & 0x70 != 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "reserved bits are set",
+        ));
+    }
     if head[1] & 0x80 == 0 {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
@@ -527,7 +572,7 @@ fn player_json(player: &Player) -> Value {
 fn send_json(player: &Player, value: &Value) {
     if let Ok(data) = serde_json::to_vec(value) {
         if data.len() <= MAX_MESSAGE {
-            let _ = send_frame(&player.writer, 0x1, &data);
+            enqueue(player, 0x1, &data);
         }
     }
 }
@@ -545,7 +590,20 @@ fn broadcast(players: &Players, sender: &str, value: &Value) {
     }
 }
 
-fn send_frame(writer: &Arc<Mutex<TcpStream>>, opcode: u8, payload: &[u8]) -> io::Result<()> {
+fn close_with(player: &Player, code: u16) {
+    enqueue(player, 0x8, &code.to_be_bytes());
+}
+
+/// Queues a frame for the player's writer thread without blocking. If the queue
+/// is full or the writer has stopped, the connection is dropped rather than
+/// making the sender wait.
+fn enqueue(player: &Player, opcode: u8, payload: &[u8]) {
+    if player.outbox.try_send(frame_bytes(opcode, payload)).is_err() {
+        let _ = player.socket.shutdown(Shutdown::Both);
+    }
+}
+
+fn frame_bytes(opcode: u8, payload: &[u8]) -> Vec<u8> {
     let mut frame = Vec::with_capacity(payload.len() + 10);
     frame.push(0x80 | opcode);
     match payload.len() {
@@ -560,10 +618,7 @@ fn send_frame(writer: &Arc<Mutex<TcpStream>>, opcode: u8, payload: &[u8]) -> io:
         }
     }
     frame.extend_from_slice(payload);
-    let mut stream = writer.lock().unwrap();
-    stream.set_write_timeout(Some(Duration::from_secs(2)))?;
-    stream.write_all(&frame)?;
-    stream.flush()
+    frame
 }
 
 fn remove_player(player: &Player, players: &Players) {
@@ -578,10 +633,10 @@ fn spawn_keepalive(players: Players) {
         thread::sleep(Duration::from_secs(30));
         let current: Vec<Player> = players.lock().unwrap().values().cloned().collect();
         for player in current {
-            if !player.alive.swap(false, Ordering::Relaxed) {
-                let _ = player.writer.lock().unwrap().shutdown(Shutdown::Both);
+            if player.alive.swap(false, Ordering::Relaxed) {
+                enqueue(&player, 0x9, &[]);
             } else {
-                let _ = send_frame(&player.writer, 0x9, &[]);
+                let _ = player.socket.shutdown(Shutdown::Both);
             }
         }
     });
@@ -672,7 +727,7 @@ fn base64(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{base64, js_string_or_default, percent_decode, public_path, sha1};
+    use super::{base64, frame_bytes, js_string_or_default, percent_decode, public_path, sha1};
     use serde_json::json;
     use std::path::PathBuf;
 
@@ -725,5 +780,14 @@ mod tests {
             js_string_or_default(Some(&json!("123456789012345678901")), "Player", 20),
             "12345678901234567890"
         );
+    }
+
+    #[test]
+    fn frames_use_the_shortest_length_encoding() {
+        assert_eq!(frame_bytes(0x1, b"hi"), vec![0x81, 2, b'h', b'i']);
+        let long = vec![0u8; 200];
+        let frame = frame_bytes(0x2, &long);
+        assert_eq!(&frame[..4], &[0x82, 126, 0, 200]);
+        assert_eq!(frame.len(), 4 + 200);
     }
 }
