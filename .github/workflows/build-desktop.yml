@@ -53,7 +53,7 @@ jobs:
         if: ${{ vars.SITE_URL != '' }}
         shell: bash
         run: |
-          node -e 'require("fs").writeFileSync("config.json", JSON.stringify({ siteUrl: process.env.SITE_URL }, null, 2))'
+          node -e 'const fs=require("fs");const c=JSON.parse(fs.readFileSync("config.json","utf8"));c.siteUrl=process.env.SITE_URL||c.siteUrl;fs.writeFileSync("config.json",JSON.stringify(c,null,2))'
         env:
           SITE_URL: ${{ vars.SITE_URL }}
       - run: npm run ${{ matrix.script }}

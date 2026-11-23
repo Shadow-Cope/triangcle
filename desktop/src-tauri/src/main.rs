@@ -36,6 +36,7 @@ struct AppState {
 #[serde(rename_all = "camelCase")]
 struct DesktopConfig {
     site_url: Option<String>,
+    studio_site_url: Option<String>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -44,13 +45,11 @@ enum DeepLinkAction {
     Join(String),
 }
 
-fn configured_site() -> Option<Url> {
-    let argument =
-        env::args().find_map(|argument| argument.strip_prefix("--url=").map(str::to_owned));
-    let config = serde_json::from_str::<DesktopConfig>(include_str!("../../config.json")).ok();
-    let raw = argument
-        .or_else(|| env::var("TRIANGLE_URL").ok())
-        .or_else(|| config.and_then(|value| value.site_url))?;
+fn config_file() -> Option<DesktopConfig> {
+    serde_json::from_str::<DesktopConfig>(include_str!("../../config.json")).ok()
+}
+
+fn normalize_site(raw: String) -> Option<Url> {
     let raw = raw.trim().trim_end_matches('/');
     if raw.is_empty() || raw.contains("YOUR-SITE-URL") {
         return None;
@@ -61,6 +60,37 @@ fn configured_site() -> Option<Url> {
     }
     url.set_fragment(None);
     Some(url)
+}
+
+fn configured_site() -> Option<Url> {
+    let argument =
+        env::args().find_map(|argument| argument.strip_prefix("--url=").map(str::to_owned));
+    let config = config_file();
+    let raw = argument
+        .or_else(|| env::var("TRIANGLE_URL").ok())
+        .or_else(|| config.and_then(|value| value.site_url))?;
+    normalize_site(raw)
+}
+
+fn configured_studio_site() -> Option<Url> {
+    if !cfg!(feature = "studio") {
+        return configured_site();
+    }
+    let argument = env::args().find_map(|argument| {
+        argument
+            .strip_prefix("--studio-url=")
+            .map(str::to_owned)
+    });
+    let shared = env::args()
+        .find_map(|argument| argument.strip_prefix("--url=").map(str::to_owned))
+        .or_else(|| env::var("TRIANGLE_URL").ok());
+    let config = config_file();
+    let raw = argument
+        .or_else(|| env::var("TRIANGLE_STUDIO_URL").ok())
+        .or(shared)
+        .or_else(|| config.as_ref().and_then(|value| value.studio_site_url.clone()))
+        .or_else(|| config.and_then(|value| value.site_url))?;
+    normalize_site(raw)
 }
 
 fn root_url(site: &Url) -> Url {
@@ -224,7 +254,7 @@ fn build_menu(app: &App) -> tauri::Result<()> {
 }
 
 fn main() {
-    let site = configured_site();
+    let site = configured_studio_site();
     let target = site.as_ref().map(start_url);
     let state = AppState {
         site,
