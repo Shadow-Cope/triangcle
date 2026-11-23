@@ -14,7 +14,16 @@ use tauri::{
 };
 use tauri_plugin_deep_link::DeepLinkExt;
 
+#[cfg(feature = "studio")]
+const SCHEME: &str = "triancle-studio";
+#[cfg(not(feature = "studio"))]
 const SCHEME: &str = "triancle";
+
+#[cfg(feature = "studio")]
+const APP_NAME: &str = "Triancle Studio";
+#[cfg(not(feature = "studio"))]
+const APP_NAME: &str = "Triancle";
+
 const MAIN_WINDOW: &str = "main";
 
 #[derive(Clone)]
@@ -65,6 +74,14 @@ fn root_url(site: &Url) -> Url {
 fn join_url(site: &Url, game: &str) -> Url {
     let mut url = root_url(site);
     url.set_query(Some(&format!("join={game}")));
+    url
+}
+
+fn start_url(site: &Url) -> Url {
+    let mut url = root_url(site);
+    if cfg!(feature = "studio") {
+        url.set_path("/studio.html");
+    }
     url
 }
 
@@ -179,7 +196,7 @@ fn initialization_script(site: Option<&Url>, version: &str) -> String {
 }
 
 fn build_menu(app: &App) -> tauri::Result<()> {
-    let triancle = SubmenuBuilder::new(app, "Triancle")
+    let triancle = SubmenuBuilder::new(app, APP_NAME)
         .text("home", "Home")
         .text("reload", "Reload")
         .fullscreen()
@@ -208,7 +225,7 @@ fn build_menu(app: &App) -> tauri::Result<()> {
 
 fn main() {
     let site = configured_site();
-    let target = site.as_ref().map(root_url);
+    let target = site.as_ref().map(start_url);
     let state = AppState {
         site,
         target: Arc::new(Mutex::new(target)),
@@ -217,12 +234,13 @@ fn main() {
 
     #[cfg(any(target_os = "macos", windows))]
     {
+        let prefix = format!("{SCHEME}://");
         builder = builder.plugin(tauri_plugin_single_instance::init(
-            |app, arguments, _cwd| {
+            move |app, arguments, _cwd| {
                 let state = app.state::<AppState>();
                 let handled = arguments
                     .iter()
-                    .find(|argument| argument.starts_with("triancle://"))
+                    .find(|argument| argument.starts_with(&prefix))
                     .is_some_and(|link| handle_deep_link(app, &state, link));
                 if !handled {
                     focus_main(app);
@@ -238,7 +256,7 @@ fn main() {
             "home" => {
                 let state = app.state::<AppState>();
                 if let Some(site) = &state.site {
-                    state.target.lock().unwrap().replace(root_url(site));
+                    state.target.lock().unwrap().replace(start_url(site));
                     navigate_to_target(app, &state);
                 }
             }
@@ -257,7 +275,9 @@ fn main() {
             }
         })
         .setup(|app| {
-            build_menu(app)?;
+            if !cfg!(feature = "studio") {
+                build_menu(app)?;
+            }
             let state = app.state::<AppState>().inner().clone();
 
             if let Some(urls) = app.deep_link().get_current()? {
@@ -297,7 +317,7 @@ fn main() {
                 initialization_script(state.site.as_ref(), &app.package_info().version.to_string());
 
             WebviewWindowBuilder::new(app, MAIN_WINDOW, initial)
-                .title("Triancle")
+                .title(APP_NAME)
                 .inner_size(1280.0, 800.0)
                 .min_inner_size(900.0, 600.0)
                 .background_color(Color(18, 15, 9, 255))
@@ -360,21 +380,21 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{join_url, parse_deep_link, root_url, DeepLinkAction};
+    use super::{join_url, parse_deep_link, root_url, DeepLinkAction, SCHEME};
     use tauri::Url;
 
     #[test]
     fn accepts_only_valid_triancle_links() {
         assert_eq!(
-            parse_deep_link("triancle://open"),
+            parse_deep_link(&format!("{SCHEME}://open")),
             Some(DeepLinkAction::Open)
         );
         assert_eq!(
-            parse_deep_link("triancle://join/baseplate-1"),
+            parse_deep_link(&format!("{SCHEME}://join/baseplate-1")),
             Some(DeepLinkAction::Join("baseplate-1".into()))
         );
         assert_eq!(
-            parse_deep_link("triancle://join/bad%20id"),
+            parse_deep_link(&format!("{SCHEME}://join/bad%20id")),
             Some(DeepLinkAction::Open)
         );
         assert_eq!(parse_deep_link("https://example.com"), None);

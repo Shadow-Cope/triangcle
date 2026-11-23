@@ -10,7 +10,9 @@
     "tauri": "tauri",
     "check": "cargo test --manifest-path src-tauri/Cargo.toml",
     "dist:win": "tauri build --bundles nsis && node scripts/collect-artifact.cjs win",
-    "dist:mac": "tauri build --bundles dmg --target universal-apple-darwin && node scripts/collect-artifact.cjs mac"
+    "dist:mac": "tauri build --bundles dmg --target universal-apple-darwin && node scripts/collect-artifact.cjs mac",
+    "dist:studio:win": "tauri build --features studio --config src-tauri/tauri.studio.conf.json --bundles nsis && node scripts/collect-artifact.cjs studio-win",
+    "dist:studio:mac": "tauri build --features studio --config src-tauri/tauri.studio.conf.json --bundles dmg --target universal-apple-darwin && node scripts/collect-artifact.cjs studio-mac"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.12.6"

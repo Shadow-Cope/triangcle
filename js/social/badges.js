@@ -1,11 +1,11 @@
 "use strict";
 
 /* ---- badges: given out only by the Owner (enforced in Supabase, see supabase_badges.sql) ---- */
-const BADGES = { owner: "Owner", admin: "Admin", mod: "Moderator", ugc: "Official UGC Creator", bugfinder: "Bug Finder" };
-const BADGE_ORDER = ["owner", "admin", "mod", "ugc", "bugfinder"];
-const BADGE_PERMS = { owner: { can_ugc: true, can_edit_items: true }, ugc: { can_ugc: true } };   // what each badge lets you do
+const BADGES = { owner: "Owner", admin: "Admin", mod: "Moderator", ugc: "Official UGC Creator", bugfinder: "Bug Finder", alpha: "Alpha Publisher" };
+const BADGE_ORDER = ["owner", "admin", "mod", "ugc", "bugfinder", "alpha"];
+const BADGE_PERMS = { owner: { can_ugc: true, can_edit_items: true }, ugc: { can_ugc: true }, alpha: { can_studio: true, can_publish: true } };   // what each badge lets you do
 const BADGE_BUILTIN = BADGE_ORDER.slice();
-const BADGE_IMG = {"owner": "assets/badges/owner.png", "admin": "assets/badges/admin.png", "mod": "assets/badges/mod.png", "ugc": "assets/badges/ugc.png", "bugfinder": "assets/badges/bugfinder.png"};
+const BADGE_IMG = {"owner": "assets/badges/owner.png", "admin": "assets/badges/admin.png", "mod": "assets/badges/mod.png", "ugc": "assets/badges/ugc.png", "bugfinder": "assets/badges/bugfinder.png", "alpha": "assets/badges/alpha.png?v=1"};
 /* Badges the Owner made in the site (table badge_defs, see supabase_catalog.sql). They join the built-in five. */
 async function loadBadgeDefs() {
   const sb = getSB(); if (!sb) return;

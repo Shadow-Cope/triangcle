@@ -7,11 +7,13 @@ Supabase for accounts, saving and multiplayer. The frontend has no bundling step
 
 ```
 index.html            page markup + the <script> list (load order lives here)
-css/                  base, popups, theme, menu, chat, social, shop
+studio.html           Triancle Studio home + editor (own small page, plain scripts)
+css/                  base, popups, theme, menu, chat, social, shop, studio
 js/
   data/               generated data (player model, Sharknado map)
   core/               config, renderer, network, input, camera, main loop, start-up (main.js)
   game/               world, character, names/tags, physics, reset, animation, build tools
+  studio/             Studio saved games, editor viewport (baseplate + fly camera), home screen
   ui/                 colours, account/login, home + games, custom games (.rbxl), owner games, tabs,
                       avatar preview, menu, chat window, faces, players page
   social/             profiles, friends, badges, owner page
@@ -81,6 +83,45 @@ Transparent pixels show the body colour.
 - Stored like any item: `ugc_items.attach` is `Shirt` / `Pants` and `file_path` is a `.png` in the `ugc` bucket, so buying, selling,
   the Shop, inventory and the item page all work unchanged. Run `supabase_clothing.sql` once.
 - Code: `js/game/character.js` (UVs, shader, `setAvatarCloth`), `js/items/item-models.js` (loading / thumbnails), `js/items/ugc.js` (editor).
+
+## Triancle Studio (first version)
+
+Studio is a second desktop app for making games. `studio.html` is its own page, so it also opens in a browser
+while you're building.
+
+**Access:** you must sign in with a normal Triancle account (accounts are still created on the main website).
+Only players with the **Alpha Publisher** badge can open Studio:
+
+> You need alpha publisher to use Triancle Studio, submit creations on the discord server to apply for alpha publisher
+
+The badge is a built-in badge (`alpha`, `assets/badges/alpha.png`), so it appears in the Owners' badge buttons,
+the Players filter and profiles. The Owner grants it from **Owner tab > player row > Alpha Publisher**. The badge
+also carries `can_publish` for future publishing tools.
+
+The first version has:
+
+- **Your games** - create a game (name + Baseplate template), then see every saved game as a card with a viewport
+  thumbnail. Click a card to edit, or the ⋮ menu to delete. Games are kept in `localStorage`
+  (`triangle_studio_games`); cloud saving and publishing come later.
+- **Editor** - a Studio-style shell with a File/Edit/View/Test/Help menu, Home ribbon, Explorer + Properties dock
+  and status bar. The viewport holds a 512 × 512 gray baseplate using the project's `stud.png` top / `inlet.png`
+  bottom textures, a sky and sun, plus a 3D orientation gizmo.
+  - **Tools**: Select, Move, Scale and Rotate work on the selected part with coloured 3D handles. **Part** inserts
+    a new part in front of the camera; `Delete` removes the selected part.
+  - **Properties**: name, position, size, orientation, colour, material (plastic, smooth plastic, metal, neon,
+    glass), texture (studs, inlet, smooth), transparency, anchored and can-collide are editable. Changes sync
+    with the gizmos and are saved into the game map.
+  - **Panels**: drag the bar on the left of the dock to resize Explorer/Properties, drag the bar between them to
+    change their heights, drag the Properties header into the viewport to float it (drag it back over the dock to
+    re-dock, or use the dock button). View > Reset panel layout restores the defaults. Sizes and float position
+    are remembered on the device.
+  - **Camera**: `WASD` move, right-drag look, middle-drag pan, `Q`/`E` down/up, wheel zoom, `Shift` faster.
+    `Ctrl+S` / File > Save stores the game and refreshes its card thumbnail; Help > Camera controls lists them all.
+
+Code: `css/studio.css`, `js/studio/auth.js` (sign-in + Alpha Publisher gate), `js/studio/store.js` (saved games),
+`js/studio/ui.js` (Studio dialogs), `js/studio/editor.js` (Three.js viewport/camera/tools/panels),
+`js/studio/menu.js` (home screen). The game part rows match the normal map format (with extra Studio-only values
+at the end for material/texture/name), so a later Studio version can publish straight into `custom_games`.
 
 ## Desktop app (Windows + macOS)
 

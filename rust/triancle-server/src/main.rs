@@ -238,7 +238,7 @@ fn public_path(requested: &str) -> Option<PathBuf> {
     };
     if !matches!(
         first,
-        "index.html" | "download.html" | "css" | "js" | "assets"
+        "index.html" | "download.html" | "studio.html" | "css" | "js" | "assets"
     ) {
         return None;
     }
@@ -760,6 +760,10 @@ mod tests {
     #[test]
     fn only_public_paths_are_accepted() {
         assert_eq!(public_path("index.html"), Some(PathBuf::from("index.html")));
+        assert_eq!(
+            public_path("studio.html"),
+            Some(PathBuf::from("studio.html"))
+        );
         assert_eq!(
             public_path("js/core/config.js"),
             Some(PathBuf::from("js/core/config.js"))

@@ -18,42 +18,76 @@
 <main>
   <section class="hero">
     <img class="appico" alt="" src="assets/img/app-icon.png">
-    <h1>Play <img class="nameLogo" alt="Triancle" src="assets/img/logo.png"> on your computer</h1>
-    <p>The free Triancle app for Windows and Mac. Join games, change your avatar, chat with friends and shop, all in its own window.</p>
+    <h1>Triancle on your computer</h1>
+    <p>Play games in the free Triancle app, or make your own in Triancle Studio. Both are for Windows and Mac.</p>
   </section>
 
-  <section class="cards" id="cards">
-    <article class="card" id="cardWin" data-os="win">
-      <svg viewBox="0 0 24 24" class="osico" aria-hidden="true"><path fill="currentColor" d="M3 5.5 10.5 4.4v7H3zm8.5-1.2L21 3v8.4h-9.5zM3 12.6h7.5v7L3 18.5zm8.5 0H21V21l-9.5-1.3z"/></svg>
-      <h2>Windows</h2>
-      <p class="sub">Windows 10 or 11 (64-bit)</p>
-      <a class="dl" id="dlWin" href="#">Download for Windows</a>
-      <p class="file">Triancle-Setup.exe</p>
-      <span class="badge" hidden>Recommended for you</span>
-    </article>
-    <article class="card" id="cardMac" data-os="mac">
-      <svg viewBox="0 0 24 24" class="osico" aria-hidden="true"><path fill="currentColor" d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm1 2v7h14V7zM2 18h20v1.5a.5.5 0 0 1-.5.5h-19a.5.5 0 0 1-.5-.5z"/></svg>
-      <h2>macOS</h2>
-      <p class="sub">Apple Silicon and Intel Macs</p>
-      <a class="dl" id="dlMac" href="#">Download for Mac</a>
-      <p class="file">Triancle-mac.dmg</p>
-      <span class="badge" hidden>Recommended for you</span>
-    </article>
+  <section class="picker">
+    <div class="tabs" role="tablist" aria-label="Choose an app">
+      <button class="tab on" type="button" role="tab" data-tab="game" aria-selected="true">Triancle <small>Play games</small></button>
+      <button class="tab" type="button" role="tab" data-tab="studio" aria-selected="false">Studio <small>Make games</small></button>
+    </div>
+
+    <div class="pane on" data-pane="game">
+      <p class="paneNote">Join games, change your avatar, chat with friends and shop, all in its own window.</p>
+      <section class="cards" id="cards">
+        <article class="card" id="cardWin" data-os="win">
+          <svg viewBox="0 0 24 24" class="osico" aria-hidden="true"><path fill="currentColor" d="M3 5.5 10.5 4.4v7H3zm8.5-1.2L21 3v8.4h-9.5zM3 12.6h7.5v7L3 18.5zm8.5 0H21V21l-9.5-1.3z"/></svg>
+          <h2>Windows</h2>
+          <p class="sub">Windows 10 or 11 (64-bit)</p>
+          <a class="dl" id="dlWin" href="#">Download for Windows</a>
+          <p class="file">Triancle-Setup.exe</p>
+          <span class="badge" hidden>Recommended for you</span>
+        </article>
+        <article class="card" id="cardMac" data-os="mac">
+          <svg viewBox="0 0 24 24" class="osico" aria-hidden="true"><path fill="currentColor" d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm1 2v7h14V7zM2 18h20v1.5a.5.5 0 0 1-.5.5h-19a.5.5 0 0 1-.5-.5z"/></svg>
+          <h2>macOS</h2>
+          <p class="sub">Apple Silicon and Intel Macs</p>
+          <a class="dl" id="dlMac" href="#">Download for Mac</a>
+          <p class="file">Triancle-mac.dmg</p>
+          <span class="badge" hidden>Recommended for you</span>
+        </article>
+      </section>
+    </div>
+
+    <div class="pane" data-pane="studio" hidden>
+      <p class="paneNote">Create a game, fly around with a studio camera and start building on a baseplate. Studio access requires the <b>Alpha Publisher</b> badge.</p>
+      <section class="cards" id="cardsStudio">
+        <article class="card" id="studioCardWin" data-os="win">
+          <svg viewBox="0 0 24 24" class="osico" aria-hidden="true"><path fill="currentColor" d="M3 5.5 10.5 4.4v7H3zm8.5-1.2L21 3v8.4h-9.5zM3 12.6h7.5v7L3 18.5zm8.5 0H21V21l-9.5-1.3z"/></svg>
+          <h2>Windows</h2>
+          <p class="sub">Windows 10 or 11 (64-bit)</p>
+          <a class="dl" id="studioDlWin" href="#">Download Studio for Windows</a>
+          <p class="file">Triancle-Studio-Setup.exe</p>
+          <span class="badge" hidden>Recommended for you</span>
+        </article>
+        <article class="card" id="studioCardMac" data-os="mac">
+          <svg viewBox="0 0 24 24" class="osico" aria-hidden="true"><path fill="currentColor" d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm1 2v7h14V7zM2 18h20v1.5a.5.5 0 0 1-.5.5h-19a.5.5 0 0 1-.5-.5z"/></svg>
+          <h2>macOS</h2>
+          <p class="sub">Apple Silicon and Intel Macs</p>
+          <a class="dl" id="studioDlMac" href="#">Download Studio for Mac</a>
+          <p class="file">Triancle-Studio-mac.dmg</p>
+          <span class="badge" hidden>Recommended for you</span>
+        </article>
+      </section>
+    </div>
   </section>
-  <p class="note" id="mobileNote" hidden>You're on a phone or tablet. Triancle's app is for Windows and Mac computers, so open this page on one to download it.</p>
+
+  <p class="note" id="mobileNote" hidden>You're on a phone or tablet. The Triancle apps are for Windows and Mac computers, so open this page on one to download them.</p>
   <p class="note warn" id="soon" hidden>The installers haven't been published yet. Check back soon.</p>
 
   <section class="open">
     <p>Already installed?</p>
     <a class="ghost" id="openApp" href="triancle://open">Open Triancle</a>
+    <a class="ghost" id="openStudio" href="triancle-studio://open">Open Studio</a>
   </section>
 
   <section class="steps">
     <h2>How to install</h2>
     <ol>
       <li><b>Download</b> the installer for your computer.</li>
-      <li><b>Run it.</b> On Windows it installs and starts by itself. On Mac, open the disk image and drag Triancle into Applications.</li>
-      <li><b>Sign in</b> with your Triancle account and press Play on any game.</li>
+      <li><b>Run it.</b> On Windows it installs and starts by itself. On Mac, open the disk image and drag the app into Applications.</li>
+      <li><b>Sign in</b> to play games, or open <b>Studio</b> to create one.</li>
     </ol>
     <details>
       <summary>Windows says "Windows protected your PC"</summary>
@@ -61,11 +95,15 @@
     </details>
     <details>
       <summary>Mac says Triancle can't be opened</summary>
-      <p>In Applications, right-click (or Control-click) Triancle, choose <b>Open</b>, then <b>Open</b> again. If it says the app is damaged, open Terminal and run <code>xattr -cr /Applications/Triancle.app</code>.</p>
+      <p>In Applications, right-click (or Control-click) Triancle, choose <b>Open</b>, then <b>Open</b> again. If it says the app is damaged, open Terminal and run <code>xattr -cr /Applications/Triancle.app</code> (or <code>/Applications/Triancle Studio.app</code>).</p>
     </details>
     <details>
       <summary>What still works in the browser?</summary>
-      <p>You can still sign in, change your avatar, shop, and see friends and profiles on the website. Starting a game needs the app.</p>
+      <p>You can still sign in, change your avatar, shop, and see friends and profiles on the website. Starting a game needs the Triancle app; making games needs Studio.</p>
+    </details>
+    <details>
+      <summary>Where are my Studio games saved?</summary>
+      <p>In this first version Studio saves games on your computer. Cloud saving and publishing to Triancle are coming in a later update.</p>
     </details>
   </section>
 </main>

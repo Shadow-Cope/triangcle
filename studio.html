@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Triancle Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="assets/img/app-icon.png">
+<link rel="stylesheet" href="css/studio.css">
+</head>
+<body class="stMenuBody">
+
+<!-- ============================ ACCESS ============================ -->
+<div id="stAuth" class="stAuth">
+  <div class="stAuthInner">
+    <div class="stAuthBrand">
+      <img src="assets/img/app-icon.png" alt="">
+      <span>Triancle <b>Studio</b></span>
+    </div>
+
+    <div id="stAuthLoading" class="stAuthCard stAuthSmall">
+      <span class="stSpinner"></span>Checking your Studio access&hellip;
+    </div>
+
+    <form id="stLoginForm" class="stAuthCard" autocomplete="on" hidden>
+      <h1>Sign in to Triancle Studio</h1>
+      <p>Use your Triancle account. Accounts are created on the main website.</p>
+      <label class="stAuthField">Username
+        <input id="stLoginUser" type="text" maxlength="20" autocomplete="username" spellcheck="false" placeholder="Username">
+      </label>
+      <label class="stAuthField">Password
+        <input id="stLoginPass" type="password" autocomplete="current-password" placeholder="Password">
+      </label>
+      <div id="stLoginMsg" class="stAuthMsg"></div>
+      <button id="stLoginGo" class="stAuthGo" type="submit">Sign in</button>
+      <a id="stCreateLink" class="stAuthLink" href="index.html" target="_blank" rel="noopener">Create an account on the Triancle website</a>
+    </form>
+
+    <div id="stGate" class="stAuthCard" hidden>
+      <img class="stGateBadge" src="assets/badges/alpha.png?v=1" alt="Alpha Publisher">
+      <h1>Alpha Publisher required</h1>
+      <p id="stGateText">You need alpha publisher to use Triancle Studio, submit creations on the discord server to apply for alpha publisher.</p>
+      <p id="stGateWho" class="stAuthWho"></p>
+      <div class="stAuthRow">
+        <button id="stGateRetry" class="stAuthGhost" type="button" hidden>Try again</button>
+        <button id="stGateOut" class="stAuthGhost" type="button">Sign out</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ HOME ============================ -->
+<div id="stMenu" class="rsApp" hidden>
+  <aside class="rsSide" id="stSide">
+    <div class="rsBrand">
+      <img src="assets/img/app-icon.png" alt="">
+      <span>Triancle <b>Studio</b></span>
+    </div>
+
+    <div class="rsAccountWrap">
+      <button class="rsAccount" id="stAccount" type="button" aria-haspopup="menu" aria-expanded="false">
+        <span class="rsAvatar" id="stAccountAvatar">T</span>
+        <span class="rsAccountName">
+          <span class="rsAccountUser"><span id="stAccountUser">Local Studio</span><img id="stAccountBadge" class="rsAccountBadge" src="assets/badges/alpha.png?v=1" alt="Alpha Publisher" title="Alpha Publisher" hidden></span>
+          <small id="stAccountSub">Saved on this device</small>
+        </span>
+        <svg class="rsChev" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="rsAccountMenu" id="stAccountMenu" role="menu" hidden>
+        <button type="button" id="stSignOut" role="menuitem">Sign out</button>
+      </div>
+    </div>
+
+    <nav class="rsNav">
+      <button class="rsNavNew" id="stNew" type="button">
+        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        New game
+      </button>
+      <button class="rsNavItem" data-nav="recents" type="button">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Recents
+      </button>
+      <button class="rsNavItem on" data-nav="home" type="button">
+        <svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-5v-5h-4v5H5a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+        Home
+      </button>
+      <button class="rsNavItem" data-nav="experiences" type="button">
+        <svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 9h16M9 9v10" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+        Experiences
+      </button>
+      <button class="rsNavItem" data-nav="templates" type="button">
+        <svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="13" y="4" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="4" y="13" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="13" y="13" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+        Templates
+      </button>
+    </nav>
+
+    <div class="rsSideFoot">
+      <button id="stHideSide" class="rsHide" type="button">
+        <svg viewBox="0 0 24 24"><path d="M14 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Hide sidebar
+      </button>
+    </div>
+  </aside>
+
+  <div class="rsMain">
+    <header class="rsHomeTop">
+      <button id="stShowSide" class="rsIconBtn" type="button" title="Show sidebar" hidden>
+        <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+      <h1 id="stPageTitle">Home</h1>
+      <div class="rsSearch">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M16 16l4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <input id="stSearch" type="text" placeholder="Search your games" autocomplete="off" spellcheck="false">
+      </div>
+    </header>
+
+    <div class="rsContent" id="stContent">
+      <section class="rsSection" id="stRecentSection">
+        <div class="rsSectionHead">
+          <h2 id="stRecentTitle">My Recent Games</h2>
+          <button class="rsViewAll" data-nav="recents" type="button">View all</button>
+        </div>
+        <div id="stGrid" class="rsGrid"></div>
+      </section>
+
+      <section class="rsSection" id="stTemplateSection">
+        <div class="rsSectionHead">
+          <h2>Open a Template</h2>
+          <span class="rsSectionSub">Start from a ready-made world.</span>
+        </div>
+        <div class="rsTGrid">
+          <button class="rsTemplate" type="button" data-template="baseplate">
+            <span class="rsTThumb"><img src="assets/img/game-baseplate.png" alt=""><span class="rsTHover">Open</span></span>
+            <b>Baseplate</b>
+            <small>512 &times; 512 studs</small>
+          </button>
+          <button class="rsTemplate isSoon" type="button" disabled>
+            <span class="rsTThumb"><img src="assets/img/game-baseplate.png" alt=""><span class="rsSoon">Soon</span></span>
+            <b>Classic Baseplate</b>
+            <small>Coming soon</small>
+          </button>
+          <button class="rsTemplate isSoon" type="button" disabled>
+            <span class="rsTThumb"><img src="assets/img/game-baseplate.png" alt=""><span class="rsSoon">Soon</span></span>
+            <b>Flat Terrain</b>
+            <small>Coming soon</small>
+          </button>
+        </div>
+      </section>
+
+      <section class="rsSection">
+        <div class="rsSectionHead"><h2>Studio Basics</h2></div>
+        <div class="rsBasics">
+          <button class="rsBasic" id="stBasicsControls" type="button">
+            <b>Camera controls</b>
+            <span>WASD, right-drag, pan and zoom.</span>
+          </button>
+          <button class="rsBasic" id="stBasicsSave" type="button">
+            <b>Saving your game</b>
+            <span>Ctrl+S saves to this device.</span>
+          </button>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ CREATE ============================ -->
+<div id="stCreate" class="rsModal" hidden>
+  <form id="stCreateForm" class="rsDialog" autocomplete="off">
+    <div class="rsDialogHead">
+      <h2>New game</h2>
+      <button class="rsDialogX" type="button" id="stCreateX" aria-label="Close">&times;</button>
+    </div>
+    <div class="rsDialogBody">
+      <label class="rsField">Game name
+        <input id="stCreateName" type="text" maxlength="40" placeholder="Untitled game" spellcheck="false">
+      </label>
+      <div class="rsFieldLabel">Template</div>
+      <button class="rsTemplatePick on" type="button" tabindex="-1">
+        <img src="assets/img/game-baseplate.png" alt="">
+        <span><b>Baseplate</b><small>A flat 512 &times; 512 studs world.</small></span>
+        <svg class="rsCheck" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+    <div class="rsDialogFoot">
+      <button class="rsBtn" id="stCreateCancel" type="button">Cancel</button>
+      <button class="rsBtn rsBtnPrimary" type="submit">Create game</button>
+    </div>
+  </form>
+</div>
+
+<!-- ============================ EDITOR ============================ -->
+<div id="stEditor" hidden>
+  <div class="rsEditor">
+    <header class="rsMenubar">
+      <img class="rsMenuLogo" src="assets/img/app-icon.png" alt="">
+      <div class="rsMenus">
+        <button type="button" data-menu="file">File</button>
+        <button type="button" data-menu="edit">Edit</button>
+        <button type="button" data-menu="view">View</button>
+        <button type="button" data-menu="test">Test</button>
+        <button type="button" data-menu="help">Help</button>
+      </div>
+      <div class="rsDoc">
+        <input id="stName" type="text" maxlength="40" spellcheck="false" aria-label="Game name">
+        <span id="stDocState">Saved</span>
+      </div>
+      <div class="rsMenuRight"><span class="rsAvatar sm" title="Local Studio">T</span></div>
+
+      <div class="rsDrop" id="stDropFile" hidden>
+        <button type="button" data-act="save">Save<span>Ctrl+S</span></button>
+        <button type="button" data-act="saveExit">Save and exit</button>
+        <div class="rsDropSep"></div>
+        <button type="button" data-act="exit">Exit to games</button>
+      </div>
+      <div class="rsDrop" id="stDropEdit" hidden>
+        <button type="button" disabled>Undo<span>Ctrl+Z</span></button>
+        <button type="button" disabled>Redo<span>Ctrl+Y</span></button>
+        <div class="rsDropSep"></div>
+        <button type="button" disabled>Cut</button>
+        <button type="button" disabled>Copy</button>
+        <button type="button" disabled>Paste</button>
+      </div>
+      <div class="rsDrop" id="stDropView" hidden>
+        <button type="button" data-act="toggleExplorer">Explorer</button>
+        <button type="button" data-act="toggleProps">Properties</button>
+        <div class="rsDropSep"></div>
+        <button type="button" data-act="resetCamera">Reset camera</button>
+        <button type="button" data-act="resetLayout">Reset panel layout</button>
+      </div>
+      <div class="rsDrop" id="stDropTest" hidden>
+        <button type="button" disabled>Play game<span>Coming soon</span></button>
+      </div>
+      <div class="rsDrop" id="stDropHelp" hidden>
+        <button type="button" data-act="controls">Camera controls</button>
+        <button type="button" data-act="about">About Triancle Studio</button>
+      </div>
+    </header>
+
+    <div class="rsRibbon">
+      <div class="rsRibbonTabs">
+        <button class="on" type="button" data-rtab="home">Home</button>
+        <button type="button" data-rtab="model">Model</button>
+        <button type="button" data-rtab="avatar">Avatar</button>
+        <button type="button" data-rtab="ui">UI</button>
+        <button type="button" data-rtab="script">Script</button>
+        <button type="button" data-rtab="plugins">Plugins</button>
+        <span class="rsRibbonSpacer"></span>
+        <button class="rsRibbonIcon" id="stBack" type="button" title="Back to games">
+          <svg viewBox="0 0 24 24"><path d="M14 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+
+      <div class="rsRibbonBody" id="stRibbonHome">
+        <div class="rsGroup">
+          <button class="rsTool on" type="button" data-tool="select" title="Select parts">
+            <svg viewBox="0 0 24 24"><path d="M5 3l14 9-6 1.5L10 20z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+            <span>Select</span>
+          </button>
+          <button class="rsTool" type="button" data-tool="move" title="Move the selected part">
+            <svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            <span>Move</span>
+          </button>
+          <button class="rsTool" type="button" data-tool="scale" title="Scale the selected part">
+            <svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <span>Scale</span>
+          </button>
+          <button class="rsTool" type="button" data-tool="rotate" title="Rotate the selected part">
+            <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Rotate</span>
+          </button>
+        </div>
+        <div class="rsSeparator"></div>
+        <div class="rsGroup">
+          <button class="rsTool" type="button" id="stToolPart" title="Insert a part">
+            <svg viewBox="0 0 24 24"><path d="M4 8l8-4 8 4v8l-8 4-8-4zM4 8l8 4 8-4M12 12v8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+            <span>Part</span>
+          </button>
+          <button class="rsTool" type="button" id="stToolCamera" title="Reset the camera">
+            <svg viewBox="0 0 24 24"><rect x="3" y="7" width="13" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M16 11l5-3v8l-5-3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+            <span>Camera</span>
+          </button>
+        </div>
+        <div class="rsSeparator"></div>
+        <div class="rsGroup">
+          <button class="rsTool on" type="button" id="stToolExplorer" title="Show or hide the Explorer">
+            <svg viewBox="0 0 24 24"><path d="M3 6h7l2 2h9v11H3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+            <span>Explorer</span>
+          </button>
+          <button class="rsTool on" type="button" id="stToolProps" title="Show or hide Properties">
+            <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="9" cy="6" r="1.8" fill="currentColor"/><circle cx="15" cy="12" r="1.8" fill="currentColor"/><circle cx="8" cy="18" r="1.8" fill="currentColor"/></svg>
+            <span>Properties</span>
+          </button>
+        </div>
+        <div class="rsSeparator"></div>
+        <div class="rsGroup">
+          <button class="rsTool" type="button" id="stToolSave" title="Save game (Ctrl+S)">
+            <svg viewBox="0 0 24 24"><path d="M5 3h11l3 3v15H5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 3v6h7V3M8 21v-7h8v7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+            <span>Save</span>
+          </button>
+          <button class="rsTool" type="button" id="stToolHome" title="Back to games">
+            <svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-5v-5h-4v5H5a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+            <span>Games</span>
+          </button>
+        </div>
+      </div>
+      <div class="rsRibbonBody rsRibbonSoon" id="stRibbonSoon" hidden>These tools will be added in a later version of Studio.</div>
+    </div>
+
+    <div class="rsWork">
+      <div class="rsViewport" id="stViewport">
+        <canvas id="stCanvas"></canvas>
+        <div class="rsAxis" title="World orientation">
+          <canvas id="stAxisCanvas" width="108" height="108"></canvas>
+        </div>
+      </div>
+
+      <div class="rsDockGrip" id="stDockGrip" title="Drag to resize the panels"></div>
+
+      <aside class="rsDock" id="stDock">
+        <section class="rsPanel" id="stExplorerPanel">
+          <div class="rsPanelHead">Explorer</div>
+          <div class="rsTree" id="stTree">
+            <div class="rsTreeRow rsRoot">
+              <svg class="rsTreeIco" viewBox="0 0 24 24"><path d="M3 6h7l2 2h9v11H3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+              Workspace
+            </div>
+            <div id="stTreeChildren"></div>
+          </div>
+          <div class="rsPanelFoot">Filter workspace (Ctrl+Shift+F)</div>
+        </section>
+
+        <div class="rsDockSplit" id="stDockSplit" title="Drag to resize Explorer and Properties"></div>
+
+        <section class="rsPanel rsPropsPanel" id="stPropsPanel">
+          <div class="rsPanelHead" id="stPropsHead" title="Drag to move this panel">
+            <span>Properties</span>
+            <button class="rsPanelBtn" id="stPropsDock" type="button" title="Dock the Properties panel" hidden>
+              <svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM9 5v14" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
+            </button>
+          </div>
+          <div class="rsProps" id="stProps">
+            <div class="rsPropsEmpty">Select a part in the Explorer or click it in the viewport.</div>
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <footer class="rsStatusbar">
+      <div class="rsStatusCmd">Execute a command with Ctrl+/ or use Ctrl+Up/Down for history</div>
+      <div class="rsStatusRight">
+        <span id="stStatusBar">Saved to this device</span>
+        <span class="rsStatusVersion">Studio v1</span>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<!-- ============================ DIALOGS ============================ -->
+<div id="stDialog" class="rsModal" hidden>
+  <div class="rsDialog">
+    <div class="rsDialogHead">
+      <h2 id="stDialogTitle">Dialog</h2>
+      <button class="rsDialogX" type="button" id="stDialogX" aria-label="Close">&times;</button>
+    </div>
+    <div class="rsDialogBody" id="stDialogBody"></div>
+    <div class="rsDialogFoot" id="stDialogFoot"></div>
+  </div>
+</div>
+
+<div id="stLoading" hidden>Loading baseplate&hellip;</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0"></script>
+<script src="js/core/config.js"></script>
+<script src="js/studio/store.js"></script>
+<script src="js/studio/ui.js"></script>
+<script src="js/studio/editor.js"></script>
+<script src="js/studio/menu.js"></script>
+<script src="js/studio/auth.js"></script>
+</body>
+</html>

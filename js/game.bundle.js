@@ -2917,14 +2917,14 @@ async function friendAct(kind, id) {
 "use strict";
 
 /* ---- badges: given out only by the Owner (enforced in Supabase, see supabase_badges.sql) ---- */
-const BADGES = { owner: "Owner", admin: "Admin", mod: "Moderator", ugc: "Official UGC Creator", bugfinder: "Bug Finder" };
-const BADGE_ORDER = ["owner", "admin", "mod", "ugc", "bugfinder"];
-const BADGE_PERMS = { owner: { can_ugc: true, can_edit_items: true }, ugc: { can_ugc: true } };   // what each badge lets you do
+const BADGES = { owner: "Owner", admin: "Admin", mod: "Moderator", ugc: "Official UGC Creator", bugfinder: "Bug Finder", alpha: "Alpha Publisher" };
+const BADGE_ORDER = ["owner", "admin", "mod", "ugc", "bugfinder", "alpha"];
+const BADGE_PERMS = { owner: { can_ugc: true, can_edit_items: true }, ugc: { can_ugc: true }, alpha: { can_studio: true, can_publish: true } };   // what each badge lets you do
 const BADGE_BUILTIN = BADGE_ORDER.slice();
-const BADGE_COLOR = { owner: "#ffd23f", admin: "#ff5d5d", mod: "#4aa8ff", ugc: "#b879ff", bugfinder: "#4be08a" };   // name tag colour per badge
+const BADGE_COLOR = { owner: "#ffd23f", admin: "#ff5d5d", mod: "#4aa8ff", ugc: "#b879ff", bugfinder: "#4be08a", alpha: "#ff9a20" };   // name tag colour per badge
 const badgeColor = k => BADGE_COLOR[k] || ("hsl(" + badgeHueValue(k) + ",80%,62%)");
 function badgeHueValue(k) { const text = String(k); if (window.TriancleRust && window.TriancleRust.badgeHue) { const hue = window.TriancleRust.badgeHue(text); if (hue !== null) return hue; } return [...text].reduce((a,c) => (a*31+c.charCodeAt(0))%360,7); }
-const BADGE_IMG = {"owner": "assets/badges/owner.png", "admin": "assets/badges/admin.png", "mod": "assets/badges/mod.png", "ugc": "assets/badges/ugc.png", "bugfinder": "assets/badges/bugfinder.png"};
+const BADGE_IMG = {"owner": "assets/badges/owner.png", "admin": "assets/badges/admin.png", "mod": "assets/badges/mod.png", "ugc": "assets/badges/ugc.png", "bugfinder": "assets/badges/bugfinder.png", "alpha": "assets/badges/alpha.png?v=1"};
 /* Badges the Owner made in the site (table badge_defs, see supabase_catalog.sql). They join the built-in five. */
 async function loadBadgeDefs() {
   const sb = getSB(); if (!sb) return;
