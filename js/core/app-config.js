@@ -10,6 +10,8 @@ const APP_CFG = {
   MAC_FILE: "Triancle-mac.dmg",
   STUDIO_WIN_FILE: "Triancle-Studio-Setup.exe",
   STUDIO_MAC_FILE: "Triancle-Studio-mac.dmg",
+  MAC_AVAILABLE: false,
+  STUDIO_MAC_AVAILABLE: false,
   VERSION: "1.0.7",
   // true  = games only start inside the desktop app (the browser shows the download / open prompt)
   // false = browser play works again (handy while you're still building the app)

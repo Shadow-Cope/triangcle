@@ -7,21 +7,22 @@
   const base = APP_CFG.RELEASES_URL ? APP_CFG.RELEASES_URL.replace(/\/*$/, "/") : "";
 
   const installers = [
-    { id: "dlWin", card: "cardWin", file: APP_CFG.WIN_FILE || "Triancle-Setup.exe" },
-    { id: "dlMac", card: "cardMac", file: APP_CFG.MAC_FILE || "Triancle-mac.dmg" },
-    { id: "studioDlWin", card: "studioCardWin", file: APP_CFG.STUDIO_WIN_FILE || "Triancle-Studio-Setup.exe" },
-    { id: "studioDlMac", card: "studioCardMac", file: APP_CFG.STUDIO_MAC_FILE || "Triancle-Studio-mac.dmg" },
+    { id: "dlWin", card: "cardWin", file: APP_CFG.WIN_FILE || "Triancle-Setup.exe", available: true },
+    { id: "dlMac", card: "cardMac", file: APP_CFG.MAC_FILE || "Triancle-mac.dmg", available: APP_CFG.MAC_AVAILABLE !== false },
+    { id: "studioDlWin", card: "studioCardWin", file: APP_CFG.STUDIO_WIN_FILE || "Triancle-Studio-Setup.exe", available: true },
+    { id: "studioDlMac", card: "studioCardMac", file: APP_CFG.STUDIO_MAC_FILE || "Triancle-Studio-mac.dmg", available: APP_CFG.STUDIO_MAC_AVAILABLE !== false },
   ];
 
   for (const item of installers) {
     const a = $(item.id), card = $(item.card);
     if (!a || !card) continue;
-    card.querySelector(".file").textContent = item.file;
-    if (base) {
+    card.querySelector(".file").textContent = item.available ? item.file : "Not published yet";
+    if (base && item.available) {
       a.href = base + item.file;
       a.setAttribute("download", "");
     } else {
-      a.removeAttribute("href");
+      if (item.available) a.removeAttribute("href");
+      else { a.removeAttribute("href"); a.textContent = "Mac build coming soon"; }
       a.classList.add("off");
     }
   }

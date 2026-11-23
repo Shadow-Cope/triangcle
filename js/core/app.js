@@ -18,6 +18,7 @@ const APP_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 function appDownloadUrl(os) {                                        // direct installer link, or the download page when none is published yet
   const base = APP_CFG.RELEASES_URL;
   if (!base) return "download.html";
+  if (os === "mac" && APP_CFG.MAC_AVAILABLE === false) return "download.html";
   return base.replace(/\/*$/, "/") + (os === "win" ? APP_CFG.WIN_FILE : APP_CFG.MAC_FILE);
 }
 
