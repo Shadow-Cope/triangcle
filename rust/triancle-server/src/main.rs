@@ -510,7 +510,23 @@ fn js_string_or_default(value: Option<&Value>, default: &str, max: usize) -> Str
             .join(","),
         Some(Value::Object(_)) => "[object Object]".to_string(),
     };
-    text.chars().take(max).collect()
+    truncate_utf16(text, max)
+}
+
+/// Truncates to `max` UTF-16 code units, matching JavaScript's `String.prototype.slice`
+/// as used by server.js, rather than to `max` characters.
+fn truncate_utf16(text: String, max: usize) -> String {
+    let mut units = 0;
+    let mut end = 0;
+    for (index, ch) in text.char_indices() {
+        let width = ch.len_utf16();
+        if units + width > max {
+            break;
+        }
+        units += width;
+        end = index + ch.len_utf8();
+    }
+    text[..end].to_string()
 }
 
 fn js_number(number: &serde_json::Number) -> String {
@@ -779,6 +795,20 @@ mod tests {
         assert_eq!(
             js_string_or_default(Some(&json!("123456789012345678901")), "Player", 20),
             "12345678901234567890"
+        );
+    }
+
+    #[test]
+    fn names_are_truncated_in_utf16_units_like_javascript() {
+        // Each emoji is two UTF-16 code units, so 20 units hold ten of them.
+        assert_eq!(
+            js_string_or_default(Some(&json!("😀".repeat(12))), "Player", 20),
+            "😀".repeat(10)
+        );
+        // BMP characters are one unit each.
+        assert_eq!(
+            js_string_or_default(Some(&json!("é".repeat(25))), "Player", 20),
+            "é".repeat(20)
         );
     }
 
