@@ -34,7 +34,7 @@ async function renderOwner() {
     await getBadges(ids);
     $("owList").innerHTML = ids.map(ownerRow).join("");
     msg.textContent = ids.length ? (OW.q ? "" : "Players who have badges right now:") : (OW.q ? "No players found." : "Nobody has a badge yet. Search for a player above.");
-  } catch (_) { msg.textContent = "Couldn't load badges. Run supabase_badges.sql in Supabase once."; }
+  } catch (_) { msg.textContent = "Couldn't load badges. Run supabase_schema.sql in Supabase once."; }
 }
 $("owList").addEventListener("click", async e => {
   const moneyBtn = e.target.closest("[data-wallet]");
@@ -61,7 +61,7 @@ $("owList").addEventListener("click", async e => {
                   : await sb.from("badges").insert({ user_id: uid, badge: k, granted_by: acct.user.id });
     if (r.error) throw r.error;
     $("owMsg").textContent = "";
-  } catch (_) { $("owMsg").textContent = "Couldn't change that badge. Make sure supabase_badges.sql has been run and you're signed in as Owen."; }
+  } catch (_) { $("owMsg").textContent = "Couldn't change that badge. Make sure supabase_schema.sql has been run and you're signed in as Owen."; }
   await getBadges([uid]);
   row.outerHTML = ownerRow(uid);
 });

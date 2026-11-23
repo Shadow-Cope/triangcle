@@ -4,10 +4,10 @@
    ACCOUNT SETTINGS
    - Display name: free, change any time (player_profiles.display_name)
    - Username: costs USERNAME_COST triangcles every time. The charge, the check that the name is free and the
-     rename itself all happen in Supabase (change_username in supabase_account.sql) so nobody can skip the cost.
+     rename itself all happen in Supabase (change_username in supabase_schema.sql) so nobody can skip the cost.
    - Old usernames are kept in username_history and shown on the player's profile.
    ===================================================================== */
-const USERNAME_COST = 150;                                          // keep in step with supabase_account.sql
+const USERNAME_COST = 150;                                          // keep in step with supabase_schema.sql
 const NAME_RE = /^[A-Za-z0-9_]{3,20}$/;
 const DISPLAY_RE = /^[\p{L}\p{N}_.'\- ]{1,20}$/u;
 function validDisplayName(value) { if (window.TriancleRust && window.TriancleRust.validDisplayName) { const ok = window.TriancleRust.validDisplayName(value); if (ok !== null) return ok; } return DISPLAY_RE.test(value); }
@@ -59,7 +59,7 @@ async function saveDisplayName() {
     if (r.error || !(r.data && r.data.length)) throw r.error || new Error("no row");
     const p = SOC.cache.get(acct.user.id); if (p) p.display_name = v || null;
     msg.textContent = v ? "Saved. People will see \"" + v + "\"." : "Saved. People will see your username.";
-  } catch (_) { msg.textContent = "Couldn't save. Run supabase_account.sql in Supabase once."; }
+  } catch (_) { msg.textContent = "Couldn't save. Run supabase_schema.sql in Supabase once."; }
 }
 
 async function saveUsername() {
@@ -80,7 +80,7 @@ async function saveUsername() {
     $("sUserMsg").textContent = "Done. You're now @" + acct.username + ".";
   } catch (e) {
     const m = String(e && e.message);
-    msg.textContent = RENAME_ERR[m] || "Couldn't change it. Run supabase_account.sql in Supabase once.";
+    msg.textContent = RENAME_ERR[m] || "Couldn't change it. Run supabase_schema.sql in Supabase once.";
   }
   btn.disabled = false;
 }

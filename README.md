@@ -138,6 +138,27 @@ Code: `css/studio.css`, `js/studio/auth.js` (sign-in + Alpha Publisher gate), `j
 normal map format (with extra Studio-only values at the end for material/texture/name), so a later Studio version
 can publish straight into `custom_games`.
 
+## Database (Supabase) setup
+
+The repo can build a brand-new Supabase project from scratch: run, in this order, in the
+**SQL editor** of the new project:
+
+1. `supabase_schema.sql` - every table, RPC, policy, storage bucket and the built-in badges.
+2. `supabase_publish.sql` - publishing fields (`description`, `max_players`, …). This file ends with
+   `delete from custom_games;`; run it once, then delete that line so re-running the file doesn't wipe games.
+3. `supabase_clothing.sql` - clothing values for `ugc_items.attach` and PNG uploads.
+
+Then in **Authentication**: turn **Confirm email** off (the site signs up as
+`<username>@players.bounded.app`, so no confirmation mail can ever arrive), and set the Site URL.
+Put the project URL and publishable/anon key in `js/core/config.js`. Sign up on the site, then give
+yourself the badges in the SQL editor:
+
+```sql
+insert into badges (user_id, badge)
+select id, 'alpha' from player_profiles where username = 'YOUR_NAME';
+-- plus 'owner' and 'admin' for the Owner tab and the game/badge tools
+```
+
 ## Publishing to Triancle (Studio > File > Publish to Triancle)
 
 Studio games are drafts on the device; publishing puts the map on the website.

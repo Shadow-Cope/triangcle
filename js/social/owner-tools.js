@@ -53,7 +53,7 @@ $("bdCreate").addEventListener("click", async () => {
     await loadBadgeDefs(); renderBadgeAdmin(); renderOwner();
   } catch (e) {
     if (path) { try { await sb.storage.from("badges").remove([path]); } catch (_) {} }
-    bdMsg("Couldn't make the badge. Run supabase_catalog.sql in Supabase once. (" + String(e && e.message || "").slice(0, 80) + ")", true);
+    bdMsg("Couldn't make the badge. Run supabase_schema.sql in Supabase once. (" + String(e && e.message || "").slice(0, 80) + ")", true);
   }
   b.disabled = false;
 });
@@ -73,7 +73,7 @@ $("bdList").addEventListener("change", async e => {
     const r = await sb.from("badge_defs").update({ [cb.dataset.perm]: cb.checked }).eq("key", k);
     if (r.error) throw r.error;
     bdMsg("Saved.");
-  } catch (_) { cb.checked = !cb.checked; bdMsg("Couldn't change that. Run supabase_catalog.sql in Supabase once.", true); }
+  } catch (_) { cb.checked = !cb.checked; bdMsg("Couldn't change that. Run supabase_schema.sql in Supabase once.", true); }
   cb.disabled = false; await loadBadgeDefs(); updateUgcBtn();
 });
 $("bdList").addEventListener("click", async e => {
@@ -113,6 +113,6 @@ $("fcImport").addEventListener("click", async () => {
     await loadFaceMeta(true);
     fcMsg(added ? "Added " + added + " face" + (added === 1 ? "" : "s") + " to the Catalog." + (g.error ? "" : " " + (g.data || 0) + " players kept the face they already had.")
                  : "All the built-in faces are already in the Catalog." + (g.error ? "" : " (" + (g.data || 0) + " players re-checked.)"));
-  } catch (e) { fcMsg("Couldn't add them. Run supabase_catalog.sql in Supabase once. (" + String(e && e.message || "").slice(0, 100) + ")", true); }
+  } catch (e) { fcMsg("Couldn't add them. Run supabase_schema.sql in Supabase once. (" + String(e && e.message || "").slice(0, 100) + ")", true); }
   b.disabled = false;
 });

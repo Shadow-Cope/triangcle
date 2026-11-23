@@ -21,7 +21,7 @@ function uiPopup(msg, okLabel, cancelLabel, danger) {
 const uiConfirm = (msg, okLabel, danger) => uiPopup(msg, okLabel || "OK", "Cancel", danger);
 const uiAlert = msg => uiPopup(msg, "OK", null, false);
 
-/* ---- taxes & fees (the server enforces these in supabase_taxes.sql; this only mirrors them for the screens).
+/* ---- taxes & fees (the server enforces these in supabase_schema.sql; this only mirrors them for the screens).
    Kept at the very top with only function declarations so it can be used from anywhere, even at start-up. ---- */
 var TAX_MAX = 1000000;
 function kindOfItem(a) { if (window.TriancleRust && window.TriancleRust.itemKind) { const kind = window.TriancleRust.itemKind(a); if (kind !== null) return ["acc", "cloth", "face"][kind]; } return (a === "Shirt" || a === "Pants") ? "cloth" : a === "Face" ? "face" : "acc"; }
@@ -2502,8 +2502,8 @@ async function loadGameSettings() {                                    // everyo
   const sb = getSB(); if (!sb) return;
   try {
     let r = await sb.from(GAME_TABLE).select("id, name, owner_name, thumb, icon, btools, about");
-    if (r.error) r = await sb.from(GAME_TABLE).select("id, name, owner_name, thumb, icon, btools");   // about column not added yet (supabase_owner_tools.sql)
-    if (r.error) r = await sb.from(GAME_TABLE).select("id, name, owner_name, thumb, icon");     // btools column not added yet (supabase_account.sql)
+    if (r.error) r = await sb.from(GAME_TABLE).select("id, name, owner_name, thumb, icon, btools");   // about column not added yet (supabase_schema.sql)
+    if (r.error) r = await sb.from(GAME_TABLE).select("id, name, owner_name, thumb, icon");     // btools column not added yet (supabase_schema.sql)
     if (r.error) throw r.error;
     const cache = {};
     for (const row of (r.data || [])) { const v = { name: row.name, by: row.owner_name, thumb: row.thumb, icon: row.icon, btools: row.btools, about: row.about }; applyGameRow(row.id, v); cache[row.id] = v; }
@@ -2756,8 +2756,8 @@ $("owGames").addEventListener("click", async e => {
       if (r.error) { r = await sb.from(GAME_TABLE).upsert(Object.assign({ btools: g.btools || "all" }, base)); noBT = "about"; }   // about column missing
       if (r.error) { r = await sb.from(GAME_TABLE).upsert(base); noBT = "btools"; }              // btools column missing: save the rest
       if (r.error) throw r.error;
-      msg.textContent = noBT === "about" ? "Saved, but descriptions need supabase_owner_tools.sql run once in Supabase." : noBT ? "Saved, but the building-tools setting needs supabase_account.sql run once in Supabase." : "Saved. Everyone will see the new " + gv(g, "name") + " details.";
-    } catch (_) { msg.textContent = "Saved on this device only. Run supabase_owner_tools.sql (and supabase_game_settings.sql) in Supabase once so everyone sees it."; }
+      msg.textContent = noBT === "about" ? "Saved, but descriptions need supabase_schema.sql run once in Supabase." : noBT ? "Saved, but the building-tools setting needs supabase_schema.sql run once in Supabase." : "Saved. Everyone will see the new " + gv(g, "name") + " details.";
+    } catch (_) { msg.textContent = "Saved on this device only. Run supabase_schema.sql (and supabase_game_settings.sql) in Supabase once so everyone sees it."; }
   }
 });
 $("owGames").addEventListener("change", async e => {
@@ -2831,7 +2831,7 @@ $("homeBtn").addEventListener("click", () => { freeMouse(); flushSave().then(() 
       if (r.error) r = await sb.from(GAME_TABLE).upsert(base);                       // about column not added yet
       if (r.error) throw r.error;
       msg("Saved. Everyone will see the new details.");
-    } catch (_) { msg("Saved on this device only. Run supabase_owner_tools.sql in Supabase once so everyone sees it.", true); }
+    } catch (_) { msg("Saved on this device only. Run supabase_schema.sql in Supabase once so everyone sees it.", true); }
     b.disabled = false;
   });
 })();
@@ -3066,7 +3066,7 @@ async function friendAct(kind, id) {
 /* ---- js/social/badges.js ---- */
 "use strict";
 
-/* ---- badges: given out only by the Owner (enforced in Supabase, see supabase_badges.sql) ---- */
+/* ---- badges: given out only by the Owner (enforced in Supabase, see supabase_schema.sql) ---- */
 const BADGES = { owner: "Owner", admin: "Admin", mod: "Moderator", ugc: "Official UGC Creator", bugfinder: "Bug Finder", alpha: "Alpha Publisher" };
 const BADGE_ORDER = ["owner", "admin", "mod", "ugc", "bugfinder", "alpha"];
 const BADGE_PERMS = { owner: { can_ugc: true, can_edit_items: true }, ugc: { can_ugc: true }, alpha: { can_studio: true, can_publish: true } };   // what each badge lets you do
@@ -3075,7 +3075,7 @@ const BADGE_COLOR = { owner: "#ffd23f", admin: "#ff5d5d", mod: "#4aa8ff", ugc: "
 const badgeColor = k => BADGE_COLOR[k] || ("hsl(" + badgeHueValue(k) + ",80%,62%)");
 function badgeHueValue(k) { const text = String(k); if (window.TriancleRust && window.TriancleRust.badgeHue) { const hue = window.TriancleRust.badgeHue(text); if (hue !== null) return hue; } return [...text].reduce((a,c) => (a*31+c.charCodeAt(0))%360,7); }
 const BADGE_IMG = {"owner": "assets/badges/owner.png", "admin": "assets/badges/admin.png", "mod": "assets/badges/mod.png", "ugc": "assets/badges/ugc.png", "bugfinder": "assets/badges/bugfinder.png", "alpha": "assets/badges/alpha.png?v=1"};
-/* Badges the Owner made in the site (table badge_defs, see supabase_catalog.sql). They join the built-in five. */
+/* Badges the Owner made in the site (table badge_defs, see supabase_schema.sql). They join the built-in five. */
 async function loadBadgeDefs() {
   const sb = getSB(); if (!sb) return;
   try {
@@ -3123,7 +3123,7 @@ const pcard = (id, sub) => {
   const bd = smallBadges(id), meta = [sub].filter(Boolean).join(" · ");
   return `<button class="pcard box" type="button" data-pid="${esc(id)}"><img class="pface" alt="" src="${thumb(p.body_colors, "face", id)}"><span class="pn" title="@${esc(p.username)}">${esc(dn(p))}</span>${bd ? `<span class="pbd">${bd}</span>` : ""}${meta ? `<span class="ps">${esc(meta)}</span>` : ""}</button>`;
 };
-const noteSQL = '<div class="note">Run supabase_social.sql in Supabase once to turn on friends.</div>';
+const noteSQL = '<div class="note">Run supabase_schema.sql in Supabase once to turn on friends.</div>';
 
 ;
 
@@ -3253,7 +3253,7 @@ async function renderProfile(id) {
       $("pSave").addEventListener("click", async () => {
         $("pMsg").textContent = "Saving…";
         const r = await getSB().from(CFG.SAVE_TABLE).update({ about: ta.value.trim().slice(0, 200) }).eq("id", me);
-        if (r.error) $("pMsg").textContent = "Couldn't save (run supabase_social.sql)"; else renderProfile(id);
+        if (r.error) $("pMsg").textContent = "Couldn't save (run supabase_schema.sql)"; else renderProfile(id);
       });
     });
   }
@@ -3373,10 +3373,10 @@ window.addEventListener("resize", () => { cancelAnimationFrame(pfT); pfT = reque
    ACCOUNT SETTINGS
    - Display name: free, change any time (player_profiles.display_name)
    - Username: costs USERNAME_COST triangcles every time. The charge, the check that the name is free and the
-     rename itself all happen in Supabase (change_username in supabase_account.sql) so nobody can skip the cost.
+     rename itself all happen in Supabase (change_username in supabase_schema.sql) so nobody can skip the cost.
    - Old usernames are kept in username_history and shown on the player's profile.
    ===================================================================== */
-const USERNAME_COST = 150;                                          // keep in step with supabase_account.sql
+const USERNAME_COST = 150;                                          // keep in step with supabase_schema.sql
 const NAME_RE = /^[A-Za-z0-9_]{3,20}$/;
 const DISPLAY_RE = /^[\p{L}\p{N}_.'\- ]{1,20}$/u;
 function validDisplayName(value) { if (window.TriancleRust && window.TriancleRust.validDisplayName) { const ok = window.TriancleRust.validDisplayName(value); if (ok !== null) return ok; } return DISPLAY_RE.test(value); }
@@ -3428,7 +3428,7 @@ async function saveDisplayName() {
     if (r.error || !(r.data && r.data.length)) throw r.error || new Error("no row");
     const p = SOC.cache.get(acct.user.id); if (p) p.display_name = v || null;
     msg.textContent = v ? "Saved. People will see \"" + v + "\"." : "Saved. People will see your username.";
-  } catch (_) { msg.textContent = "Couldn't save. Run supabase_account.sql in Supabase once."; }
+  } catch (_) { msg.textContent = "Couldn't save. Run supabase_schema.sql in Supabase once."; }
 }
 
 async function saveUsername() {
@@ -3449,7 +3449,7 @@ async function saveUsername() {
     $("sUserMsg").textContent = "Done. You're now @" + acct.username + ".";
   } catch (e) {
     const m = String(e && e.message);
-    msg.textContent = RENAME_ERR[m] || "Couldn't change it. Run supabase_account.sql in Supabase once.";
+    msg.textContent = RENAME_ERR[m] || "Couldn't change it. Run supabase_schema.sql in Supabase once.";
   }
   btn.disabled = false;
 }
@@ -3593,7 +3593,7 @@ $("rptSend").addEventListener("click", async () => {
     const r = await sb.from("reports").insert({ reporter: acct.user.id, reported_name: rptName, reported_id: id, reason: $("rptReason").value, details: $("rptText").value.trim().slice(0, 300) });
     err = r.error;
   } catch (e) { err = e; }
-  if (err) { $("rptMsg").textContent = "Couldn't send. Run supabase_social.sql first."; $("rptSend").disabled = false; }
+  if (err) { $("rptMsg").textContent = "Couldn't send. Run supabase_schema.sql first."; $("rptSend").disabled = false; }
   else { $("rptMsg").textContent = "Report sent. Thanks!"; setTimeout(closeReport, 1100); }
 });
 
@@ -3693,7 +3693,7 @@ async function renderPlayers(reset) {
     $("plList").insertAdjacentHTML("beforeend", rows.map(p => pcard(p.id, p.id === acct.user.id ? "you" : "")).join(""));
     PL.from += rows.length;
     $("plMore").hidden = rows.length < PL.per;
-    $("plNote").textContent = PL.from ? (PL.noNum ? "Player IDs and newest/oldest need supabase_badges.sql to be run once." : "") : (PL.q || PL.filter !== "all" ? "No players found." : "No players yet.");
+    $("plNote").textContent = PL.from ? (PL.noNum ? "Player IDs and newest/oldest need supabase_schema.sql to be run once." : "") : (PL.q || PL.filter !== "all" ? "No players found." : "No players yet.");
   } catch (_) { $("plNote").textContent = "Couldn't load players right now."; }
   PL.busy = false;
 }
@@ -3740,7 +3740,7 @@ async function renderOwner() {
     await getBadges(ids);
     $("owList").innerHTML = ids.map(ownerRow).join("");
     msg.textContent = ids.length ? (OW.q ? "" : "Players who have badges right now:") : (OW.q ? "No players found." : "Nobody has a badge yet. Search for a player above.");
-  } catch (_) { msg.textContent = "Couldn't load badges. Run supabase_badges.sql in Supabase once."; }
+  } catch (_) { msg.textContent = "Couldn't load badges. Run supabase_schema.sql in Supabase once."; }
 }
 $("owList").addEventListener("click", async e => {
   const moneyBtn = e.target.closest("[data-wallet]");
@@ -3767,7 +3767,7 @@ $("owList").addEventListener("click", async e => {
                   : await sb.from("badges").insert({ user_id: uid, badge: k, granted_by: acct.user.id });
     if (r.error) throw r.error;
     $("owMsg").textContent = "";
-  } catch (_) { $("owMsg").textContent = "Couldn't change that badge. Make sure supabase_badges.sql has been run and your account has the Owner badge."; }
+  } catch (_) { $("owMsg").textContent = "Couldn't change that badge. Make sure supabase_schema.sql has been run and your account has the Owner badge."; }
   await getBadges([uid]);
   row.outerHTML = ownerRow(uid);
 });
@@ -3832,7 +3832,7 @@ $("bdCreate").addEventListener("click", async () => {
     await loadBadgeDefs(); renderBadgeAdmin(); renderOwner();
   } catch (e) {
     if (path) { try { await sb.storage.from("badges").remove([path]); } catch (_) {} }
-    bdMsg("Couldn't make the badge. Run supabase_catalog.sql in Supabase once. (" + String(e && e.message || "").slice(0, 80) + ")", true);
+    bdMsg("Couldn't make the badge. Run supabase_schema.sql in Supabase once. (" + String(e && e.message || "").slice(0, 80) + ")", true);
   }
   b.disabled = false;
 });
@@ -3852,7 +3852,7 @@ $("bdList").addEventListener("change", async e => {
     const r = await sb.from("badge_defs").update({ [cb.dataset.perm]: cb.checked }).eq("key", k);
     if (r.error) throw r.error;
     bdMsg("Saved.");
-  } catch (_) { cb.checked = !cb.checked; bdMsg("Couldn't change that. Run supabase_catalog.sql in Supabase once.", true); }
+  } catch (_) { cb.checked = !cb.checked; bdMsg("Couldn't change that. Run supabase_schema.sql in Supabase once.", true); }
   cb.disabled = false; await loadBadgeDefs(); updateUgcBtn();
 });
 $("bdList").addEventListener("click", async e => {
@@ -3892,7 +3892,7 @@ $("fcImport").addEventListener("click", async () => {
     await loadFaceMeta(true);
     fcMsg(added ? "Added " + added + " face" + (added === 1 ? "" : "s") + " to the Catalog." + (g.error ? "" : " " + (g.data || 0) + " players kept the face they already had.")
                  : "All the built-in faces are already in the Catalog." + (g.error ? "" : " (" + (g.data || 0) + " players re-checked.)"));
-  } catch (e) { fcMsg("Couldn't add them. Run supabase_catalog.sql in Supabase once. (" + String(e && e.message || "").slice(0, 100) + ")", true); }
+  } catch (e) { fcMsg("Couldn't add them. Run supabase_schema.sql in Supabase once. (" + String(e && e.message || "").slice(0, 100) + ")", true); }
   b.disabled = false;
 });
 
@@ -3902,7 +3902,7 @@ $("fcImport").addEventListener("click", async () => {
 "use strict";
 
 /* ---- Owner page: upload new faces into the Catalog, and edit the name / description / price of any Catalog item ----
-   Works for anyone with the Owner badge (not just one account). The server checks it too (supabase_owner_tools.sql). ---- */
+   Works for anyone with the Owner badge (not just one account). The server checks it too (supabase_schema.sql). ---- */
 const FU = { file: null, prevUrl: "" };
 const fuMsg = (t, bad) => { const n = $("fcMsg"); n.textContent = t || ""; n.style.color = bad ? "#ff7a6b" : ""; };
 for (const id of ["fcNew", "oiList"]) $(id).addEventListener("keydown", e => e.stopPropagation());
@@ -3961,7 +3961,7 @@ $("fcUpload").addEventListener("click", async () => {
     if (typeof renderOwnerItems === "function") renderOwnerItems();
   } catch (e) {
     if (path) { try { await sb.storage.from("ugc").remove([path]); } catch (_) {} }
-    fuMsg("Couldn't upload the face. Run supabase_catalog.sql and supabase_owner_tools.sql in Supabase once. (" + String(e && e.message || "").slice(0, 90) + ")", true);
+    fuMsg("Couldn't upload the face. Run supabase_schema.sql in Supabase once. (" + String(e && e.message || "").slice(0, 90) + ")", true);
   }
   b.disabled = false;
 });
@@ -3995,7 +3995,7 @@ async function renderOwnerItems() {
     OI.rows.clear(); for (const it of (r.data || [])) OI.rows.set(it.id, it);
     $("oiList").innerHTML = (r.data || []).map(oiRow).join("");
     oiMsg((r.data || []).length ? (OI.q ? "" : "Newest items first. Search to find a specific one.") : "No items found.");
-  } catch (e) { oiMsg("Couldn't load items. Run supabase_catalog.sql in Supabase once.", true); }
+  } catch (e) { oiMsg("Couldn't load items. Run supabase_schema.sql in Supabase once.", true); }
 }
 $("oiList").addEventListener("click", async e => {
   const btn = e.target.closest("[data-osave]"); if (!btn || !isOwner()) return;
@@ -4044,7 +4044,7 @@ $("oiList").addEventListener("click", async e => {
 
 /* ---- One copy at a time + automatic updates ----
    1. Only one Triancle tab/window per browser can be open: extra ones are blocked until the first is closed.
-   2. A signed-in account can only play in one place at once (another browser, a phone, the desktop app...): needs supabase_owner_tools.sql.
+   2. A signed-in account can only play in one place at once (another browser, a phone, the desktop app...): needs supabase_schema.sql.
    3. When the site is updated, the website refreshes itself; the desktop app shows a box asking to restart. */
 (function () {
   const IN_APP = !!(window.TriancleApp && window.TriancleApp.isApp);
@@ -4405,7 +4405,7 @@ async function renderUgcList() {
     const rows = r.data || []; box._rows = rows;
     box.innerHTML = rows.length ? rows.map(it => `<div class="ugCard box" data-id="${esc(it.id)}"><b>${esc(it.name)}</b><div class="note">${esc(slotName(it.attach))}</div><div class="note ugSt">${esc(it.published ? (it.price ? Number(it.price).toLocaleString() + " Shapes" : "Free") + " · " + (it.sales || 0) + " sold" : "Not for sale")}</div><div class="ugRow"><button class="btnG" data-ug="edit" type="button">Edit model</button><button class="btnG" data-ug="page" type="button">Name, description &amp; price</button><button class="btnG" data-ug="del" type="button">Delete</button></div></div>`).join("")
       : '<div class="note">No items yet.</div>';
-  } catch (_) { box.innerHTML = '<div class="note">Couldn\'t load your items. Run supabase_badges.sql in Supabase once.</div>'; }
+  } catch (_) { box.innerHTML = '<div class="note">Couldn\'t load your items. Run supabase_schema.sql in Supabase once.</div>'; }
 }
 $("ugList").addEventListener("click", async e => {
   const b = e.target.closest("[data-ug]"); if (!b) return;
@@ -4459,7 +4459,7 @@ function ugLoop() {
 
 /* =====================================================================
    TRIANGCLES: wallet, Shop, buying, and wearing UGC items
-   Everything that moves money runs in Supabase (see supabase_triangcles.sql):
+   Everything that moves money runs in Supabase (see supabase_schema.sql):
    get_wallet(), buy_ugc_item(), set_ugc_equipped(), ugc_items_by_ids().
    ===================================================================== */
 const TRI_SVG = '<img class="tcI" src="assets/img/shapes.png" alt="">';
@@ -4467,7 +4467,7 @@ const fmtT = n => Number(n || 0).toLocaleString();
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function validItemId(value) { if (window.TriancleRust && window.TriancleRust.validItemId) { const ok = window.TriancleRust.validItemId(value); if (ok !== null) return ok; } return UUID_RE.test(value); }
 const MAX_WORN = 6;
-const SQL_HINT = "Run supabase_triangcles.sql and supabase_taxes.sql in Supabase once.";
+const SQL_HINT = "Run supabase_schema.sql in Supabase once.";
 const ITM = { models: new Map(), thumbs: new Map(), rows: new Map(), q: Promise.resolve() };
 const WAL = { bal: null };
 const INV = { owned: new Set(), ok: true, loaded: false };
@@ -5072,7 +5072,7 @@ async function loadNotifs() {
     const r = await sb.from("notifications").select("id, title, body, read, created_at").order("created_at", { ascending: false }).limit(500);
     if (r.error) throw r.error;
     NOTIF.rows = r.data || [];
-  } catch (_) { NOTIF.rows = []; }                                  // the table isn't there until supabase_taxes.sql has been run
+  } catch (_) { NOTIF.rows = []; }                                  // the table isn't there until supabase_schema.sql has been run
   if (!$("notifPanel").hidden) for (const r of NOTIF.rows) if (!r.read) NOTIF.fresh.add(r.id);
   notifPaint();
   if (!NOTIF.timer) NOTIF.timer = setInterval(() => { if (acct.user && !document.hidden) loadNotifs(); }, 45000);
@@ -5186,7 +5186,7 @@ $("txBody").addEventListener("click", e => {
 
 /* ---- Owner tools on an item page: rename, describe, set the price, put on / take off sale, delete.
    Works for ANY item in the Catalog. Needs the Owner badge (or a badge that allows "edit items") - and
-   the server checks it too (owner_update_item / owner_delete_item in supabase_catalog.sql). ---- */
+   the server checks it too (owner_update_item / owner_delete_item in supabase_schema.sql). ---- */
 const canEditItems = () => hasBadgePerm("can_edit_items");
 const isMyItem = it => !!(it && acct.user && it.creator === acct.user.id);             // creators can always edit their own items
 const canEditItem = it => canEditItems() || isMyItem(it);

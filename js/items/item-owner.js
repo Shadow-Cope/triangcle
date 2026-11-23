@@ -2,7 +2,7 @@
 
 /* ---- Owner tools on an item page: rename, describe, set the price, put on / take off sale, delete.
    Works for ANY item in the Catalog. Needs the Owner badge (or a badge that allows "edit items") - and
-   the server checks it too (owner_update_item / owner_delete_item in supabase_catalog.sql). ---- */
+   the server checks it too (owner_update_item / owner_delete_item in supabase_schema.sql). ---- */
 const canEditItems = () => hasBadgePerm("can_edit_items");
 const ioMsg = (t, bad) => { const n = $("ioMsg"); n.textContent = t || ""; n.style.color = bad ? "#ff7a6b" : ""; };
 $("ipOwner").addEventListener("keydown", e => e.stopPropagation());
@@ -20,7 +20,7 @@ function ioErr(e) {
     : m.includes("bad_name") ? "Names are 1 to 40 characters."
     : m.includes("bad_price") ? "Price must be a whole number from 0 to 1,000,000."
     : m.includes("not_found") ? "That item doesn't exist anymore."
-    : "Couldn't do that. Run supabase_catalog.sql in Supabase once. (" + m.slice(0, 80) + ")";
+    : "Couldn't do that. Run supabase_schema.sql in Supabase once. (" + m.slice(0, 80) + ")";
 }
 $("ioSave").addEventListener("click", async () => {
   const sb = getSB(), it = ITM.rows.get(IP.id); if (!sb || !it || !canEditItems()) return;

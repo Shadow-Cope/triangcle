@@ -27,13 +27,13 @@ create policy custom_games_insert_own on custom_games
 drop policy if exists custom_games_update_own on custom_games;
 create policy custom_games_update_own on custom_games
   for update to authenticated
-  using (created_by = auth.uid())
-  with check (created_by = auth.uid());
+  using (created_by = auth.uid() or public.is_staff())
+  with check (created_by = auth.uid() or public.is_staff());
 
 drop policy if exists custom_games_delete_own on custom_games;
 create policy custom_games_delete_own on custom_games
   for delete to authenticated
-  using (created_by = auth.uid());
+  using (created_by = auth.uid() or public.is_staff());
 
 -- =====================================================================
 -- ONE-TIME RESET: delete every game published so far.

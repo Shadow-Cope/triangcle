@@ -52,7 +52,7 @@ $("rptSend").addEventListener("click", async () => {
     const r = await sb.from("reports").insert({ reporter: acct.user.id, reported_name: rptName, reported_id: id, reason: $("rptReason").value, details: $("rptText").value.trim().slice(0, 300) });
     err = r.error;
   } catch (e) { err = e; }
-  if (err) { $("rptMsg").textContent = "Couldn't send. Run supabase_social.sql first."; $("rptSend").disabled = false; }
+  if (err) { $("rptMsg").textContent = "Couldn't send. Run supabase_schema.sql first."; $("rptSend").disabled = false; }
   else { $("rptMsg").textContent = "Report sent. Thanks!"; setTimeout(closeReport, 1100); }
 });
 

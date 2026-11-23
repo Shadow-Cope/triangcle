@@ -72,7 +72,7 @@ async function loadGameSettings() {                                    // everyo
   const sb = getSB(); if (!sb) return;
   try {
     let r = await sb.from(GAME_TABLE).select("id, name, owner_name, thumb, icon, btools");
-    if (r.error) r = await sb.from(GAME_TABLE).select("id, name, owner_name, thumb, icon");     // btools column not added yet (supabase_account.sql)
+    if (r.error) r = await sb.from(GAME_TABLE).select("id, name, owner_name, thumb, icon");     // btools column not added yet (supabase_schema.sql)
     if (r.error) throw r.error;
     const cache = {};
     for (const row of (r.data || [])) { const v = { name: row.name, by: row.owner_name, thumb: row.thumb, icon: row.icon, btools: row.btools }; applyGameRow(row.id, v); cache[row.id] = v; }

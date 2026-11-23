@@ -87,7 +87,7 @@ $("owGames").addEventListener("click", async e => {
       let r = await sb.from(GAME_TABLE).upsert(Object.assign({ btools: g.btools || "all" }, base)), noBT = false;
       if (r.error) { r = await sb.from(GAME_TABLE).upsert(base); noBT = true; }                  // btools column missing: save the rest
       if (r.error) throw r.error;
-      msg.textContent = noBT ? "Saved, but the building-tools setting needs supabase_account.sql run once in Supabase." : "Saved. Everyone will see the new " + gv(g, "name") + " details.";
+      msg.textContent = noBT ? "Saved, but the building-tools setting needs supabase_schema.sql run once in Supabase." : "Saved. Everyone will see the new " + gv(g, "name") + " details.";
     } catch (_) { msg.textContent = "Saved on this device only. Run supabase_game_settings.sql in Supabase once so everyone sees it."; }
   }
 });

@@ -45,7 +45,7 @@ async function renderPlayers(reset) {
     $("plList").insertAdjacentHTML("beforeend", rows.map(p => pcard(p.id, p.id === acct.user.id ? "you" : "")).join(""));
     PL.from += rows.length;
     $("plMore").hidden = rows.length < PL.per;
-    $("plNote").textContent = PL.from ? (PL.noNum ? "Player IDs and newest/oldest need supabase_badges.sql to be run once." : "") : (PL.q || PL.filter !== "all" ? "No players found." : "No players yet.");
+    $("plNote").textContent = PL.from ? (PL.noNum ? "Player IDs and newest/oldest need supabase_schema.sql to be run once." : "") : (PL.q || PL.filter !== "all" ? "No players found." : "No players yet.");
   } catch (_) { $("plNote").textContent = "Couldn't load players right now."; }
   PL.busy = false;
 }

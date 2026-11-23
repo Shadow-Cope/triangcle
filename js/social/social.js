@@ -108,7 +108,7 @@ async function renderProfile(id) {
       $("pSave").addEventListener("click", async () => {
         $("pMsg").textContent = "Saving…";
         const r = await getSB().from(CFG.SAVE_TABLE).update({ about: ta.value.trim().slice(0, 200) }).eq("id", me);
-        if (r.error) $("pMsg").textContent = "Couldn't save (run supabase_social.sql)"; else renderProfile(id);
+        if (r.error) $("pMsg").textContent = "Couldn't save (run supabase_schema.sql)"; else renderProfile(id);
       });
     });
   }

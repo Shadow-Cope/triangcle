@@ -1,12 +1,12 @@
 "use strict";
 
-/* ---- badges: given out only by the Owner (enforced in Supabase, see supabase_badges.sql) ---- */
+/* ---- badges: given out only by the Owner (enforced in Supabase, see supabase_schema.sql) ---- */
 const BADGES = { owner: "Owner", admin: "Admin", mod: "Moderator", ugc: "Official UGC Creator", bugfinder: "Bug Finder", alpha: "Alpha Publisher" };
 const BADGE_ORDER = ["owner", "admin", "mod", "ugc", "bugfinder", "alpha"];
 const BADGE_PERMS = { owner: { can_ugc: true, can_edit_items: true }, ugc: { can_ugc: true }, alpha: { can_studio: true, can_publish: true } };   // what each badge lets you do
 const BADGE_BUILTIN = BADGE_ORDER.slice();
 const BADGE_IMG = {"owner": "assets/badges/owner.png", "admin": "assets/badges/admin.png", "mod": "assets/badges/mod.png", "ugc": "assets/badges/ugc.png", "bugfinder": "assets/badges/bugfinder.png", "alpha": "assets/badges/alpha.png?v=1"};
-/* Badges the Owner made in the site (table badge_defs, see supabase_catalog.sql). They join the built-in five. */
+/* Badges the Owner made in the site (table badge_defs, see supabase_schema.sql). They join the built-in five. */
 async function loadBadgeDefs() {
   const sb = getSB(); if (!sb) return;
   try {
@@ -54,4 +54,4 @@ const pcard = (id, sub) => {
   const bd = smallBadges(id), meta = [sub].filter(Boolean).join(" · ");
   return `<button class="pcard box" type="button" data-pid="${esc(id)}"><img class="pface" alt="" src="${thumb(p.body_colors, "face", id)}"><span class="pn" title="@${esc(p.username)}">${esc(dn(p))}</span>${bd ? `<span class="pbd">${bd}</span>` : ""}${meta ? `<span class="ps">${esc(meta)}</span>` : ""}</button>`;
 };
-const noteSQL = '<div class="note">Run supabase_social.sql in Supabase once to turn on friends.</div>';
+const noteSQL = '<div class="note">Run supabase_schema.sql in Supabase once to turn on friends.</div>';

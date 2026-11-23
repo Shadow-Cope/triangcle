@@ -209,7 +209,7 @@ async function ugSave() {
     if (old && old !== path) { try { await sb.storage.from("ugc").remove([old]); } catch (_) {} }
     UG.editId = id; UG.path = path; UG.file = null;
     ugMsg("Saved “" + name + "”."); renderUgcList(); ugSync(); if (typeof refreshWorn === "function") refreshWorn(id);
-  } catch (e) { ugMsg("Couldn't save. Run supabase_badges.sql once, and check your badge lets you make UGC." + (cloth ? " Clothes also need supabase_clothing.sql run once." : ""), true); }
+  } catch (e) { ugMsg("Couldn't save. Run supabase_schema.sql once, and check your badge lets you make UGC." + (cloth ? " Clothes also need supabase_clothing.sql run once." : ""), true); }
   $("ugSave").disabled = false;
 }
 async function renderUgcList() {
@@ -221,7 +221,7 @@ async function renderUgcList() {
     const rows = r.data || []; box._rows = rows;
     box.innerHTML = rows.length ? rows.map(it => `<div class="ugCard box" data-id="${esc(it.id)}"><b>${esc(it.name)}</b><div class="note">${esc(slotName(it.attach))}</div><div class="note ugSt">${esc(it.published ? (it.price ? Number(it.price).toLocaleString() + " Triangcles" : "Free") + " · " + (it.sales || 0) + " sold" : "Not for sale")}</div><div class="ugRow"><button class="btnG" data-ug="edit" type="button">Edit</button><button class="btnG" data-ug="del" type="button">Delete</button></div></div>`).join("")
       : '<div class="note">Nothing saved yet. Upload a GLB above to make your first item.</div>';
-  } catch (_) { box.innerHTML = '<div class="note">Couldn\'t load your items. Run supabase_badges.sql in Supabase once.</div>'; }
+  } catch (_) { box.innerHTML = '<div class="note">Couldn\'t load your items. Run supabase_schema.sql in Supabase once.</div>'; }
 }
 $("ugList").addEventListener("click", async e => {
   const b = e.target.closest("[data-ug]"); if (!b) return;
