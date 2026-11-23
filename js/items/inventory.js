@@ -6,8 +6,9 @@ async function loadInventory() {
   try {
     const r = await sb.from("ugc_inventory").select("item_id, equipped, acquired_at").eq("user_id", acct.user.id).order("acquired_at", { ascending: true });
     if (r.error) throw r.error;
-    INV.ok = true; INV.loaded = true; INV.owned = new Set((r.data || []).map(x => x.item_id));
-    setMyItems((r.data || []).filter(x => x.equipped).map(x => x.item_id));
+    const rows = r.data || [], normalized = window.TriancleRust && window.TriancleRust.inventoryRows ? window.TriancleRust.inventoryRows(rows) : null;
+    INV.ok = true; INV.loaded = true; INV.owned = new Set(normalized ? normalized.owned : rows.map(x => x.item_id));
+    setMyItems(normalized ? normalized.equipped : rows.filter(x => x.equipped).map(x => x.item_id));
   } catch (_) { INV.ok = false; }
   if (typeof renderAvItems === "function") renderAvItems();
 }
@@ -18,7 +19,8 @@ async function equipItem(id, on) {
       const it = ITM.rows.get(id);
       if (it && isCloth(it.attach)) for (const o of WEAR.mine.slice()) {
         const x = ITM.rows.get(o);
-        if (o !== id && x && x.attach === it.attach) { const off = await sb.rpc("set_ugc_equipped", { p_item: o, p_on: false }); if (off.error) throw off.error; }
+        const plan = x && window.TriancleRust && window.TriancleRust.equipConflicts ? window.TriancleRust.equipConflicts(id,it.attach,[{id:o,attach:x.attach}]) : null;
+        if (plan ? plan.length > 0 : o !== id && x && x.attach === it.attach) { const off = await sb.rpc("set_ugc_equipped", { p_item: o, p_on: false }); if (off.error) throw off.error; }
       }
     }
     const r = await sb.rpc("set_ugc_equipped", { p_item: id, p_on: on });

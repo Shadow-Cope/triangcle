@@ -30,6 +30,7 @@ const RBX_ROT = {2:[1,0,0,0,1,0,0,0,1],3:[1,0,0,0,0,-1,0,1,0],5:[1,0,0,0,-1,0,0,
 const RBX_PARTS = new Set(["Part", "SpawnLocation", "Seat", "VehicleSeat", "MeshPart", "WedgePart", "CornerWedgePart", "TrussPart"]);
 const RBX_MAX_PARTS = 6000;
 function lz4Block(src, n) {
+  if (window.TriancleRust && window.TriancleRust.lz4) { const result = window.TriancleRust.lz4(src, n); if (result) return result; }
   const dst = new Uint8Array(n); let s = 0, d = 0;
   while (s < src.length && d < n) {
     const tok = src[s++]; let lit = tok >> 4;
@@ -64,14 +65,19 @@ async function rbxToMap(buf) {
     }
     chunks.push({ name, data }); if (name === "END") break;
   }
+  if (window.TriancleRust && window.TriancleRust.rbxlMap) { const map = window.TriancleRust.rbxlMap(chunks); if (map) return map; }
   const td = new TextDecoder(), dvOf = d => new DataView(d.buffer, d.byteOffset, d.byteLength);
   const rdStr = (d, o) => { const n = dvOf(d).getUint32(o, true); return [td.decode(d.subarray(o + 4, o + 4 + n)), o + 4 + n]; };
-  const deint = (d, o, n) => { const out = new Array(n); for (let i = 0; i < n; i++) out[i] = ((d[o + i] * 16777216) + (d[o + n + i] << 16) + (d[o + 2 * n + i] << 8) + d[o + 3 * n + i]) >>> 0; return out; };
-  const zz = v => (v >>> 1) ^ -(v & 1);
-  const fl = v => { v = ((v >>> 1) | (v << 31)) >>> 0; const b = new DataView(new ArrayBuffer(4)); b.setUint32(0, v); return b.getFloat32(0); };
-  const refsOf = arr => { let a = 0; return arr.map(v => a += zz(v)); };
+  const deint = (d, o, n) => { if (window.TriancleRust && window.TriancleRust.deinterleave) { const result = window.TriancleRust.deinterleave(d, o, n); if (result) return result; } const out = new Array(n); for (let i = 0; i < n; i++) out[i] = ((d[o + i] * 16777216) + (d[o + n + i] << 16) + (d[o + 2 * n + i] << 8) + d[o + 3 * n + i]) >>> 0; return out; };
+  const zz = v => window.TriancleRust && window.TriancleRust.zigzag ? window.TriancleRust.zigzag(v) : (v >>> 1) ^ -(v & 1);
+  const fl = v => { if (window.TriancleRust && window.TriancleRust.rbxlFloat) return window.TriancleRust.rbxlFloat(v); v = ((v >>> 1) | (v << 31)) >>> 0; const b = new DataView(new ArrayBuffer(4)); b.setUint32(0, v); return b.getFloat32(0); };
+  const refsOf = arr => { if (window.TriancleRust && window.TriancleRust.references) { const result = window.TriancleRust.references(arr); if (result) return result; } let a = 0; return arr.map(v => a += zz(v)); };
   const classes = {}, inst = new Map(), parent = new Map();
-  for (const c of chunks) if (c.name === "INST") {
+  const rustIndex = window.TriancleRust && window.TriancleRust.rbxlIndex ? window.TriancleRust.rbxlIndex(chunks) : null;
+  if (rustIndex) {
+    for (const [id, nm, refs] of rustIndex.classes) { classes[id] = { name: nm, refs }; for (const r of refs) inst.set(r, { c: nm, p: {} }); }
+    for (const [child, par] of rustIndex.parents) parent.set(child, par);
+  } else for (const c of chunks) if (c.name === "INST") {
     const d = c.data, dv = dvOf(d), id = dv.getUint32(0, true); let [nm, o] = rdStr(d, 4); o++;
     const n = dv.getUint32(o, true); o += 4; const refs = refsOf(deint(d, o, n));
     classes[id] = { name: nm, refs }; for (const r of refs) inst.set(r, { c: nm, p: {} });
@@ -82,7 +88,8 @@ async function rbxToMap(buf) {
     if (c.name === "PROP") {
       const id = dv.getUint32(0, true); let [pn, o] = rdStr(d, 4); const t = d[o++], cl = classes[id];
       if (!cl || !RBX_PARTS.has(cl.name) || !WANT[pn]) continue;
-      const n = cl.refs.length; let vals = null;
+      const n = cl.refs.length; let vals = window.TriancleRust && window.TriancleRust.rbxlProperty ? window.TriancleRust.rbxlProperty(d, o, n, t) : null;
+      if (!vals) {
       if (t === 1) { vals = []; for (let i = 0; i < n; i++) { let v; [v, o] = rdStr(d, o); vals.push(v); } }
       else if (t === 2) { vals = []; for (let i = 0; i < n; i++) vals.push(!!d[o + i]); }
       else if (t === 4) vals = deint(d, o, n).map(fl);
@@ -95,8 +102,9 @@ async function rbxToMap(buf) {
         const X = deint(d, o, n).map(fl), Y = deint(d, o + 4 * n, n).map(fl), Z = deint(d, o + 8 * n, n).map(fl);
         vals = rot.map((r, i) => ({ pos: [X[i], Y[i], Z[i]], rot: r }));
       }
+      }
       if (vals) cl.refs.forEach((r, i) => { inst.get(r).p[pn] = vals[i]; });
-    } else if (c.name === "PRNT") {
+    } else if (c.name === "PRNT" && !rustIndex) {
       const n = dv.getUint32(1, true), ch = refsOf(deint(d, 5, n)), pa = refsOf(deint(d, 5 + 4 * n, n));
       ch.forEach((k, i) => parent.set(k, pa[i]));
     }
@@ -115,6 +123,7 @@ async function rbxToMap(buf) {
     if (q.c === "SpawnLocation" && !spawn) spawn = [row[3], row[4] + row[1] / 2 + 3, row[5]];
   }
   if (!rows.length) throw new Error("noparts");
+  if (!spawn && window.TriancleRust && window.TriancleRust.defaultSpawn) spawn = window.TriancleRust.defaultSpawn(rows);
   if (!spawn) {
     let best = null;
     for (const r of rows) {

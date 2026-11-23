@@ -68,6 +68,15 @@ function iinvMul(d, vec, out) {
 function stepDebris(dt) {
   const e0 = CFG.DEBRIS_RESTITUTION, mu = CFG.DEBRIS_FRICTION;
   for (const d of debris) {
+    const stepped = window.TriancleRust && window.TriancleRust.stepDebris
+      ? window.TriancleRust.stepDebris(d,dt,CFG.GRAVITY,e0,mu,solids) : null;
+    if (stepped) {
+      d.g.position.set(stepped[0],stepped[1],stepped[2]);
+      d.g.quaternion.set(stepped[3],stepped[4],stepped[5],stepped[6]);
+      d.v.set(stepped[7],stepped[8],stepped[9]);
+      d.w.set(stepped[10],stepped[11],stepped[12]);
+      continue;
+    }
     const p = d.g.position, q = d.g.quaternion, v = d.v, w = d.w;
     v.y -= CFG.GRAVITY * dt;
     p.addScaledVector(v, dt);

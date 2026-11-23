@@ -24,10 +24,11 @@ const uiAlert = msg => uiPopup(msg, "OK", null, false);
 /* ---- taxes & fees (the server enforces these in supabase_taxes.sql; this only mirrors them for the screens).
    Kept at the very top with only function declarations so it can be used from anywhere, even at start-up. ---- */
 var TAX_MAX = 1000000;
-function kindOfItem(a) { return (a === "Shirt" || a === "Pants") ? "cloth" : a === "Face" ? "face" : "acc"; }
-function uploadFee(a) { return { cloth: 5, acc: 150, face: 0 }[kindOfItem(a)]; }
-function minPrice(a) { return { cloth: 5, acc: 50, face: 0 }[kindOfItem(a)]; }
-function listFee(price, a) { return kindOfItem(a) === "face" ? 0 : Math.ceil(Math.max(0, +price || 0) * 0.15); }
+function kindOfItem(a) { if (window.TriancleRust && window.TriancleRust.itemKind) { const kind = window.TriancleRust.itemKind(a); if (kind !== null) return ["acc", "cloth", "face"][kind]; } return (a === "Shirt" || a === "Pants") ? "cloth" : a === "Face" ? "face" : "acc"; }
+function uploadFee(a) { if (window.TriancleRust && window.TriancleRust.itemKind) { const kind = window.TriancleRust.itemKind(a); if (kind !== null) return window.TriancleRust.itemUploadFee(kind); } return { cloth: 5, acc: 150, face: 0 }[kindOfItem(a)]; }
+function minPrice(a) { if (window.TriancleRust && window.TriancleRust.itemKind) { const kind = window.TriancleRust.itemKind(a); if (kind !== null) return window.TriancleRust.itemMinPrice(kind); } return { cloth: 5, acc: 50, face: 0 }[kindOfItem(a)]; }
+function listFee(price, a) { if (kindOfItem(a) === "face") return 0; const n = +price || 0; return window.TriancleRust && window.TriancleRust.listingFee ? window.TriancleRust.listingFee(n, false) : Math.ceil(Math.max(0, n) * 0.15); }
+function creatorShare(price) { return window.TriancleRust && window.TriancleRust.creatorShare ? window.TriancleRust.creatorShare(price) : Math.floor(price * 0.8); }
 function fmtN(n) { return Number(n || 0).toLocaleString(); }
 function feeErr(e, a) {
   const m = String(e && e.message || "");
@@ -53,7 +54,7 @@ const APP = (function () {
   const os = mobile ? "mobile" : /Windows/i.test(ua) ? "win" : /Macintosh|Mac OS X/i.test(ua) ? "mac" : "other";
   const inApp = !!window.TriancleApp || !!m;
   if (inApp) document.documentElement.classList.add("inapp");
-  return { in: inApp, os, version: m ? m[1] : "", required: !!APP_CFG.REQUIRE_APP && !mobile, pendingJoin: null };
+  return { in: inApp, os, version: m ? m[1] : String(window.TriancleApp && window.TriancleApp.version || ""), required: !!APP_CFG.REQUIRE_APP && !mobile, pendingJoin: null };
 })();
 const APP_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 function appDownloadUrl(os) {                                        // direct installer link, or the download page when none is published yet
@@ -343,6 +344,7 @@ function addRotatedCollision(sx, sy, sz, x, y, z, R) {
   const ey = Math.abs(R[3]) * sx + Math.abs(R[4]) * sy + Math.abs(R[5]) * sz;
   const ez = Math.abs(R[6]) * sx + Math.abs(R[7]) * sy + Math.abs(R[8]) * sz;
   if (R.every(v => Math.abs(v) < 1e-3 || Math.abs(Math.abs(v) - 1) < 1e-3)) { addSolid(x, y, z, ex, ey, ez); return; }   // flat or turned in 90 degree steps
+  if (window.TriancleRust && window.TriancleRust.tiltedColumns) { const columns = window.TriancleRust.tiltedColumns(sx, sy, sz, x, y, z, R); if (columns) { for (const column of columns) solids.push(column); return; } }
   // tilted part: collide with a field of small columns that follow its surface, so ramps can be walked up
   const cell = Math.max(0.6, Math.sqrt(ex * ez / 400)), h = [sx / 2, sy / 2, sz / 2];
   for (let cx = x - ex / 2 + cell / 2; cx < x + ex / 2; cx += cell) for (let cz = z - ez / 2 + cell / 2; cz < z + ez / 2; cz += cell) {
@@ -605,7 +607,9 @@ const nameInput = document.getElementById("nameInput");
 const players = new Map();      // id -> { id, name, avatar, tag, local, target, alive }
 
 function cleanName(s) {
-  return String(s == null ? "" : s).replace(/[\u0000-\u001f\u007f<>]/g, "").trim().slice(0, 20);
+  const text = String(s == null ? "" : s);
+  if (window.TriancleRust && window.TriancleRust.cleanName) { const result = window.TriancleRust.cleanName(text); if (result !== null) return result; }
+  return text.replace(/[\u0000-\u001f\u007f<>]/g, "").trim().slice(0, 20);
 }
 let myName = "";
 try { myName = cleanName(localStorage.getItem("playerName")); } catch (_) {}
@@ -699,10 +703,11 @@ function updateTags() {
 /* ---- in-game chat: Enter to type, bubbles over heads, log bottom-left ---- */
 const chatLog = document.getElementById("chatlog"), chatInput = document.getElementById("chatInput");
 let lastChat = 0;
-function cleanChat(s) { return String(s == null ? "" : s).replace(/[\u0000-\u001f\u007f<>]/g, "").trim().slice(0, 120); }
+function cleanChat(s) { const text = String(s == null ? "" : s); if (window.TriancleRust && window.TriancleRust.cleanChat) { const result = window.TriancleRust.cleanChat(text); if (result !== null) return result; } return text.replace(/[\u0000-\u001f\u007f<>]/g, "").trim().slice(0, 120); }
 /* each username gets its own colour in chat (the same name always gets the same colour) */
 function nameColor(name) {
   let h = 2166136261; const t = String(name);
+  if (window.TriancleRust && window.TriancleRust.nameHue) { const hue = window.TriancleRust.nameHue(t); if (hue !== null) return "hsl(" + hue + ",78%,68%)"; }
   for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
   return "hsl(" + (h % 360) + ",78%,68%)";
 }
@@ -759,7 +764,7 @@ chatInput.addEventListener("keydown", e => {
 "use strict";
 
 /* =====================================================================
-   Multiplayer client (talks to server.js over WebSocket)
+   Multiplayer client (talks to the Rust relay over WebSocket)
    Client-authoritative: every client simulates itself and broadcasts its
    state; the server only relays.
    ===================================================================== */
@@ -895,7 +900,7 @@ function remoteState(id, m) {
   const num = v => typeof v === "number" && isFinite(v);
   if (!num(m.x) || !num(m.y) || !num(m.z)) return;
   const first = !pl.target;
-  pl.target = { x: m.x, y: m.y, z: m.z, f: num(m.f) ? m.f : 0, a: Array.isArray(m.a) ? m.a : [0, 0, 0, 0], ff: m.ff ? 1 : 0, l: num(m.l) ? m.l : 0, r: num(m.r) ? m.r : 0, b: num(m.b) ? m.b : 0 };
+  pl.target = window.TriancleRust && window.TriancleRust.remoteSnapshot && window.TriancleRust.remoteSnapshot(m) || { x: m.x, y: m.y, z: m.z, f: num(m.f) ? m.f : 0, a: Array.isArray(m.a) ? m.a : [0, 0, 0, 0], ff: m.ff ? 1 : 0, l: num(m.l) ? m.l : 0, r: num(m.r) ? m.r : 0, b: num(m.b) ? m.b : 0 };
   if (m.al === 0) { pl.alive = false; return; }
   if (!pl.alive || first) {                       // (re)spawned: snap into place
     clearDebris(id);
@@ -913,7 +918,7 @@ function remoteDied(id) {
 }
 const LIMBS = ["LeftArm", "RightArm", "LeftLeg", "RightLeg"];
 function updateRemotes(dt) {
-  const k = 1 - Math.exp(-dt * 18);
+  const k = animationBlend(dt, 18);
   for (const pl of players.values()) {
     if (pl.local) continue;
     const av = pl.avatar, t = pl.target;
@@ -921,6 +926,16 @@ function updateRemotes(dt) {
     av.group.visible = !isBlocked(pl.name);
     setFF(av, !!t.ff);
     const g = av.group.position;
+    if (window.TriancleRust && window.TriancleRust.animateRemote) {
+      const state = window.TriancleRust.animateRemote([k, av.ln, av.rl, av.by, g.x, g.y, g.z, av.facing,
+        ...LIMBS.map(n => av.ang[n]), t.l, t.r, t.b, t.x, t.y, t.z, t.f, ...LIMBS.map((_, i) => +t.a[i] || 0)]);
+      if (state) {
+        [av.ln, av.rl, av.by, g.x, g.y, g.z, av.facing] = state.slice(1, 8);
+        av.group.rotation.z = -av.ln; av.group.rotation.x = av.rl; av.group.rotation.y = av.facing + CFG.MODEL_FRONT_OFFSET;
+        for (let i = 0; i < 4; i++) { const n = LIMBS[i]; av.ang[n] = state[8+i]; av.rig[n].rotation.z = av.ang[n]; }
+        continue;
+      }
+    }
     av.ln += (t.l - av.ln) * k; av.rl += (t.r - av.rl) * k; av.by += (t.b - av.by) * k;
     g.x += (t.x - g.x) * k; g.y += (t.y + av.by - g.y) * k; g.z += (t.z - g.z) * k;
     av.group.rotation.z = -av.ln; av.group.rotation.x = av.rl;
@@ -1013,14 +1028,15 @@ window.addEventListener("mousemove", e => {
   const steer = rmbDown || (hasLock() && (shiftLock || firstPerson)) || (shiftLock && inGame && !uiOpen() && e.target === canvas);
   if (!steer) return;
   if (Math.abs(e.movementX) > 400 || Math.abs(e.movementY) > 400) return;   // ignore lock-jump spikes
-  cam.yaw   -= e.movementX * CFG.CAM_SENS;
-  cam.pitch += e.movementY * CFG.CAM_SENS;
-  cam.pitch = Math.max(-CFG.CAM_PITCH_LIMIT, Math.min(CFG.CAM_PITCH_LIMIT, cam.pitch));
+  const aim = window.TriancleRust && window.TriancleRust.cameraAim ? window.TriancleRust.cameraAim(cam.yaw,cam.pitch,e.movementX,e.movementY,CFG.CAM_SENS,CFG.CAM_PITCH_LIMIT) : null;
+  if (aim) { cam.yaw = aim[0]; cam.pitch = aim[1]; }
+  else { cam.yaw -= e.movementX * CFG.CAM_SENS; cam.pitch += e.movementY * CFG.CAM_SENS; cam.pitch = Math.max(-CFG.CAM_PITCH_LIMIT, Math.min(CFG.CAM_PITCH_LIMIT, cam.pitch)); }
 });
 canvas.addEventListener("wheel", e => {
   e.preventDefault();
   const f = e.deltaY > 0 ? 1.14 : 1 / 1.14;
-  cam.zoomTarget = Math.max(CFG.CAM_ZOOM_MIN, Math.min(CFG.CAM_ZOOM_MAX, cam.zoomTarget * f));
+  const zoom = window.TriancleRust && window.TriancleRust.cameraZoom ? window.TriancleRust.cameraZoom(cam.zoomTarget,e.deltaY,CFG.CAM_ZOOM_MIN,CFG.CAM_ZOOM_MAX) : null;
+  cam.zoomTarget = zoom === null ? Math.max(CFG.CAM_ZOOM_MIN, Math.min(CFG.CAM_ZOOM_MAX, cam.zoomTarget * f)) : zoom;
 }, { passive: false });
 
 ;
@@ -1060,6 +1076,7 @@ const player = {
 function readMoveInput() {
   const fwd = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
   const rgt = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
+  if (window.TriancleRust && window.TriancleRust.moveDirection) return window.TriancleRust.moveDirection(cam.yaw, fwd, rgt);
   const fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw);
   const rx =  Math.cos(cam.yaw), rz = -Math.sin(cam.yaw);
   let mx = fx * fwd + rx * rgt, mz = fz * fwd + rz * rgt;
@@ -1069,6 +1086,7 @@ function readMoveInput() {
 }
 
 function approach(v, tx, tz, maxDelta) {
+  if (window.TriancleRust && window.TriancleRust.approach) return window.TriancleRust.approach(v, tx, tz, maxDelta);
   const dx = tx - v.x, dz = tz - v.z, l = Math.hypot(dx, dz);
   if (l <= maxDelta || l === 0) { v.x = tx; v.z = tz; }
   else { v.x += dx / l * maxDelta; v.z += dz / l * maxDelta; }
@@ -1076,6 +1094,10 @@ function approach(v, tx, tz, maxDelta) {
 
 function overlaps(p, b) {
   const h = CFG.CHAR_HALF_XZ;
+  if (window.TriancleRust && window.TriancleRust.boxOverlap) {
+    return window.TriancleRust.boxOverlap(p, b, h, CFG.CHAR_HEIGHT) &&
+      (!b.ball || window.TriancleRust.sphereOverlap(p, b.ball, h, CFG.CHAR_HEIGHT));
+  }
   if (!(p.x + h > b.minX && p.x - h < b.maxX &&
         p.z + h > b.minZ && p.z - h < b.maxZ &&
         p.y + CFG.CHAR_HEIGHT > b.minY && p.y < b.maxY)) return false;
@@ -1166,7 +1188,9 @@ function resolveHorizontal(axis, delta) {
       const q = b.ball, ny = nearest(q.cy, p.y, p.y + CFG.CHAR_HEIGHT), dy = ny - q.cy;
       const oc = axis === "x" ? nearest(q.cz, p.z - h, p.z + h) - q.cz : nearest(q.cx, p.x - h, p.x + h) - q.cx;
       const rr = Math.sqrt(Math.max(0, q.r * q.r - dy * dy - oc * oc)), c = axis === "x" ? q.cx : q.cz, cur = axis === "x" ? p.x : p.z;
-      const to = delta > 0 || (delta === 0 && cur < c) ? c - rr - h : c + rr + h;
+      const to = window.TriancleRust && window.TriancleRust.sphereSide
+        ? window.TriancleRust.sphereSide(cur, axis === "x" ? p.z : p.x, p.y, h, CFG.CHAR_HEIGHT, c, axis === "x" ? q.cz : q.cx, q.cy, q.r, delta)
+        : delta > 0 || (delta === 0 && cur < c) ? c - rr - h : c + rr + h;
       if (axis === "x") { p.x = to; player.vel.x = 0; } else { p.z = to; player.vel.z = 0; }
       continue;
     }
@@ -1192,10 +1216,12 @@ function resolveHorizontal(axis, delta) {
       }
     }
     if (axis === "x") {
-      if (delta > 0) p.x = b.minX - h; else if (delta < 0) p.x = b.maxX + h; else p.x = (p.x - (b.minX + b.maxX) / 2 < 0) ? b.minX - h : b.maxX + h;   // standing still: nearest side
+      if (window.TriancleRust && window.TriancleRust.boxSide) p.x = window.TriancleRust.boxSide(p.x, delta, b.minX, b.maxX, h);
+      else if (delta > 0) p.x = b.minX - h; else if (delta < 0) p.x = b.maxX + h; else p.x = (p.x - (b.minX + b.maxX) / 2 < 0) ? b.minX - h : b.maxX + h;   // standing still: nearest side
       player.vel.x = 0;
     } else {
-      if (delta > 0) p.z = b.minZ - h; else if (delta < 0) p.z = b.maxZ + h; else p.z = (p.z - (b.minZ + b.maxZ) / 2 < 0) ? b.minZ - h : b.maxZ + h;
+      if (window.TriancleRust && window.TriancleRust.boxSide) p.z = window.TriancleRust.boxSide(p.z, delta, b.minZ, b.maxZ, h);
+      else if (delta > 0) p.z = b.minZ - h; else if (delta < 0) p.z = b.maxZ + h; else p.z = (p.z - (b.minZ + b.maxZ) / 2 < 0) ? b.minZ - h : b.maxZ + h;
       player.vel.z = 0;
     }
   }
@@ -1233,7 +1259,7 @@ function physicsStep(dt) {
   }
   if (player.climb && player.climb.mode === "over") {   // smooth pull-over onto the top (no teleport)
     const c = player.climb; c.t += dt;
-    const u = Math.min(1, c.t / c.dur), e = x => x * x * (3 - 2 * x);
+    const u = Math.min(1, c.t / c.dur), e = window.TriancleRust && window.TriancleRust.climbEase || (x => x * x * (3 - 2 * x));
     const yu = e(Math.min(1, u / 0.5)), xu = e(Math.max(0, (u - 0.35) / 0.65));
     p.y = c.from.y + (c.to.y - c.from.y) * yu;
     p.x = c.from.x + (c.to.x - c.from.x) * xu; p.z = c.from.z + (c.to.z - c.from.z) * xu;
@@ -1247,7 +1273,7 @@ function physicsStep(dt) {
     if (!keys.Space) c.armed = true;
     if (c.armed && keys.Space) { player.climb = null; player.noGrab = 0.3; v.set(L.nx * 10, CFG.JUMP_POWER, L.nz * 10); return; }
     if (L.rungs && !L.rungs.some(r => r.maxY > p.y - 1 && r.minY < p.y + CFG.CHAR_HEIGHT + 1.5 && solids.indexOf(r) >= 0)) { player.climb = null; player.noGrab = 0.3; return; }   // the rungs were deleted / moved: let go
-    climbMoveY(((up ? 1 : 0) - (dn ? 1 : 0)) * 12 * dt);
+    climbMoveY(window.TriancleRust && window.TriancleRust.climbDelta ? window.TriancleRust.climbDelta(up, dn, dt) : ((up ? 1 : 0) - (dn ? 1 : 0)) * 12 * dt);
     if (p.y <= L.y0) { p.y = L.y0; if (dn) { player.climb = null; player.noGrab = 0.3; player.onGround = true; return; } }
     if (p.y >= L.y1 - 0.5) { exitClimb(c, { x: p.x - L.nx, y: L.y1, z: p.z - L.nz }, { x: p.x, y: L.y1 - 1, z: p.z }); return; }   // top: step out, no shove forward
     return;
@@ -1264,7 +1290,7 @@ function physicsStep(dt) {
     if (!solids.includes(c.b)) { player.climb = null; player.noGrab = 0.3; return; }   // the ledge was deleted: let go
     const rgt = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);                          // A/D shimmy along the ledge
     const tx = c.az !== 0 ? 1 : 0, tz = c.ax !== 0 ? 1 : 0;
-    const sh = rgt ? Math.cos(cam.yaw) * rgt * tx - Math.sin(cam.yaw) * rgt * tz : 0;
+    const sh = window.TriancleRust && window.TriancleRust.climbShimmy ? window.TriancleRust.climbShimmy(cam.yaw, rgt, tx, tz) : rgt ? Math.cos(cam.yaw) * rgt * tx - Math.sin(cam.yaw) * rgt * tz : 0;
     if (Math.abs(sh) > 0.1) {
       const st = sh * 4 * dt;
       if (tx) { p.x = Math.max(c.b.minX, Math.min(c.b.maxX, p.x + st)); c.to.x = p.x; }
@@ -1275,7 +1301,7 @@ function physicsStep(dt) {
   }
   if (player.climb) {                               // mantling a ledge: haul up, then swing over
     const c = player.climb; c.t += dt;
-    const u = Math.min(1, c.t / c.dur), K = 0.65, e = x => x * x * (3 - 2 * x);
+    const u = Math.min(1, c.t / c.dur), K = 0.65, e = window.TriancleRust && window.TriancleRust.climbEase || (x => x * x * (3 - 2 * x));
     if (u < K) p.y = c.from.y + (c.to.y - c.from.y) * e(u / K);
     else { const w = e((u - K) / (1 - K)); p.y = c.to.y; p.x = c.from.x + (c.to.x - c.from.x) * w; p.z = c.from.z + (c.to.z - c.from.z) * w; }
     v.set(0, 0, 0);
@@ -1315,11 +1341,14 @@ function physicsStep(dt) {
     if (b.ball) {
       const q = b.ball, dx = nearest(q.cx, p.x - CFG.CHAR_HALF_XZ, p.x + CFG.CHAR_HALF_XZ) - q.cx, dz = nearest(q.cz, p.z - CFG.CHAR_HALF_XZ, p.z + CFG.CHAR_HALF_XZ) - q.cz;
       const ry = Math.sqrt(Math.max(0, q.r * q.r - dx * dx - dz * dz));
-      if (v.y <= 0) { p.y = q.cy + ry; landed = true; } else p.y = q.cy - ry - CFG.CHAR_HEIGHT;
+      if (window.TriancleRust && window.TriancleRust.sphereVertical) p.y = window.TriancleRust.sphereVertical(p.x, p.z, CFG.CHAR_HALF_XZ, CFG.CHAR_HEIGHT, q.cx, q.cy, q.cz, q.r, v.y);
+      else p.y = v.y <= 0 ? q.cy + ry : q.cy - ry - CFG.CHAR_HEIGHT;
+      if (v.y <= 0) landed = true;
       v.y = 0; continue;
     }
-    if (v.y <= 0) { p.y = b.maxY; landed = true; }
-    else          { p.y = b.minY - CFG.CHAR_HEIGHT; }
+    if (window.TriancleRust && window.TriancleRust.boxVertical) p.y = window.TriancleRust.boxVertical(b.minY, b.maxY, CFG.CHAR_HEIGHT, v.y);
+    else p.y = v.y <= 0 ? b.maxY : b.minY - CFG.CHAR_HEIGHT;
+    if (v.y <= 0) landed = true;
     v.y = 0;
   }
   player.onGround = landed;
@@ -1424,6 +1453,15 @@ function iinvMul(d, vec, out) {
 function stepDebris(dt) {
   const e0 = CFG.DEBRIS_RESTITUTION, mu = CFG.DEBRIS_FRICTION;
   for (const d of debris) {
+    const stepped = window.TriancleRust && window.TriancleRust.stepDebris
+      ? window.TriancleRust.stepDebris(d,dt,CFG.GRAVITY,e0,mu,solids) : null;
+    if (stepped) {
+      d.g.position.set(stepped[0],stepped[1],stepped[2]);
+      d.g.quaternion.set(stepped[3],stepped[4],stepped[5],stepped[6]);
+      d.v.set(stepped[7],stepped[8],stepped[9]);
+      d.w.set(stepped[10],stepped[11],stepped[12]);
+      continue;
+    }
     const p = d.g.position, q = d.g.quaternion, v = d.v, w = d.w;
     v.y -= CFG.GRAVITY * dt;
     p.addScaledVector(v, dt);
@@ -1484,17 +1522,33 @@ let facing = Math.PI / 2;          // model yaw (model forward is +X)
 let walkPhase = 0;
 const ang = { LeftArm: 0, RightArm: 0, LeftLeg: 0, RightLeg: 0 };
 
-function wrapPi(a) { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; }
+function wrapPi(a) { if (window.TriancleRust && window.TriancleRust.wrapAngle && Number.isFinite(a) && Math.abs(a) <= 100) return window.TriancleRust.wrapAngle(a); while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; }
+function animationBlend(dt, rate) { return window.TriancleRust && window.TriancleRust.animationBlend ? window.TriancleRust.animationBlend(dt, rate) : 1 - Math.exp(-dt * rate); }
 
 let air = 0, maxFall = 0, landT = 0, landAmt = 0, climbPh = 0, tAnim = 0, bodyY = 0, lean = 0, roll = 0, animState = "Idle";
 function animate(dt) {
+  if (window.TriancleRust && window.TriancleRust.animate) {
+    const c = player.climb, mode = !c ? 0 : c.mode === "ladder" ? 1 : c.mode === "hang" ? 2 : 3;
+    const state = window.TriancleRust.animate([dt, facing, walkPhase, air, maxFall, landT, landAmt, tAnim, bodyY, lean, roll,
+      ang.LeftArm, ang.RightArm, ang.LeftLeg, ang.RightLeg, player.alive ? 1 : 0, player.onGround ? 1 : 0, mode,
+      c ? c.face : 0, c ? c.t : 0, c ? c.dur : 1, shiftLock || firstPerson ? 1 : 0, cam.yaw, player.moveX, player.moveZ,
+      player.vel.x, player.vel.y, player.vel.z, CFG.WALK_SPEED, CFG.TURN_SMOOTH, CFG.SHIFTLOCK_TURN,
+      keys.KeyW || keys.KeyS || keys.ArrowUp || keys.ArrowDown ? 1 : 0, 0]);
+    if (state) {
+      [facing, walkPhase, air, maxFall, landT, landAmt, tAnim, bodyY, lean, roll] = state.slice(1, 11);
+      [ang.LeftArm, ang.RightArm, ang.LeftLeg, ang.RightLeg] = state.slice(11, 15);
+      animState = ["Idle", "Running", "Jumping", "Freefall", "Climbing"][state[32]];
+      for (const n in ang) if (rig[n]) rig[n].rotation.z = ang[n];
+      return;
+    }
+  }
   tAnim += dt;
   if (player.alive) {                                                      // turn toward movement / camera / wall
     let target = null, k = CFG.TURN_SMOOTH;
     if (player.climb) { target = player.climb.face; k = 25; }
     else if (shiftLock || firstPerson) { target = Math.atan2(Math.cos(cam.yaw), -Math.sin(cam.yaw)); k = CFG.SHIFTLOCK_TURN; }
     else if (player.moveX !== 0 || player.moveZ !== 0) target = Math.atan2(-player.moveZ, player.moveX);
-    if (target !== null) facing = wrapPi(facing + wrapPi(target - facing) * (1 - Math.exp(-dt * k)));
+    if (target !== null) facing = wrapPi(facing + wrapPi(target - facing) * animationBlend(dt, k));
   }
   const c = player.climb, speed = Math.hypot(player.vel.x, player.vel.z), sr = Math.min(1.2, speed / CFG.WALK_SPEED), vy = player.vel.y;
   if (player.onGround || c) {
@@ -1527,10 +1581,10 @@ function animate(dt) {
     const s = Math.sin(tAnim * 1.7); aL = s * 0.045; aR = -Math.sin(tAnim * 1.7 + 0.6) * 0.045; tb = s * 0.02;
   }
   if (landT > 0 && !c) { const kk = Math.sin((1 - landT / 0.24) * Math.PI) * landAmt; tb -= 0.45 * kk; tl += 0.12 * kk; aL += 0.5 * kk; aR += 0.5 * kk; }
-  const k = 1 - Math.exp(-dt * 22);
+  const k = animationBlend(dt, 22);
   ang.LeftArm += (aL - ang.LeftArm) * k; ang.RightArm += (aR - ang.RightArm) * k;
   ang.LeftLeg += (lL - ang.LeftLeg) * k; ang.RightLeg += (lR - ang.RightLeg) * k;
-  bodyY += (tb - bodyY) * (1 - Math.exp(-dt * 16)); lean += (tl - lean) * (1 - Math.exp(-dt * 10)); roll += (tr - roll) * (1 - Math.exp(-dt * 10));
+  bodyY += (tb - bodyY) * animationBlend(dt, 16); lean += (tl - lean) * animationBlend(dt, 10); roll += (tr - roll) * animationBlend(dt, 10);
   for (const n in ang) if (rig[n]) rig[n].rotation.z = ang[n];
 }
 
@@ -1551,9 +1605,15 @@ selBox.visible = false; scene.add(selBox);
 
 function syncSolid(pt) {
   const h = pt.size.map(v => v / 2), s = pt.solid, p = pt.pos;
+  const calculated = window.TriancleRust && window.TriancleRust.builtSolid ? window.TriancleRust.builtSolid(pt) : null;
+  if (calculated) {
+    [s.minX,s.maxX,s.minY,s.maxY,s.minZ,s.maxZ] = calculated.slice(0,6);
+    s.ball = calculated[6] ? {cx:p.x,cy:p.y,cz:p.z,r:calculated[7]} : null;
+  } else {
   s.minX = p.x - h[0]; s.maxX = p.x + h[0]; s.minY = p.y - h[1]; s.maxY = p.y + h[1]; s.minZ = p.z - h[2]; s.maxZ = p.z + h[2];
   const u = Math.max(...pt.size), round = pt.shape === "Ball" && Math.min(...pt.size) > u * 0.95;   // (a squashed ball stays a box)
   s.ball = round ? { cx: p.x, cy: p.y, cz: p.z, r: Math.min(...pt.size) / 2 } : null;
+  }
   const i = solids.indexOf(s);
   if (pt.collide && i < 0) solids.push(s); else if (!pt.collide && i >= 0) solids.splice(i, 1);
 }
@@ -1619,7 +1679,10 @@ function applyPanel(e) {
 /* who may use BTools in this game: the game's setting is "all" (default), "staff" (Owner + Admin badge) or "off" */
 const btMode = () => (curGame && curGame.btools) || "all";
 function canBuild() {
-  const m = btMode(); if (m === "off") return false;
+  const m = btMode();
+  const allowed = window.TriancleRust && window.TriancleRust.canBuild ? window.TriancleRust.canBuild(m,!!acct.user,isOwner(),!!(acct.user && badgeList(acct.user.id).includes("admin"))) : null;
+  if (allowed !== null) return allowed;
+  if (m === "off") return false;
   if (m === "staff") return !!acct.user && (isOwner() || badgeList(acct.user.id).includes("admin"));
   return true;
 }
@@ -1632,12 +1695,16 @@ function toggleBT() {
 function stepUserParts(dt) {
   for (let i = userParts.length - 1; i >= 0; i--) {
     const pt = userParts[i]; if (pt.anchored) continue;
+    const stepped = window.TriancleRust && window.TriancleRust.stepBuiltPart ? window.TriancleRust.stepBuiltPart(pt, dt, CFG.GRAVITY, solids) : null;
+    if (stepped) { pt.pos.y = stepped[0]; pt.vy = stepped[1]; } else {
     pt.vy -= CFG.GRAVITY * dt; pt.pos.y += pt.vy * dt;
     const hx = pt.size[0] / 2, hy = pt.size[1] / 2, hz = pt.size[2] / 2, p = pt.pos;
     if (pt.collide) for (const s of solids) {
       if (s === pt.solid || pt.vy > 0) continue;
       if (p.x + hx > s.minX && p.x - hx < s.maxX && p.z + hz > s.minZ && p.z - hz < s.maxZ && p.y + hy > s.minY && p.y - hy < s.maxY) { p.y = s.maxY + hy; pt.vy = 0; }
     }
+    }
+    const p = pt.pos;
     if (p.y < CFG.FALL_DESTROY_Y) { removePart(pt); continue; }
     if (pt.vy !== 0) pt.mv = true; else if (pt.mv) { pt.mv = false; markPart(pt); }   // settled: tell everyone where it landed
     pt.mesh.position.copy(p); syncSolid(pt);
@@ -1658,9 +1725,11 @@ function applyRemotePart(d, owner) {
   let pt = userParts.find(q => q.gid === d.g);
   if (pt && pt.owner !== owner) return;                       // nobody can overwrite someone else's part
   if (!pt) { pt = { id: ++partId, gid: d.g, owner, mesh: new THREE.Mesh(), vy: 0, solid: {}, pos: new THREE.Vector3() }; scene.add(pt.mesh); userParts.push(pt); }
-  pt.shape = BT_GEO[d.sh] ? d.sh : "Block"; pt.size = d.sz.map(v => Math.max(0.2, Math.min(512, v)));
-  pt.color = (d.c | 0) & 0xffffff; pt.transp = Math.max(0, Math.min(1, +d.t || 0)); pt.anchored = !!d.an; pt.collide = !!d.co; pt.vy = 0;
-  pt.pos.set(d.p[0], d.p[1], d.p[2]); rebuildPart(pt);
+  pt.shape = BT_GEO[d.sh] ? d.sh : "Block";
+  const normalized = window.TriancleRust && window.TriancleRust.remotePart ? window.TriancleRust.remotePart(d) : null;
+  if (normalized) { pt.size = normalized.slice(0,3); pt.color = normalized[6]; pt.transp = normalized[7]; pt.anchored = !!normalized[8]; pt.collide = !!normalized[9]; pt.vy = 0; pt.pos.set(normalized[3],normalized[4],normalized[5]); }
+  else { pt.size = d.sz.map(v => Math.max(0.2, Math.min(512, v))); pt.color = (d.c | 0) & 0xffffff; pt.transp = Math.max(0, Math.min(1, +d.t || 0)); pt.anchored = !!d.an; pt.collide = !!d.co; pt.vy = 0; pt.pos.set(d.p[0], d.p[1], d.p[2]); }
+  rebuildPart(pt);
 }
 function onPartMsg(m) {
   if (btMode() === "off") return;                                   // building is switched off in this game: ignore anyone else's parts
@@ -1716,6 +1785,7 @@ $("btMove").addEventListener("click", () => setMode("move")); $("btSize").addEve
 const _ray = new THREE.Raycaster(), _ndc = new THREE.Vector2();
 function aimRay(e) { _ndc.set(e.clientX / window.innerWidth * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1); _ray.setFromCamera(_ndc, camera); }
 function axisParam(origin, dir) {   // where along the axis line the mouse ray passes closest
+  if (window.TriancleRust && window.TriancleRust.axisParam) { const result = window.TriancleRust.axisParam(origin,dir,_ray.ray); if (result) return result.value; }
   const r = _ray.ray, b = dir.dot(r.direction), w0 = origin.clone().sub(r.origin);
   const den = 1 - b * b; if (Math.abs(den) < 1e-4) return null;
   return (b * r.direction.dot(w0) - dir.dot(w0)) / den;
@@ -1804,14 +1874,17 @@ function frame(now) {
   charGroup.position.y += bodyY; charGroup.rotation.z = -lean; charGroup.rotation.x = roll;
 
   // camera
-  cam.zoom += (cam.zoomTarget - cam.zoom) * (1 - Math.exp(-dt * 20));
-  cam.shift += (((shiftLock && !firstPerson && player.alive) ? 1 : 0) - cam.shift) * (1 - Math.exp(-dt * 15));
-  const shiftOff = CFG.SHIFTLOCK_OFFSET * cam.shift;
   if (player.alive) deadFocus.set(tmp.x, tmp.y + CFG.CAM_FOCUS_Y, tmp.z);
   else {                                        // dead: camera follows the loose head
     const hd = debris.find(d => d.owner === "me" && d.name === "Head");
     if (hd) deadFocus.copy(hd.g.position);
   }
+  const cameraState = window.TriancleRust && window.TriancleRust.cameraFrame ? window.TriancleRust.cameraFrame(cam,deadFocus,shiftLock && !firstPerson && player.alive,dt,CFG.SHIFTLOCK_OFFSET,BASEPLATE_HALF) : null;
+  if (cameraState) { cam.zoom = cameraState[0]; cam.shift = cameraState[1]; focus.set(cameraState[2],cameraState[3],cameraState[4]); desired.set(cameraState[5],cameraState[6],cameraState[7]); }
+  else {
+  cam.zoom += (cam.zoomTarget - cam.zoom) * (1 - Math.exp(-dt * 20));
+  cam.shift += (((shiftLock && !firstPerson && player.alive) ? 1 : 0) - cam.shift) * (1 - Math.exp(-dt * 15));
+  const shiftOff = CFG.SHIFTLOCK_OFFSET * cam.shift;
   focus.set(deadFocus.x + Math.cos(cam.yaw) * shiftOff, deadFocus.y, deadFocus.z - Math.sin(cam.yaw) * shiftOff);
   const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
   desired.set(
@@ -1825,6 +1898,7 @@ function frame(now) {
       Math.abs(desired.x) < BASEPLATE_HALF && Math.abs(desired.z) < BASEPLATE_HALF) {
     const s = (focus.y - MIN_Y) / (focus.y - desired.y);
     desired.sub(focus).multiplyScalar(s).add(focus);
+  }
   }
   camera.position.copy(desired);
   camera.lookAt(focus);
@@ -1849,7 +1923,7 @@ function frame(now) {
   NET.timer += dt;
   if (NET.timer >= NET.interval) {
     NET.timer = 0;
-    const r2 = v => Math.round(v * 100) / 100;
+    const r2 = v => typeof v === "number" && window.TriancleRust && window.TriancleRust.networkRound ? window.TriancleRust.networkRound(v) : Math.round(v * 100) / 100;
     const msg = { t: "s", x: r2(charGroup.position.x), y: r2(charGroup.position.y - bodyY), z: r2(charGroup.position.z),
       f: r2(facing), a: [r2(ang.LeftArm), r2(ang.RightArm), r2(ang.LeftLeg), r2(ang.RightLeg)], al: player.alive ? 1 : 0, ff: player.ff > 0 ? 1 : 0, l: r2(lean), r: r2(roll), b: r2(bodyY) };
     const sig = JSON.stringify([msg.x, msg.y, msg.z, msg.f, msg.a, msg.al, msg.ff, msg.l, msg.r]);
@@ -1909,8 +1983,9 @@ const DEFAULT_COLORS = {};
 for (const n of PART_ORDER) DEFAULT_COLORS[n] = "#" + PART_STYLE[n].toString(16).padStart(6, "0");
 
 function sanitizeColors(o) {
+  if (window.TriancleRust && window.TriancleRust.sanitizeColors) { const result = window.TriancleRust.sanitizeColors(o,DEFAULT_COLORS); if (result) return result; }
   const out = {};
-  for (const n of PART_ORDER) out[n] = (o && typeof o[n] === "string" && HEX_RE.test(o[n])) ? o[n].toLowerCase() : DEFAULT_COLORS[n];
+  for (const n of PART_ORDER) out[n] = (o && (window.TriancleRust && window.TriancleRust.validColor ? window.TriancleRust.validColor(o[n]) : typeof o[n] === "string" && HEX_RE.test(o[n]))) ? o[n].toLowerCase() : DEFAULT_COLORS[n];
   out.face = (o && Number.isInteger(o.face) && o.face >= 0 && o.face < 100000) ? o.face : 0;
   out.body = (o && o.body === "female") ? "female" : "male";
   return out;
@@ -1948,11 +2023,13 @@ let colPart = "Head", saveTimer = 0, netColT = 0;
 function saveStatus(t) { $("colSave").textContent = t; }
 let hsv = { h: 0, s: 0, v: 1 };
 function hsv2rgb(h, s, v) {
+  if (window.TriancleRust && window.TriancleRust.hsvToRgb && Number.isFinite(h) && h >= 0 && h <= 360 && Number.isFinite(s) && s >= 0 && s <= 1 && Number.isFinite(v) && v >= 0 && v <= 1) return window.TriancleRust.hsvToRgb(h, s, v);
   const f = n => { const k = (n + h / 60) % 6; return v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); };
   return [Math.round(f(5) * 255), Math.round(f(3) * 255), Math.round(f(1) * 255)];
 }
 function hsvToHex(c) { return "#" + hsv2rgb(c.h, c.s, c.v).map(x => x.toString(16).padStart(2, "0")).join(""); }
 function hexToHsv(hex) {
+  if (window.TriancleRust && window.TriancleRust.rgbToHsv && typeof hex === "string" && /^#[0-9a-f]{6}$/i.test(hex) && hex.length === 7) return window.TriancleRust.rgbToHsv(parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16));
   const r = parseInt(hex.slice(1, 3), 16) / 255, g = parseInt(hex.slice(3, 5), 16) / 255, b = parseInt(hex.slice(5, 7), 16) / 255;
   const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
   let h = 0;
@@ -2117,6 +2194,18 @@ function closeAuth() {
 }
 function friendlyAuthError(e, mode) {
   const msg = String(e && e.message || ""), code = String(e && e.code || "");
+  if (window.TriancleRust && window.TriancleRust.authError && e && typeof e === "object" && (Object.getPrototypeOf(e) === Object.prototype || Object.getPrototypeOf(e) === null)) {
+    const status = Object.getOwnPropertyDescriptor(e,"status");
+    if ((!status || "value" in status) && (status || !("status" in Object.prototype))) {
+      const category = window.TriancleRust.authError(code,msg,!!status && status.value === 429);
+      if (category === 1) return "That username is taken.";
+      if (category === 2) return "Wrong username or password.";
+      if (category === 3) return "Supabase is still asking for email confirmation. Turn off Confirm email in Authentication settings.";
+      if (category === 4) return "Too many tries, wait a minute and try again.";
+      if (category === 5) return "Supabase rejected the fake email domain. Set AUTH_EMAIL_DOMAIN in CFG to a domain that has MX records.";
+      if (category === 6) return msg || "Password is too weak.";
+    }
+  }
   if (code === "user_already_exists" || /already registered/i.test(msg)) return "That username is taken.";
   if (code === "invalid_credentials" || /invalid login/i.test(msg)) return "Wrong username or password.";
   if (code === "email_not_confirmed" || /not confirmed/i.test(msg)) return "Supabase is still asking for email confirmation. Turn off Confirm email in Authentication settings.";
@@ -2125,16 +2214,19 @@ function friendlyAuthError(e, mode) {
   if (code === "weak_password") return msg || "Password is too weak.";
   return msg || (mode === "signup" ? "Couldn't create the account." : "Couldn't log in.");
 }
+function validUsername(value) { if (window.TriancleRust && window.TriancleRust.validUsername) { const ok = window.TriancleRust.validUsername(value); if (ok !== null) return ok; } return /^[A-Za-z0-9_]{3,20}$/.test(value); }
 async function submitAuth() {
   if (acct.busy) return;
   const sb = getSB();
   if (!sb) return authMsg("Supabase isn't set up yet. Put SUPABASE_URL and SUPABASE_ANON_KEY in CFG at the top of index.html.", true);
   const u = authUser.value.trim(), pw = authPass.value;
-  if (!/^[A-Za-z0-9_]{3,20}$/.test(u)) return authMsg("Username: 3-20 letters, numbers or _", true);
-  if (pw.length < 6) return authMsg("Password must be at least 6 characters.", true);
+  if (!validUsername(u)) return authMsg("Username: 3-20 letters, numbers or _", true);
+  const passwordValid = window.TriancleRust && window.TriancleRust.passwordLengthValid ? window.TriancleRust.passwordLengthValid(pw.length) : null;
+  if (passwordValid === false || (passwordValid === null && pw.length < 6)) return authMsg("Password must be at least 6 characters.", true);
   acct.busy = true; authGo.disabled = true;
   authMsg(acct.mode === "signup" ? "Creating account…" : "Logging in…");
-  let email = u.toLowerCase() + "@" + CFG.AUTH_EMAIL_DOMAIN;
+  const rustEmail = window.TriancleRust && window.TriancleRust.loginEmail ? window.TriancleRust.loginEmail(u,CFG.AUTH_EMAIL_DOMAIN) : null;
+  let email = rustEmail === null ? u.toLowerCase() + "@" + CFG.AUTH_EMAIL_DOMAIN : rustEmail;
   try {
     if (acct.mode === "signup") {                                  // old usernames can't be taken by someone else
       try { const a = await sb.rpc("username_available", { p_username: u }); if (!a.error && a.data === false) { authMsg("That username is taken.", true); return; } } catch (_) {}
@@ -2228,6 +2320,13 @@ function gv(g, k) { const o = g.ovr[k]; return o ? o : g.def[k]; }
 function gBanner(g) { return g.ovr.thumb || g.def.banner; }
 function applyGameRow(id, r) {                                        // r = { name, by, thumb, icon } (any may be missing)
   const g = GAMES.find(x => x.id === id); if (!g || !r) return;
+  const normalized = window.TriancleRust && window.TriancleRust.gameSettings ? window.TriancleRust.gameSettings(r) : null;
+  if (normalized) {
+    if (normalized.btools) g.btools = normalized.btools;
+    delete normalized.btools;
+    g.ovr = normalized;
+    return;
+  }
   const o = {};
   if (okTxt(r.name, 40)) o.name = okTxt(r.name, 40);
   if (okTxt(r.by, 20)) o.by = okTxt(r.by, 20);
@@ -2303,6 +2402,7 @@ const RBX_ROT = {2:[1,0,0,0,1,0,0,0,1],3:[1,0,0,0,0,-1,0,1,0],5:[1,0,0,0,-1,0,0,
 const RBX_PARTS = new Set(["Part", "SpawnLocation", "Seat", "VehicleSeat", "MeshPart", "WedgePart", "CornerWedgePart", "TrussPart"]);
 const RBX_MAX_PARTS = 6000;
 function lz4Block(src, n) {
+  if (window.TriancleRust && window.TriancleRust.lz4) { const result = window.TriancleRust.lz4(src, n); if (result) return result; }
   const dst = new Uint8Array(n); let s = 0, d = 0;
   while (s < src.length && d < n) {
     const tok = src[s++]; let lit = tok >> 4;
@@ -2337,14 +2437,19 @@ async function rbxToMap(buf) {
     }
     chunks.push({ name, data }); if (name === "END") break;
   }
+  if (window.TriancleRust && window.TriancleRust.rbxlMap) { const map = window.TriancleRust.rbxlMap(chunks); if (map) return map; }
   const td = new TextDecoder(), dvOf = d => new DataView(d.buffer, d.byteOffset, d.byteLength);
   const rdStr = (d, o) => { const n = dvOf(d).getUint32(o, true); return [td.decode(d.subarray(o + 4, o + 4 + n)), o + 4 + n]; };
-  const deint = (d, o, n) => { const out = new Array(n); for (let i = 0; i < n; i++) out[i] = ((d[o + i] * 16777216) + (d[o + n + i] << 16) + (d[o + 2 * n + i] << 8) + d[o + 3 * n + i]) >>> 0; return out; };
-  const zz = v => (v >>> 1) ^ -(v & 1);
-  const fl = v => { v = ((v >>> 1) | (v << 31)) >>> 0; const b = new DataView(new ArrayBuffer(4)); b.setUint32(0, v); return b.getFloat32(0); };
-  const refsOf = arr => { let a = 0; return arr.map(v => a += zz(v)); };
+  const deint = (d, o, n) => { if (window.TriancleRust && window.TriancleRust.deinterleave) { const result = window.TriancleRust.deinterleave(d, o, n); if (result) return result; } const out = new Array(n); for (let i = 0; i < n; i++) out[i] = ((d[o + i] * 16777216) + (d[o + n + i] << 16) + (d[o + 2 * n + i] << 8) + d[o + 3 * n + i]) >>> 0; return out; };
+  const zz = v => window.TriancleRust && window.TriancleRust.zigzag ? window.TriancleRust.zigzag(v) : (v >>> 1) ^ -(v & 1);
+  const fl = v => { if (window.TriancleRust && window.TriancleRust.rbxlFloat) return window.TriancleRust.rbxlFloat(v); v = ((v >>> 1) | (v << 31)) >>> 0; const b = new DataView(new ArrayBuffer(4)); b.setUint32(0, v); return b.getFloat32(0); };
+  const refsOf = arr => { if (window.TriancleRust && window.TriancleRust.references) { const result = window.TriancleRust.references(arr); if (result) return result; } let a = 0; return arr.map(v => a += zz(v)); };
   const classes = {}, inst = new Map(), parent = new Map();
-  for (const c of chunks) if (c.name === "INST") {
+  const rustIndex = window.TriancleRust && window.TriancleRust.rbxlIndex ? window.TriancleRust.rbxlIndex(chunks) : null;
+  if (rustIndex) {
+    for (const [id, nm, refs] of rustIndex.classes) { classes[id] = { name: nm, refs }; for (const r of refs) inst.set(r, { c: nm, p: {} }); }
+    for (const [child, par] of rustIndex.parents) parent.set(child, par);
+  } else for (const c of chunks) if (c.name === "INST") {
     const d = c.data, dv = dvOf(d), id = dv.getUint32(0, true); let [nm, o] = rdStr(d, 4); o++;
     const n = dv.getUint32(o, true); o += 4; const refs = refsOf(deint(d, o, n));
     classes[id] = { name: nm, refs }; for (const r of refs) inst.set(r, { c: nm, p: {} });
@@ -2355,7 +2460,8 @@ async function rbxToMap(buf) {
     if (c.name === "PROP") {
       const id = dv.getUint32(0, true); let [pn, o] = rdStr(d, 4); const t = d[o++], cl = classes[id];
       if (!cl || !RBX_PARTS.has(cl.name) || !WANT[pn]) continue;
-      const n = cl.refs.length; let vals = null;
+      const n = cl.refs.length; let vals = window.TriancleRust && window.TriancleRust.rbxlProperty ? window.TriancleRust.rbxlProperty(d, o, n, t) : null;
+      if (!vals) {
       if (t === 1) { vals = []; for (let i = 0; i < n; i++) { let v; [v, o] = rdStr(d, o); vals.push(v); } }
       else if (t === 2) { vals = []; for (let i = 0; i < n; i++) vals.push(!!d[o + i]); }
       else if (t === 4) vals = deint(d, o, n).map(fl);
@@ -2368,8 +2474,9 @@ async function rbxToMap(buf) {
         const X = deint(d, o, n).map(fl), Y = deint(d, o + 4 * n, n).map(fl), Z = deint(d, o + 8 * n, n).map(fl);
         vals = rot.map((r, i) => ({ pos: [X[i], Y[i], Z[i]], rot: r }));
       }
+      }
       if (vals) cl.refs.forEach((r, i) => { inst.get(r).p[pn] = vals[i]; });
-    } else if (c.name === "PRNT") {
+    } else if (c.name === "PRNT" && !rustIndex) {
       const n = dv.getUint32(1, true), ch = refsOf(deint(d, 5, n)), pa = refsOf(deint(d, 5 + 4 * n, n));
       ch.forEach((k, i) => parent.set(k, pa[i]));
     }
@@ -2388,6 +2495,7 @@ async function rbxToMap(buf) {
     if (q.c === "SpawnLocation" && !spawn) spawn = [row[3], row[4] + row[1] / 2 + 3, row[5]];
   }
   if (!rows.length) throw new Error("noparts");
+  if (!spawn && window.TriancleRust && window.TriancleRust.defaultSpawn) spawn = window.TriancleRust.defaultSpawn(rows);
   if (!spawn) {
     let best = null;
     for (const r of rows) {
@@ -2660,7 +2768,7 @@ for (const b of document.querySelectorAll("#hTabs button")) b.addEventListener("
    SOCIAL: welcome page, friends, player profiles
    ===================================================================== */
 const SOC = { friends: [], incoming: [], outgoing: [], ok: true, cache: new Map(), viewId: null, badges: new Map(), badgeOK: true };
-const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const esc = s => { const text = String(s == null ? "" : s); if (window.TriancleRust && window.TriancleRust.escapeHtml) { const result = window.TriancleRust.escapeHtml(text); if (result !== null) return result; } return text.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); };
 const FR_TABLE = "friendships";
 const dn = p => (p && (p.display_name || p.username)) || "";                // the name people see: display name if they set one, else username
 
@@ -2718,7 +2826,7 @@ async function fetchWorn(ids) {
   if (!rows) { try { const r = await sb.from("ugc_inventory").select("user_id, item_id").in("user_id", need).eq("equipped", true); if (!r.error) rows = r.data || []; } catch (_) {} }
   if (!rows) { UP.fail = true; return; }                               // this database does not let us see other players' items yet
   for (const id of need) WORN.set(id, []);
-  for (const r of rows) { const a = WORN.get(r.user_id); if (a && UUID_RE.test(r.item_id) && a.length < MAX_WORN) a.push(r.item_id); }
+  for (const r of rows) { const a = WORN.get(r.user_id); if (a && validItemId(r.item_id) && a.length < MAX_WORN) a.push(r.item_id); }
 }
 function queueUpgrade(uid) {
   if (!uid || (UP.fail && !(acct.user && uid === acct.user.id))) return;
@@ -2777,21 +2885,27 @@ async function loadSocial() {
     const { data, error } = await sb.from(FR_TABLE).select("requester, addressee, status").or(`requester.eq.${me},addressee.eq.${me}`);
     if (error) throw error;
     SOC.ok = true; SOC.friends = []; SOC.incoming = []; SOC.outgoing = [];
+    const social = window.TriancleRust && window.TriancleRust.socialLists ? window.TriancleRust.socialLists(me, data) : null;
+    if (social) { SOC.friends = social.friends; SOC.incoming = social.incoming; SOC.outgoing = social.outgoing; }
+    else {
     for (const f of data) {
       const other = f.requester === me ? f.addressee : f.requester;
       if (f.status === "accepted") SOC.friends.push(other);
       else if (f.addressee === me) SOC.incoming.push(other); else SOC.outgoing.push(other);
     }
+    }
     await getProfiles([me, ...SOC.friends, ...SOC.incoming, ...SOC.outgoing], true);
   } catch (_) { SOC.ok = false; }
   const n = SOC.incoming.length; $("reqBadge").textContent = n ? "(" + n + ")" : ""; updateUgcBtn();
 }
-const relation = id => SOC.friends.includes(id) ? "friend" : SOC.incoming.includes(id) ? "incoming" : SOC.outgoing.includes(id) ? "outgoing" : "none";
+const relation = id => { if (window.TriancleRust && window.TriancleRust.socialRelation) { const result = window.TriancleRust.socialRelation(id,SOC.friends,SOC.incoming,SOC.outgoing); if (result !== null) return result; } return SOC.friends.includes(id) ? "friend" : SOC.incoming.includes(id) ? "incoming" : SOC.outgoing.includes(id) ? "outgoing" : "none"; };
 async function friendAct(kind, id) {
   const sb = getSB(), me = acct.user.id; if (!sb) return;
   try {
-    if (kind === "add") await sb.from(FR_TABLE).insert({ requester: me, addressee: id, status: "pending" });
-    else if (kind === "accept") await sb.from(FR_TABLE).update({ status: "accepted" }).eq("requester", id).eq("addressee", me);
+    const rustAction = window.TriancleRust && window.TriancleRust.friendAction ? window.TriancleRust.friendAction(kind) : null;
+    const action = rustAction === null ? (kind === "add" ? 1 : kind === "accept" ? 2 : 3) : rustAction;
+    if (action === 1) await sb.from(FR_TABLE).insert({ requester: me, addressee: id, status: "pending" });
+    else if (action === 2) await sb.from(FR_TABLE).update({ status: "accepted" }).eq("requester", id).eq("addressee", me);
     else await sb.from(FR_TABLE).delete().or(`and(requester.eq.${me},addressee.eq.${id}),and(requester.eq.${id},addressee.eq.${me})`);
   } catch (_) {}
   await loadSocial();
@@ -2808,7 +2922,8 @@ const BADGE_ORDER = ["owner", "admin", "mod", "ugc", "bugfinder"];
 const BADGE_PERMS = { owner: { can_ugc: true, can_edit_items: true }, ugc: { can_ugc: true } };   // what each badge lets you do
 const BADGE_BUILTIN = BADGE_ORDER.slice();
 const BADGE_COLOR = { owner: "#ffd23f", admin: "#ff5d5d", mod: "#4aa8ff", ugc: "#b879ff", bugfinder: "#4be08a" };   // name tag colour per badge
-const badgeColor = k => BADGE_COLOR[k] || ("hsl(" + ([...String(k)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 360, 7)) + ",80%,62%)");
+const badgeColor = k => BADGE_COLOR[k] || ("hsl(" + badgeHueValue(k) + ",80%,62%)");
+function badgeHueValue(k) { const text = String(k); if (window.TriancleRust && window.TriancleRust.badgeHue) { const hue = window.TriancleRust.badgeHue(text); if (hue !== null) return hue; } return [...text].reduce((a,c) => (a*31+c.charCodeAt(0))%360,7); }
 const BADGE_IMG = {"owner": "assets/badges/owner.png", "admin": "assets/badges/admin.png", "mod": "assets/badges/mod.png", "ugc": "assets/badges/ugc.png", "bugfinder": "assets/badges/bugfinder.png"};
 /* Badges the Owner made in the site (table badge_defs, see supabase_catalog.sql). They join the built-in five. */
 async function loadBadgeDefs() {
@@ -2833,21 +2948,26 @@ function rebuildBadgeFilter() {                                     // the Playe
     + BADGE_ORDER.map(k => `<option value="${esc(k)}">${esc(BADGES[k])}</option>`).join("");
   sel.value = Array.from(sel.options).some(o => o.value === cur) ? cur : "all";
 }
-const hasBadgePerm = perm => !!(acct.user && (isOwner() || badgeList(acct.user.id).some(k => BADGE_PERMS[k] && BADGE_PERMS[k][perm])));
+const rustPermission = mode => acct.user && window.TriancleRust && window.TriancleRust.accountPermission
+  ? window.TriancleRust.accountPermission(String(acct.user.email || ""),String(CFG.AUTH_EMAIL_DOMAIN),SOC.badges.get(acct.user.id) || [],BADGE_PERMS,mode) : null;
+const hasBadgePerm = perm => { const value = rustPermission(perm); return value !== null ? value : !!(acct.user && (isOwner() || badgeList(acct.user.id).some(k => BADGE_PERMS[k] && BADGE_PERMS[k][perm]))); };
 async function getBadges(ids) {
   const sb = getSB(); ids = [...new Set(ids)]; if (!sb || !ids.length) return;
   try {
     const r = await sb.from("badges").select("user_id, badge").in("user_id", ids);
     if (r.error) throw r.error;
     for (const id of ids) SOC.badges.set(id, []);
-    for (const b of (r.data || [])) if (BADGES[b.badge] && SOC.badges.has(b.user_id)) SOC.badges.get(b.user_id).push(b.badge);
+    const rows = r.data || [], users = [...SOC.badges.keys()];
+    const groups = window.TriancleRust && window.TriancleRust.groupBadges && Array.isArray(rows) && rows.every(b => b && typeof b.badge === "string") ? window.TriancleRust.groupBadges(users,rows,rows.filter(b => BADGES[b.badge]).map(b => b.badge)) : null;
+    if (groups) { for (let i = 0; i < users.length; i++) for (const badge of groups[i]) SOC.badges.get(users[i]).push(badge); }
+    else for (const b of rows) if (BADGES[b.badge] && SOC.badges.has(b.user_id)) SOC.badges.get(b.user_id).push(b.badge);
     SOC.badgeOK = true;
   } catch (_) { SOC.badgeOK = false; }
 }
-const badgeList = id => (SOC.badges.get(id) || []).slice().sort((a, b) => BADGE_ORDER.indexOf(a) - BADGE_ORDER.indexOf(b));
+const badgeList = id => { const badges = SOC.badges.get(id) || []; if (window.TriancleRust && window.TriancleRust.orderedBadges) { const result = window.TriancleRust.orderedBadges(badges,BADGE_ORDER); if (result) return result; } return badges.slice().sort((a, b) => BADGE_ORDER.indexOf(a) - BADGE_ORDER.indexOf(b)); };
 const smallBadges = id => badgeList(id).map(k => `<img alt="${BADGES[k]}" title="${BADGES[k]}" src="${BADGE_IMG[k]}">`).join("");
 const bigBadges = id => badgeList(id).map(k => `<span class="bdg" tabindex="0" data-name="${BADGES[k]}"><img alt="${BADGES[k]}" src="${BADGE_IMG[k]}"></span>`).join("");
-function isOwner() { return !!(acct.user && (String(acct.user.email || "").toLowerCase() === "owen@" + String(CFG.AUTH_EMAIL_DOMAIN).toLowerCase() || badgeList(acct.user.id).includes("owner"))); }
+function isOwner() { const value = rustPermission("owner"); return value !== null ? value : !!(acct.user && (String(acct.user.email || "").toLowerCase() === "owen@" + String(CFG.AUTH_EMAIL_DOMAIN).toLowerCase() || badgeList(acct.user.id).includes("owner"))); }
 const pcard = (id, sub) => {
   const p = SOC.cache.get(id); if (!p) return "";
   const bd = smallBadges(id), meta = [sub].filter(Boolean).join(" · ");
@@ -2935,7 +3055,10 @@ async function renderProfile(id) {
   else {
     try {
       const r = await getSB().from(FR_TABLE).select("requester, addressee").eq("status", "accepted").or(`requester.eq.${id},addressee.eq.${id}`);
-      theirFriends = (r.data || []).map(f => f.requester === id ? f.addressee : f.requester);
+      const rows = r.data || [];
+      const friends = window.TriancleRust && window.TriancleRust.socialLists && Array.isArray(rows)
+        ? window.TriancleRust.socialLists(id,rows.map(f => ({requester:f.requester,addressee:f.addressee,status:"accepted"}))) : null;
+      theirFriends = friends ? friends.friends : rows.map(f => f.requester === id ? f.addressee : f.requester);
       await getProfiles(theirFriends);
     } catch (_) {}
   }
@@ -3106,6 +3229,7 @@ window.addEventListener("resize", () => { cancelAnimationFrame(pfT); pfT = reque
 const USERNAME_COST = 150;                                          // keep in step with supabase_account.sql
 const NAME_RE = /^[A-Za-z0-9_]{3,20}$/;
 const DISPLAY_RE = /^[\p{L}\p{N}_.'\- ]{1,20}$/u;
+function validDisplayName(value) { if (window.TriancleRust && window.TriancleRust.validDisplayName) { const ok = window.TriancleRust.validDisplayName(value); if (ok !== null) return ok; } return DISPLAY_RE.test(value); }
 const RENAME_ERR = {
   not_signed_in: "Log in first.", invalid: "Username: 3-20 letters, numbers or _", same: "That's already your username.",
   taken: "That username is taken (or someone used it before).", not_enough: "You don't have enough Shapes.",
@@ -3147,7 +3271,7 @@ async function renderSettings() {
 
 async function saveDisplayName() {
   const msg = $("sDispMsg"), v = $("sDisp").value.trim(), sb = getSB();
-  if (v && !DISPLAY_RE.test(v)) { msg.textContent = "Display name: up to 20 letters, numbers, spaces, . _ - '"; return; }
+  if (v && !validDisplayName(v)) { msg.textContent = "Display name: up to 20 letters, numbers, spaces, . _ - '"; return; }
   msg.textContent = "Saving…";
   try {
     const r = await sb.from(CFG.SAVE_TABLE).update({ display_name: v || null }).eq("id", acct.user.id).select("id");
@@ -3159,9 +3283,10 @@ async function saveDisplayName() {
 
 async function saveUsername() {
   const msg = $("sUserMsg"), btn = $("sUserSave"), v = $("sUser").value.trim(), sb = getSB();
-  if (!NAME_RE.test(v)) { msg.textContent = RENAME_ERR.invalid; return; }
-  if (v.toLowerCase() === acct.username.toLowerCase()) { msg.textContent = RENAME_ERR.same; return; }
-  if (WAL.bal != null && WAL.bal < USERNAME_COST) { msg.textContent = RENAME_ERR.not_enough; return; }
+  const check = window.TriancleRust && window.TriancleRust.renameCheck ? window.TriancleRust.renameCheck(v,acct.username,WAL.bal,USERNAME_COST) : null;
+  if (check === 1 || (check === null && !validUsername(v))) { msg.textContent = RENAME_ERR.invalid; return; }
+  if (check === 2 || (check === null && v.toLowerCase() === acct.username.toLowerCase())) { msg.textContent = RENAME_ERR.same; return; }
+  if (check === 3 || (check === null && WAL.bal != null && WAL.bal < USERNAME_COST)) { msg.textContent = RENAME_ERR.not_enough; return; }
   if (!(await uiConfirm("Change your username to \"" + v + "\" for " + USERNAME_COST + " Shapes?\nYour old username will show on your profile.", "Change"))) return;
   btn.disabled = true; msg.textContent = "Changing…";
   try {
@@ -3883,12 +4008,12 @@ const UG_SLOTS = [["Head", "Head (hat)"], ["Torso", "Torso"], ["LeftArm", "Left 
 const UG_ANCHOR = { Head: [0, 5.05, 0], Torso: [0, 3, 0], LeftArm: [0, 3, -1.5], RightArm: [0, 3, 1.5], LeftLeg: [0, 1, -0.5], RightLeg: [0, 1, 0.5] };
 const UG_VIEW = { Head: [4.6, 8], Torso: [3, 12], LeftArm: [3, 12], RightArm: [3, 12], LeftLeg: [1.4, 12], RightLeg: [1.4, 12], Shirt: [3, 10], Pants: [2, 10], Face: [4.6, 4.6] };
 const CLOTH_SLOTS = [["Shirt", "Shirt"], ["Pants", "Pants"]];       // clothes: a PNG on the 512x512 template instead of a GLB
-const isCloth = a => a === "Shirt" || a === "Pants";
+const isCloth = a => { if (window.TriancleRust && window.TriancleRust.itemKind) { const kind = window.TriancleRust.itemKind(a); if (kind !== null) return kind === 1; } return a === "Shirt" || a === "Pants"; };
 const UG_KINDS = [["model", "3D accessory (GLB)"], ["Shirt", "Shirt (PNG)"], ["Pants", "Pants (PNG)"]];
 const UG_DEFS = [["pos", 0, "Forward / back", -4, 4, 0.01], ["pos", 1, "Up / down", -4, 4, 0.01], ["pos", 2, "Left / right", -4, 4, 0.01],
   ["rot", 0, "Roll", -180, 180, 1], ["rot", 1, "Turn", -180, 180, 1], ["rot", 2, "Tilt", -180, 180, 1], ["scale", 0, "Size", 0.05, 5, 0.01]];
 function canUgc() {
-  try { if (!acct.user) return false; if (isOwner()) return true; return badgeList(acct.user.id).some(k => UGC_ROLES.includes(k)) || hasBadgePerm("can_ugc"); } catch (_) { return false; }
+  try { if (!acct.user) return false; const value = rustPermission("can_ugc"); if (value !== null) return value; if (isOwner()) return true; return badgeList(acct.user.id).some(k => UGC_ROLES.includes(k)) || hasBadgePerm("can_ugc"); } catch (_) { return false; }
 }
 function updateUgcBtn() { $("ugcTabBtn").hidden = !canUgc(); }
 
@@ -4016,23 +4141,27 @@ function ugApply() {
   if (!UG.holder) return;
   const pv = ugv.av.rig[UG.attach], pp = MODEL_PARTS[UG.attach].pivot, an = UG_ANCHOR[UG.attach], h = UG.holder, rad = Math.PI / 180;
   if (h.parent !== pv) pv.add(h);
-  h.position.set(an[0] - pp[0] + UG.pos[0], an[1] - pp[1] + UG.pos[1], an[2] - pp[2] + UG.pos[2]);
+  const rust = window.TriancleRust, position = rust && rust.itemPosition || ((a, p, v) => a - p + v);
+  h.position.set(position(an[0], pp[0], UG.pos[0]), position(an[1], pp[1], UG.pos[1]), position(an[2], pp[2], UG.pos[2]));
   h.rotation.set(UG.rot[0] * rad, UG.rot[1] * rad, UG.rot[2] * rad, "XYZ");
   h.scale.setScalar(UG.scale);
-  UG.inner.position.set(-UG.c.x * UG.k, (UG.attach === "Head" ? -UG.min.y : -UG.c.y) * UG.k, -UG.c.z * UG.k);
+  const center = rust && rust.itemCenter || ((c, m, k, headY) => (headY ? -m : -c) * k);
+  UG.inner.position.set(center(UG.c.x, 0, UG.k, false), center(UG.c.y, UG.attach === "Head" ? UG.min.y : 0, UG.k, UG.attach === "Head"), center(UG.c.z, 0, UG.k, false));
 }
 function ugMove(dx, dy, depth) {
   const cam = ugv.cam, hpx = ugv.r.domElement.clientHeight || 400, k = 2 * ugv.dist * Math.tan(cam.fov * Math.PI / 360) / hpx;
   const r = new THREE.Vector3(), u = new THREE.Vector3(), f = new THREE.Vector3(); cam.matrixWorld.extractBasis(r, u, f);
   const d = depth ? f.multiplyScalar(dy * k) : r.multiplyScalar(dx * k).add(u.multiplyScalar(-dy * k));
   const pv = ugv.av.rig[UG.attach]; pv.updateMatrixWorld(true);
-  const inv = new THREE.Matrix4().copy(pv.matrixWorld).invert(); inv.setPosition(0, 0, 0); d.applyMatrix4(inv);
-  const dd = [d.x, d.y, d.z]; UG.pos = UG.pos.map((v, i) => ugClamp(v + dd[i], -4, 4));
+  const inv = new THREE.Matrix4().copy(pv.matrixWorld).invert(); inv.setPosition(0, 0, 0);
+  const moved = window.TriancleRust && window.TriancleRust.ugcDrag ? window.TriancleRust.ugcDrag(UG.pos,d,inv.elements) : null;
+  if (moved) UG.pos = moved; else { d.applyMatrix4(inv); const dd = [d.x, d.y, d.z]; UG.pos = UG.pos.map((v, i) => ugClamp(v + dd[i], -4, 4)); }
   ugSync(); ugApply();
 }
 function ugLoad(buf, label) {
   const u8 = new Uint8Array(buf);
-  if (!(u8[0] === 0x67 && u8[1] === 0x6c && u8[2] === 0x54 && u8[3] === 0x46)) return Promise.reject(new Error("not a glb"));
+  const signature = window.TriancleRust && window.TriancleRust.assetSignature ? window.TriancleRust.assetSignature(buf,"glb") : null;
+  if (signature === false || (signature === null && !(u8[0] === 0x67 && u8[1] === 0x6c && u8[2] === 0x54 && u8[3] === 0x46))) return Promise.reject(new Error("not a glb"));
   return new Promise((res, rej) => new THREE.GLTFLoader().parse(buf, "", gltf => {
     try {
       if (UG.holder && UG.holder.parent) UG.holder.parent.remove(UG.holder);
@@ -4061,20 +4190,31 @@ async function ugUpload() {
   const sb = getSB(); if (!sb || !acct.user) return;
   if (!canUgc()) return ugMsg("Your account can't make UGC.", true);
   const name = UG.name.trim(), cloth = isCloth(UG.attach);
-  if (cloth ? !UG.cloth : !UG.holder) return ugMsg(cloth ? "Choose an image first." : "Choose a GLB file first.", true);
-  if (!name) return ugMsg("Give the item a name.", true);
-  const price = ugClamp(Math.floor(+$("ugPrice").value || 0), 0, TAX_MAX);
-  if (UG.sale && price < minPrice(UG.attach)) return ugMsg("Lowest price: " + fmtT(minPrice(UG.attach)) + " Shapes.", true);
+  const rust = window.TriancleRust, hasAsset = cloth ? !!UG.cloth : !!UG.holder;
+  const rawPrice = +$("ugPrice").value || 0;
+  const kind = kindOfItem(UG.attach);
+  const canPlan = rust && rust.ugcUploadPlan && (typeof WAL.bal === "number" || WAL.bal == null);
+  const plan = canPlan
+    ? rust.ugcUploadPlan({
+      has_asset: hasAsset, name, kind: kind === "cloth" ? 1 : kind === "face" ? 2 : 0,
+      price: rawPrice, balance: WAL.bal, editing: !!UG.editId,
+      published: !!UG.published, sale: !!UG.sale, live_price: UG.livePrice, has_file: !!UG.file
+    }) : null;
+  const basics = plan ? plan.error : rust && rust.ugcBasics ? rust.ugcBasics(hasAsset,!!name) : !hasAsset ? 1 : !name ? 2 : 0;
+  if (basics === 1) return ugMsg(cloth ? "Choose an image first." : "Choose a GLB file first.", true);
+  if (basics === 2) return ugMsg("Give the item a name.", true);
+  const price = plan ? plan.price : ugClamp(Math.floor(rawPrice), 0, TAX_MAX);
+  if (plan ? plan.error === 3 : UG.sale && (rust && rust.ugcPriceInvalid ? rust.ugcPriceInvalid(price,minPrice(UG.attach)) : price < minPrice(UG.attach))) return ugMsg("Lowest price: " + fmtT(minPrice(UG.attach)) + " Shapes.", true);
   UG.price = price;
-  const upFee = UG.editId ? 0 : uploadFee(UG.attach), total = ugCost();
-  if (total > 0 && WAL.bal != null && WAL.bal < total) return ugMsg("Not enough Shapes (" + fmtT(total) + " needed).", true);
+  const upFee = UG.editId ? 0 : uploadFee(UG.attach), total = plan ? plan.total : ugCost();
+  if (plan ? plan.error === 4 : rust && rust.ugcInsufficient && (WAL.bal == null || typeof WAL.bal === "number") ? rust.ugcInsufficient(total,WAL.bal) : total > 0 && WAL.bal != null && WAL.bal < total) return ugMsg("Not enough Shapes (" + fmtT(total) + " needed).", true);
   UG.busy = true; ugMsg(""); ugFeeNote();
   let upPath = null, saved = false;
   const wasNew = !UG.editId;
   try {
     const me = acct.user.id, id = UG.editId || (crypto.randomUUID ? crypto.randomUUID() : (Date.now() + "-" + Math.random().toString(16).slice(2)));
     let path = UG.path, old = null;
-    if (UG.file) {
+    if (plan ? plan.upload_file : UG.file) {
       old = UG.path; path = me + "/" + id + "-" + Date.now() + (cloth ? ".png" : ".glb");
       const up = await sb.storage.from("ugc").upload(path, UG.file, { contentType: cloth ? "image/png" : "model/gltf-binary", upsert: false });
       if (up.error) throw up.error;
@@ -4087,11 +4227,11 @@ async function ugUpload() {
     if (old && old !== path) { try { await sb.storage.from("ugc").remove([old]); } catch (_) {} }
     UG.editId = id; UG.path = path; UG.file = null; saved = true;
     // then the shop listing, in the same click
-    const changed = UG.sale ? (!UG.published || price !== UG.livePrice) : UG.published;
+    const changed = plan ? plan.change_sale : rust && rust.ugcSaleChanged && typeof UG.livePrice === "number" ? rust.ugcSaleChanged(UG.sale,UG.published,price,UG.livePrice) : UG.sale ? (!UG.published || price !== UG.livePrice) : UG.published;
     if (changed) {
-      const s = await sb.rpc("set_item_sale", { p_item: id, p_price: UG.sale ? price : UG.livePrice, p_published: UG.sale });
+      const s = await sb.rpc("set_item_sale", { p_item: id, p_price: plan ? plan.sale_price : UG.sale ? price : UG.livePrice, p_published: plan ? plan.sale : UG.sale });
       if (s.error) { UG.busy = false; renderUgcList(); loadWallet(); if (wasNew) loadNotifs(); ugSync(); return ugMsg("Uploaded, but couldn't put it on sale: " + (feeErr(s.error, UG.attach) || "try again.") , true); }
-      UG.published = UG.sale; if (UG.sale) UG.livePrice = price;
+      UG.published = plan ? plan.sale : UG.sale; if (plan ? plan.sale : UG.sale) UG.livePrice = price;
     }
     renderUgcList(); loadWallet(); if (wasNew) loadNotifs();
     if (typeof refreshWorn === "function") refreshWorn(id);
@@ -4175,6 +4315,7 @@ function ugLoop() {
 const TRI_SVG = '<img class="tcI" src="assets/img/shapes.png" alt="">';
 const fmtT = n => Number(n || 0).toLocaleString();
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function validItemId(value) { if (window.TriancleRust && window.TriancleRust.validItemId) { const ok = window.TriancleRust.validItemId(value); if (ok !== null) return ok; } return UUID_RE.test(value); }
 const MAX_WORN = 6;
 const SQL_HINT = "Run supabase_triangcles.sql and supabase_taxes.sql in Supabase once.";
 const ITM = { models: new Map(), thumbs: new Map(), rows: new Map(), q: Promise.resolve() };
@@ -4297,7 +4438,8 @@ function decodePng(buf) {
 }
 async function clothFromBuffer(buf) {                             // -> 512x512 canvas, or throws Error("png" | "shape")
   const u8 = new Uint8Array(buf);
-  if (!(u8[0] === 0x89 && u8[1] === 0x50 && u8[2] === 0x4e && u8[3] === 0x47)) throw new Error("png");
+  const signature = window.TriancleRust && window.TriancleRust.assetSignature ? window.TriancleRust.assetSignature(buf,"png") : null;
+  if (signature === false || (signature === null && !(u8[0] === 0x89 && u8[1] === 0x50 && u8[2] === 0x4e && u8[3] === 0x47))) throw new Error("png");
   const im = await decodePng(buf), w = im.naturalWidth, h = im.naturalHeight;
   if (!w || !h || Math.abs(w / h - CLOTH_W / CLOTH_H) > 0.01 || w < 256 || w > 2048) throw new Error("shape");
   const cv = document.createElement("canvas"); cv.width = CLOTH_W; cv.height = CLOTH_H;
@@ -4334,9 +4476,11 @@ function buildHolder(av, it, m) {                                  // same maths
   const model = m.scene.clone(true);
   model.traverse(o => { if (o.isMesh) o.castShadow = true; });
   const inner = new THREE.Group(); inner.scale.setScalar(m.k); inner.add(model);
-  inner.position.set(-m.c.x * m.k, (it.attach === "Head" ? -m.min.y : -m.c.y) * m.k, -m.c.z * m.k);
+  const rust = window.TriancleRust, center = rust && rust.itemCenter || ((c, minimum, k, headY) => (headY ? -minimum : -c) * k);
+  inner.position.set(center(m.c.x,0,m.k,false), center(m.c.y,it.attach === "Head" ? m.min.y : 0,m.k,it.attach === "Head"), center(m.c.z,0,m.k,false));
   const holder = new THREE.Group(); holder.add(inner);
-  holder.position.set(an[0] - pp[0] + pos[0], an[1] - pp[1] + pos[1], an[2] - pp[2] + pos[2]);
+  const position = rust && rust.itemPosition || ((a,p,v) => a-p+v);
+  holder.position.set(position(an[0],pp[0],pos[0]), position(an[1],pp[1],pos[1]), position(an[2],pp[2],pos[2]));
   holder.rotation.set(rot[0] * rad, rot[1] * rad, rot[2] * rad, "XYZ");
   holder.scale.setScalar(+it.scale || 1);
   pv.add(holder);
@@ -4353,9 +4497,13 @@ async function fetchItemRows(ids) {
 async function applyItemsToAvatar(av, ids) {
   const want = ids.join(",");
   av.itemHolders = av.itemHolders || new Map(); av.clothItems = av.clothItems || new Map();
-  for (const [id, h] of Array.from(av.itemHolders)) if (!ids.includes(id)) { if (h.parent) h.parent.remove(h); av.itemHolders.delete(id); }
-  for (const id of Array.from(av.clothItems.keys())) if (!ids.includes(id)) av.clothItems.delete(id);
-  const need = ids.filter(id => !av.itemHolders.has(id) && !av.clothItems.has(id));
+  const diff = window.TriancleRust && window.TriancleRust.missingIndices;
+  const holders = Array.from(av.itemHolders), holderDrops = diff ? diff(holders.map(x => x[0]),ids) : null;
+  for (const [i,[id,h]] of holders.entries()) if (holderDrops ? holderDrops.includes(i) : !ids.includes(id)) { if (h.parent) h.parent.remove(h); av.itemHolders.delete(id); }
+  const clothes = Array.from(av.clothItems.keys()), clothDrops = diff ? diff(clothes,ids) : null;
+  for (const [i,id] of clothes.entries()) if (clothDrops ? clothDrops.includes(i) : !ids.includes(id)) av.clothItems.delete(id);
+  const missing = diff ? diff(ids,Array.from(av.itemHolders.keys()).concat(Array.from(av.clothItems.keys()))) : null;
+  const need = missing ? missing.map(i => ids[i]) : ids.filter(id => !av.itemHolders.has(id) && !av.clothItems.has(id));
   if (!need.length) { paintClothFor(av, ids); return; }
   const rows = await fetchItemRows(need);
   for (const id of need) {
@@ -4380,11 +4528,13 @@ function syncAvatarItems(av, ids) {
   applyItemsToAvatar(av, ids);
 }
 function applyRemoteItems(pl, items) {
-  const ids = Array.isArray(items) ? items.filter(x => typeof x === "string" && UUID_RE.test(x)).slice(0, MAX_WORN) : [];
+  const rustIds = window.TriancleRust && window.TriancleRust.wornIds && Array.isArray(items) ? window.TriancleRust.wornIds(items,MAX_WORN) : null;
+  const ids = rustIds || (Array.isArray(items) ? items.filter(x => typeof x === "string" && validItemId(x)).slice(0, MAX_WORN) : []);
   syncAvatarItems(pl.avatar, ids);
 }
 function setMyItems(ids) {
-  WEAR.mine = ids.filter(x => UUID_RE.test(x)).slice(0, MAX_WORN);
+  const rustIds = window.TriancleRust && window.TriancleRust.wornIds ? window.TriancleRust.wornIds(ids,MAX_WORN) : null;
+  WEAR.mine = rustIds || ids.filter(x => validItemId(x)).slice(0, MAX_WORN);
   syncAvatarItems(localAvatar, WEAR.mine);
   netSend({ t: "colors", colors: myColors });                     // re-sends presence, which now includes what you wear
   if (acct.user) queueUpgrade(acct.user.id);                       // your own picture shows what you wear
@@ -4450,8 +4600,9 @@ async function loadInventory() {
   try {
     const r = await sb.from("ugc_inventory").select("item_id, equipped, acquired_at").eq("user_id", acct.user.id).order("acquired_at", { ascending: true });
     if (r.error) throw r.error;
-    INV.ok = true; INV.loaded = true; INV.owned = new Set((r.data || []).map(x => x.item_id));
-    setMyItems((r.data || []).filter(x => x.equipped).map(x => x.item_id));
+    const rows = r.data || [], normalized = window.TriancleRust && window.TriancleRust.inventoryRows ? window.TriancleRust.inventoryRows(rows) : null;
+    INV.ok = true; INV.loaded = true; INV.owned = new Set(normalized ? normalized.owned : rows.map(x => x.item_id));
+    setMyItems(normalized ? normalized.equipped : rows.filter(x => x.equipped).map(x => x.item_id));
   } catch (_) { INV.ok = false; }
   if (typeof renderAvItems === "function") renderAvItems();
 }
@@ -4462,7 +4613,8 @@ async function equipItem(id, on) {
       const it = ITM.rows.get(id);
       if (it && isCloth(it.attach)) for (const o of WEAR.mine.slice()) {
         const x = ITM.rows.get(o);
-        if (o !== id && x && x.attach === it.attach) { const off = await sb.rpc("set_ugc_equipped", { p_item: o, p_on: false }); if (off.error) throw off.error; }
+        const plan = x && window.TriancleRust && window.TriancleRust.equipConflicts ? window.TriancleRust.equipConflicts(id,it.attach,[{id:o,attach:x.attach}]) : null;
+        if (plan ? plan.length > 0 : o !== id && x && x.attach === it.attach) { const off = await sb.rpc("set_ugc_equipped", { p_item: o, p_on: false }); if (off.error) throw off.error; }
       }
     }
     const r = await sb.rpc("set_ugc_equipped", { p_item: id, p_on: on });
@@ -4507,7 +4659,8 @@ function paintShop() {
   for (const b of document.querySelectorAll("#shCats .shCat")) b.classList.toggle("on", b.dataset.type === ty);
   const nf = (free ? 1 : 0) + (hideOwned ? 1 : 0) + (au ? 1 : 0) + (mn !== null ? 1 : 0) + (mx !== null ? 1 : 0);
   $("shFiltN").textContent = nf; $("shFiltN").hidden = !nf;
-  let rows = SHOP.rows.filter(it => (!q || String(it.name).toLowerCase().includes(q)) && (ty === "all" || (ty === "acc" ? !isCloth(it.attach) && !isFace(it.attach) : it.attach === ty))
+  const filtered = window.TriancleRust && window.TriancleRust.catalogFilter ? window.TriancleRust.catalogFilter(SHOP.rows,q,ty,au,mn,mx,free,hideOwned,SOC.cache,INV.owned) : null;
+  let rows = filtered ? filtered.map(i => SHOP.rows[i]) : SHOP.rows.filter(it => (!q || String(it.name).toLowerCase().includes(q)) && (ty === "all" || (ty === "acc" ? !isCloth(it.attach) && !isFace(it.attach) : it.attach === ty))
     && (!au || String((SOC.cache.get(it.creator) || {}).username || "").toLowerCase().includes(au))
     && (mn === null || (+it.price || 0) >= mn) && (mx === null || (+it.price || 0) <= mx)
     && (!free || !(+it.price)) && (!hideOwned || !INV.owned.has(it.id)));
@@ -4580,8 +4733,10 @@ function ipPaint() {
   $("ipCreated").textContent = d && !isNaN(d) ? d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "-";
   $("ipSold").textContent = fmtT(it.sales || 0);
   const g = $("ipGet"); g.disabled = false; g.dataset.armed = ""; g.classList.remove("arm");
-  if (has) { const on = isFace(it.attach) ? (faceNo > 0 && myColors.face === faceNo) : WEAR.mine.includes(it.id); g.dataset.mode = "wear"; g.dataset.on = on ? 0 : 1; g.textContent = on ? "Take off" : "Wear"; g.className = on ? "btnG" : "btnP"; }
-  else if (!me) { g.dataset.mode = "login"; g.textContent = "Log in to get"; g.className = "btnP"; }
+  const equipped = isFace(it.attach) ? (faceNo > 0 && myColors.face === faceNo) : WEAR.mine.includes(it.id);
+  const action = window.TriancleRust && window.TriancleRust.itemAction ? window.TriancleRust.itemAction(!!me,has,equipped) : null;
+  if (action === 2 || action === 3 || (action === null && has)) { const on = equipped; g.dataset.mode = "wear"; g.dataset.on = on ? 0 : 1; g.textContent = on ? "Take off" : "Wear"; g.className = on ? "btnG" : "btnP"; }
+  else if (action === 0 || (action === null && !me)) { g.dataset.mode = "login"; g.textContent = "Log in to get"; g.className = "btnP"; }
   else { g.dataset.mode = "buy"; g.textContent = "Get"; g.className = "btnP"; }
 }
 async function ipLoadExtras(id, tok) {                              // description / created date, if this database has them
@@ -4698,15 +4853,17 @@ $("ipGet").addEventListener("click", async () => {
     loadInventory(); paintShop();
   } catch (err) {
     const m = String(err && err.message || "");
-    ipNote(m.includes("insufficient_funds") ? "You don't have enough Shapes for that."
-      : m.includes("already_owned") ? "You already own that item."
-      : m.includes("price_changed") ? "The price just changed. Look again and retry."
-      : m.includes("not_for_sale") ? "That item isn't for sale anymore."
-      : m.includes("own_item") ? "That's your own item."
-      : m.includes("not_logged_in") ? "Log in to get things."
+    const failure = window.TriancleRust && window.TriancleRust.purchaseError ? window.TriancleRust.purchaseError(m) : null;
+    const code = failure ? failure.code : 0;
+    ipNote(code === 1 || (!failure && m.includes("insufficient_funds")) ? "You don't have enough Shapes for that."
+      : code === 2 || (!failure && m.includes("already_owned")) ? "You already own that item."
+      : code === 3 || (!failure && m.includes("price_changed")) ? "The price just changed. Look again and retry."
+      : code === 4 || (!failure && m.includes("not_for_sale")) ? "That item isn't for sale anymore."
+      : code === 5 || (!failure && m.includes("own_item")) ? "That's your own item."
+      : code === 6 || (!failure && m.includes("not_logged_in")) ? "Log in to get things."
       : "Couldn't get that. " + SQL_HINT, true);
-    if (m.includes("already_owned")) loadInventory();
-    if (m.includes("price_changed") || m.includes("not_for_sale")) { await renderShop(); const nit = ITM.rows.get(it.id); if (!SHOP.rows.find(x => x.id === it.id)) { showTab("shop"); return; } }
+    if (failure ? failure.inventory : m.includes("already_owned")) loadInventory();
+    if (failure ? failure.catalog : m.includes("price_changed") || m.includes("not_for_sale")) { await renderShop(); const nit = ITM.rows.get(it.id); if (!SHOP.rows.find(x => x.id === it.id)) { showTab("shop"); return; } }
   }
   ipPaint();
 });
@@ -4917,10 +5074,11 @@ function ioErr(e) {
 $("ioSave").addEventListener("click", async () => {
   const sb = getSB(), it = ITM.rows.get(IP.id); if (!sb || !it || !canEditItem(it)) return;
   const name = $("ioName").value.trim(), desc = $("ioDesc").value.trim().slice(0, 600), price = Math.floor(+$("ioPrice").value);
-  if (!name || name.length > 40) return ioMsg("Give it a name (up to 40 characters).", true);
-  if (!(price >= 0 && price <= 1000000)) return ioMsg("Price must be a whole number from 0 to 1,000,000.", true);
   const on = $("ioSale").checked, b = $("ioSave");
-  if (on && price < minPrice(it.attach)) return ioMsg("Lowest price: " + fmtT(minPrice(it.attach)) + " Shapes.", true);
+  const check = window.TriancleRust && window.TriancleRust.itemEditCheck ? window.TriancleRust.itemEditCheck(name.length,price,on,minPrice(it.attach)) : null;
+  if (check === 1 || (check === null && (!name || name.length > 40))) return ioMsg("Give it a name (up to 40 characters).", true);
+  if (check === 2 || (check === null && !(price >= 0 && price <= 1000000))) return ioMsg("Price must be a whole number from 0 to 1,000,000.", true);
+  if (check === 3 || (check === null && on && price < minPrice(it.attach))) return ioMsg("Lowest price: " + fmtT(minPrice(it.attach)) + " Shapes.", true);
   const fee = (on && isMyItem(it) && (!it.published || price !== Math.floor(+it.price || 0))) ? listFee(price, it.attach) : 0;
   if (fee > 0) {
     if (WAL.bal != null && WAL.bal < fee) return ioMsg("Not enough Shapes (" + fmtT(fee) + " needed).", true);
@@ -4961,15 +5119,24 @@ $("ioDel").addEventListener("click", async () => {
 "use strict";
 
 /* ---- selling from the UGC tab ---- */
+function ugRustFeePlan(price) {
+  const rust = window.TriancleRust;
+  if (!rust || !rust.ugcFeePlan || typeof UG.livePrice !== "number") return null;
+  const kind = kindOfItem(UG.attach), index = kind === "cloth" ? 1 : kind === "face" ? 2 : 0;
+  return rust.ugcFeePlan(price,index,UG.livePrice,UG.published,UG.sale,!!UG.editId);
+}
 function ugPendingFee() {                                        // what the listing fee would be for the number in the box right now
   const price = ugClamp(Math.floor(+$("ugPrice").value || 0), 0, TAX_MAX);
   return (UG.published && price === UG.livePrice) ? 0 : listFee(price, UG.attach);
 }
-function ugCost() { return (UG.editId ? 0 : uploadFee(UG.attach)) + (UG.sale ? ugPendingFee() : 0); }   // everything one click will charge
+function ugCost() {
+  const price = ugClamp(Math.floor(+$("ugPrice").value || 0), 0, TAX_MAX), plan = ugRustFeePlan(price);
+  return plan ? plan[2] : (UG.editId ? 0 : uploadFee(UG.attach)) + (UG.sale ? ugPendingFee() : 0);
+}   // everything one click will charge
 function ugFeeNote() {
   const n = $("ugFeeNote"), go = $("ugGo"); if (!n || !go) return;
-  const price = ugClamp(Math.floor(+$("ugPrice").value || 0), 0, TAX_MAX), up = UG.editId ? 0 : uploadFee(UG.attach), lf = UG.sale ? ugPendingFee() : 0, total = up + lf;
-  n.innerHTML = kindOfItem(UG.attach) === "face" ? "" : "You get " + fmtN(Math.floor(price * 0.8)) + ' <img class="tcI" src="assets/img/shapes.png" alt="">'
+  const price = ugClamp(Math.floor(+$("ugPrice").value || 0), 0, TAX_MAX), plan = ugRustFeePlan(price), up = plan ? plan[0] : UG.editId ? 0 : uploadFee(UG.attach), lf = plan ? plan[1] : UG.sale ? ugPendingFee() : 0, total = plan ? plan[2] : up + lf;
+  n.innerHTML = kindOfItem(UG.attach) === "face" ? "" : "You get " + fmtN(plan ? plan[3] : creatorShare(price)) + ' <img class="tcI" src="assets/img/shapes.png" alt="">'
     + (total ? '<span class="ugBreak">' + (up ? fmtN(up) + " upload" : "") + (up && lf ? " + " : "") + (lf ? fmtN(lf) + " listing fee" : "") + "</span>" : "");
   const ready = !!(isCloth(UG.attach) ? UG.cloth : UG.holder) && !!UG.name.trim();
   go.textContent = UG.busy ? "Uploading…" : (UG.editId ? "Update item" : "Upload") + (total ? " for " + fmtN(total) + " Shapes" : "");

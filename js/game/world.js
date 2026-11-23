@@ -98,6 +98,7 @@ function addRotatedCollision(sx, sy, sz, x, y, z, R) {
   const ey = Math.abs(R[3]) * sx + Math.abs(R[4]) * sy + Math.abs(R[5]) * sz;
   const ez = Math.abs(R[6]) * sx + Math.abs(R[7]) * sy + Math.abs(R[8]) * sz;
   if (R.every(v => Math.abs(v) < 1e-3 || Math.abs(Math.abs(v) - 1) < 1e-3)) { addSolid(x, y, z, ex, ey, ez); return; }   // flat or turned in 90 degree steps
+  if (window.TriancleRust && window.TriancleRust.tiltedColumns) { const columns = window.TriancleRust.tiltedColumns(sx, sy, sz, x, y, z, R); if (columns) { for (const column of columns) solids.push(column); return; } }
   // tilted part: collide with a field of small columns that follow its surface, so ramps can be walked up
   const cell = Math.max(0.6, Math.sqrt(ex * ez / 400)), h = [sx / 2, sy / 2, sz / 2];
   for (let cx = x - ex / 2 + cell / 2; cx < x + ex / 2; cx += cell) for (let cz = z - ez / 2 + cell / 2; cz < z + ez / 2; cz += cell) {

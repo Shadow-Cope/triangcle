@@ -38,6 +38,13 @@ function gv(g, k) { const o = g.ovr[k]; return o ? o : g.def[k]; }
 function gBanner(g) { return g.ovr.thumb || g.def.banner; }
 function applyGameRow(id, r) {                                        // r = { name, by, thumb, icon } (any may be missing)
   const g = GAMES.find(x => x.id === id); if (!g || !r) return;
+  const normalized = window.TriancleRust && window.TriancleRust.gameSettings ? window.TriancleRust.gameSettings(r) : null;
+  if (normalized) {
+    if (normalized.btools) g.btools = normalized.btools;
+    delete normalized.btools;
+    g.ovr = normalized;
+    return;
+  }
   const o = {};
   if (okTxt(r.name, 40)) o.name = okTxt(r.name, 40);
   if (okTxt(r.by, 20)) o.by = okTxt(r.by, 20);

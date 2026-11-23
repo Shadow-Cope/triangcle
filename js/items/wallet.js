@@ -8,6 +8,7 @@
 const TRI_SVG = '<svg class="tcI" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 15 14H1z"/></svg>';
 const fmtT = n => Number(n || 0).toLocaleString();
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function validItemId(value) { if (window.TriancleRust && window.TriancleRust.validItemId) { const ok = window.TriancleRust.validItemId(value); if (ok !== null) return ok; } return UUID_RE.test(value); }
 const MAX_WORN = 6;
 const SQL_HINT = "Run supabase_triangcles.sql in Supabase once.";
 const ITM = { models: new Map(), thumbs: new Map(), rows: new Map(), q: Promise.resolve() };

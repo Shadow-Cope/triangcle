@@ -29,21 +29,26 @@ function rebuildBadgeFilter() {                                     // the Playe
     + BADGE_ORDER.map(k => `<option value="${esc(k)}">${esc(BADGES[k])}</option>`).join("");
   sel.value = Array.from(sel.options).some(o => o.value === cur) ? cur : "all";
 }
-const hasBadgePerm = perm => !!(acct.user && (isOwner() || badgeList(acct.user.id).some(k => BADGE_PERMS[k] && BADGE_PERMS[k][perm])));
+const rustPermission = mode => acct.user && window.TriancleRust && window.TriancleRust.accountPermission
+  ? window.TriancleRust.accountPermission(String(acct.user.email || ""),String(CFG.AUTH_EMAIL_DOMAIN),SOC.badges.get(acct.user.id) || [],BADGE_PERMS,mode) : null;
+const hasBadgePerm = perm => { const value = rustPermission(perm); return value !== null ? value : !!(acct.user && (isOwner() || badgeList(acct.user.id).some(k => BADGE_PERMS[k] && BADGE_PERMS[k][perm]))); };
 async function getBadges(ids) {
   const sb = getSB(); ids = [...new Set(ids)]; if (!sb || !ids.length) return;
   try {
     const r = await sb.from("badges").select("user_id, badge").in("user_id", ids);
     if (r.error) throw r.error;
     for (const id of ids) SOC.badges.set(id, []);
-    for (const b of (r.data || [])) if (BADGES[b.badge] && SOC.badges.has(b.user_id)) SOC.badges.get(b.user_id).push(b.badge);
+    const rows = r.data || [], users = [...SOC.badges.keys()];
+    const groups = window.TriancleRust && window.TriancleRust.groupBadges && Array.isArray(rows) && rows.every(b => b && typeof b.badge === "string") ? window.TriancleRust.groupBadges(users,rows,rows.filter(b => BADGES[b.badge]).map(b => b.badge)) : null;
+    if (groups) { for (let i = 0; i < users.length; i++) for (const badge of groups[i]) SOC.badges.get(users[i]).push(badge); }
+    else for (const b of rows) if (BADGES[b.badge] && SOC.badges.has(b.user_id)) SOC.badges.get(b.user_id).push(b.badge);
     SOC.badgeOK = true;
   } catch (_) { SOC.badgeOK = false; }
 }
-const badgeList = id => (SOC.badges.get(id) || []).slice().sort((a, b) => BADGE_ORDER.indexOf(a) - BADGE_ORDER.indexOf(b));
+const badgeList = id => { const badges = SOC.badges.get(id) || []; if (window.TriancleRust && window.TriancleRust.orderedBadges) { const result = window.TriancleRust.orderedBadges(badges,BADGE_ORDER); if (result) return result; } return badges.slice().sort((a, b) => BADGE_ORDER.indexOf(a) - BADGE_ORDER.indexOf(b)); };
 const smallBadges = id => badgeList(id).map(k => `<img alt="${BADGES[k]}" title="${BADGES[k]}" src="${BADGE_IMG[k]}">`).join("");
 const bigBadges = id => badgeList(id).map(k => `<span class="bdg" tabindex="0" data-name="${BADGES[k]}"><img alt="${BADGES[k]}" src="${BADGE_IMG[k]}"></span>`).join("");
-function isOwner() { return !!(acct.user && (String(acct.user.email || "").toLowerCase() === "owen@" + String(CFG.AUTH_EMAIL_DOMAIN).toLowerCase() || badgeList(acct.user.id).includes("owner"))); }
+function isOwner() { const value = rustPermission("owner"); return value !== null ? value : !!(acct.user && (String(acct.user.email || "").toLowerCase() === "owen@" + String(CFG.AUTH_EMAIL_DOMAIN).toLowerCase() || badgeList(acct.user.id).includes("owner"))); }
 const pcard = (id, sub) => {
   const p = SOC.cache.get(id); if (!p) return "";
   const bd = smallBadges(id), meta = [sub].filter(Boolean).join(" · ");

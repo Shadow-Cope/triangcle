@@ -19,7 +19,7 @@ and it opens `triancle://join/<gameId>` links - that's how the website's Play bu
 ```
 cd desktop
 npm install
-npm start -- --url=http://localhost:3000     # run against your local site (node server.js)
+npm start -- --url=http://localhost:3000     # run against your local site (Rust server)
 npm run dist:win                             # on Windows -> dist/Triancle-Setup.exe
 npm run dist:mac                             # on a Mac   -> dist/Triancle-mac.dmg  (Apple Silicon + Intel)
 ```

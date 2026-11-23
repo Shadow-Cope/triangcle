@@ -4,7 +4,7 @@
    SOCIAL: welcome page, friends, player profiles
    ===================================================================== */
 const SOC = { friends: [], incoming: [], outgoing: [], ok: true, cache: new Map(), viewId: null, badges: new Map(), badgeOK: true };
-const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const esc = s => { const text = String(s == null ? "" : s); if (window.TriancleRust && window.TriancleRust.escapeHtml) { const result = window.TriancleRust.escapeHtml(text); if (result !== null) return result; } return text.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); };
 const FR_TABLE = "friendships";
 const dn = p => (p && (p.display_name || p.username)) || "";                // the name people see: display name if they set one, else username
 
@@ -62,7 +62,7 @@ async function fetchWorn(ids) {
   if (!rows) { try { const r = await sb.from("ugc_inventory").select("user_id, item_id").in("user_id", need).eq("equipped", true); if (!r.error) rows = r.data || []; } catch (_) {} }
   if (!rows) { UP.fail = true; return; }                               // this database does not let us see other players' items yet
   for (const id of need) WORN.set(id, []);
-  for (const r of rows) { const a = WORN.get(r.user_id); if (a && UUID_RE.test(r.item_id) && a.length < MAX_WORN) a.push(r.item_id); }
+  for (const r of rows) { const a = WORN.get(r.user_id); if (a && validItemId(r.item_id) && a.length < MAX_WORN) a.push(r.item_id); }
 }
 function queueUpgrade(uid) {
   if (!uid || (UP.fail && !(acct.user && uid === acct.user.id))) return;
@@ -121,21 +121,27 @@ async function loadSocial() {
     const { data, error } = await sb.from(FR_TABLE).select("requester, addressee, status").or(`requester.eq.${me},addressee.eq.${me}`);
     if (error) throw error;
     SOC.ok = true; SOC.friends = []; SOC.incoming = []; SOC.outgoing = [];
+    const social = window.TriancleRust && window.TriancleRust.socialLists ? window.TriancleRust.socialLists(me, data) : null;
+    if (social) { SOC.friends = social.friends; SOC.incoming = social.incoming; SOC.outgoing = social.outgoing; }
+    else {
     for (const f of data) {
       const other = f.requester === me ? f.addressee : f.requester;
       if (f.status === "accepted") SOC.friends.push(other);
       else if (f.addressee === me) SOC.incoming.push(other); else SOC.outgoing.push(other);
     }
+    }
     await getProfiles([me, ...SOC.friends, ...SOC.incoming, ...SOC.outgoing], true);
   } catch (_) { SOC.ok = false; }
   const n = SOC.incoming.length; $("reqBadge").textContent = n ? "(" + n + ")" : ""; updateUgcBtn();
 }
-const relation = id => SOC.friends.includes(id) ? "friend" : SOC.incoming.includes(id) ? "incoming" : SOC.outgoing.includes(id) ? "outgoing" : "none";
+const relation = id => { if (window.TriancleRust && window.TriancleRust.socialRelation) { const result = window.TriancleRust.socialRelation(id,SOC.friends,SOC.incoming,SOC.outgoing); if (result !== null) return result; } return SOC.friends.includes(id) ? "friend" : SOC.incoming.includes(id) ? "incoming" : SOC.outgoing.includes(id) ? "outgoing" : "none"; };
 async function friendAct(kind, id) {
   const sb = getSB(), me = acct.user.id; if (!sb) return;
   try {
-    if (kind === "add") await sb.from(FR_TABLE).insert({ requester: me, addressee: id, status: "pending" });
-    else if (kind === "accept") await sb.from(FR_TABLE).update({ status: "accepted" }).eq("requester", id).eq("addressee", me);
+    const rustAction = window.TriancleRust && window.TriancleRust.friendAction ? window.TriancleRust.friendAction(kind) : null;
+    const action = rustAction === null ? (kind === "add" ? 1 : kind === "accept" ? 2 : 3) : rustAction;
+    if (action === 1) await sb.from(FR_TABLE).insert({ requester: me, addressee: id, status: "pending" });
+    else if (action === 2) await sb.from(FR_TABLE).update({ status: "accepted" }).eq("requester", id).eq("addressee", me);
     else await sb.from(FR_TABLE).delete().or(`and(requester.eq.${me},addressee.eq.${id}),and(requester.eq.${id},addressee.eq.${me})`);
   } catch (_) {}
   await loadSocial();

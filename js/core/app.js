@@ -2,7 +2,7 @@
 
 /* =====================================================================
    Desktop app: detect it, gate Play behind it, and open it with triancle:// links.
-   - Inside the app (window.TriancleApp, or a "TriancleApp/x.y.z" user-agent) everything works as normal.
+   - Inside the app (window.TriancleApp, with the old user-agent token as a fallback) everything works as normal.
    - In a normal browser, pressing Play tries to open the app (triancle://join/<game>) and shows a download prompt.
    NOTE: this is a client-side gate - it keeps honest players on the app, it can't stop someone who edits the page.
    ===================================================================== */
@@ -12,7 +12,7 @@ const APP = (function () {
   const os = mobile ? "mobile" : /Windows/i.test(ua) ? "win" : /Macintosh|Mac OS X/i.test(ua) ? "mac" : "other";
   const inApp = !!window.TriancleApp || !!m;
   if (inApp) document.documentElement.classList.add("inapp");
-  return { in: inApp, os, version: m ? m[1] : "", required: !!APP_CFG.REQUIRE_APP, pendingJoin: null };
+  return { in: inApp, os, version: m ? m[1] : String(window.TriancleApp && window.TriancleApp.version || ""), required: !!APP_CFG.REQUIRE_APP, pendingJoin: null };
 })();
 const APP_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 function appDownloadUrl(os) {                                        // direct installer link, or the download page when none is published yet

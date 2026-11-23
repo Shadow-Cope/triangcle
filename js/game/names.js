@@ -11,7 +11,9 @@ const nameInput = document.getElementById("nameInput");
 const players = new Map();      // id -> { id, name, avatar, tag, local, target, alive }
 
 function cleanName(s) {
-  return String(s == null ? "" : s).replace(/[\u0000-\u001f\u007f<>]/g, "").trim().slice(0, 20);
+  const text = String(s == null ? "" : s);
+  if (window.TriancleRust && window.TriancleRust.cleanName) { const result = window.TriancleRust.cleanName(text); if (result !== null) return result; }
+  return text.replace(/[\u0000-\u001f\u007f<>]/g, "").trim().slice(0, 20);
 }
 let myName = "";
 try { myName = cleanName(localStorage.getItem("playerName")); } catch (_) {}
@@ -104,7 +106,7 @@ function updateTags() {
 /* ---- in-game chat: Enter to type, bubbles over heads, log bottom-left ---- */
 const chatLog = document.getElementById("chatlog"), chatInput = document.getElementById("chatInput");
 let lastChat = 0;
-function cleanChat(s) { return String(s == null ? "" : s).replace(/[\u0000-\u001f\u007f<>]/g, "").trim().slice(0, 120); }
+function cleanChat(s) { const text = String(s == null ? "" : s); if (window.TriancleRust && window.TriancleRust.cleanChat) { const result = window.TriancleRust.cleanChat(text); if (result !== null) return result; } return text.replace(/[\u0000-\u001f\u007f<>]/g, "").trim().slice(0, 120); }
 function addChatLine(name, text) {
   const d = document.createElement("div"); d.className = "line";
   const b = document.createElement("b"); b.textContent = name + ":"; d.appendChild(b); d.appendChild(document.createTextNode(text));

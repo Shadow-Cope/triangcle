@@ -12,7 +12,9 @@ selBox.visible = false; scene.add(selBox);
 
 function syncSolid(pt) {
   const h = pt.size.map(v => v / 2), s = pt.solid, p = pt.pos;
-  s.minX = p.x - h[0]; s.maxX = p.x + h[0]; s.minY = p.y - h[1]; s.maxY = p.y + h[1]; s.minZ = p.z - h[2]; s.maxZ = p.z + h[2];
+  const calculated = window.TriancleRust && window.TriancleRust.builtSolid ? window.TriancleRust.builtSolid(pt) : null;
+  if (calculated) [s.minX,s.maxX,s.minY,s.maxY,s.minZ,s.maxZ] = calculated.slice(0,6);
+  else { s.minX = p.x - h[0]; s.maxX = p.x + h[0]; s.minY = p.y - h[1]; s.maxY = p.y + h[1]; s.minZ = p.z - h[2]; s.maxZ = p.z + h[2]; }
   const i = solids.indexOf(s);
   if (pt.collide && i < 0) solids.push(s); else if (!pt.collide && i >= 0) solids.splice(i, 1);
 }
@@ -78,7 +80,10 @@ function applyPanel(e) {
 /* who may use BTools in this game: the game's setting is "all" (default), "staff" (Owner + Admin badge) or "off" */
 const btMode = () => (curGame && curGame.btools) || "all";
 function canBuild() {
-  const m = btMode(); if (m === "off") return false;
+  const m = btMode();
+  const allowed = window.TriancleRust && window.TriancleRust.canBuild ? window.TriancleRust.canBuild(m,!!acct.user,isOwner(),!!(acct.user && badgeList(acct.user.id).includes("admin"))) : null;
+  if (allowed !== null) return allowed;
+  if (m === "off") return false;
   if (m === "staff") return !!acct.user && (isOwner() || badgeList(acct.user.id).includes("admin"));
   return true;
 }
@@ -91,12 +96,16 @@ function toggleBT() {
 function stepUserParts(dt) {
   for (let i = userParts.length - 1; i >= 0; i--) {
     const pt = userParts[i]; if (pt.anchored) continue;
+    const stepped = window.TriancleRust && window.TriancleRust.stepBuiltPart ? window.TriancleRust.stepBuiltPart(pt, dt, CFG.GRAVITY, solids) : null;
+    if (stepped) { pt.pos.y = stepped[0]; pt.vy = stepped[1]; } else {
     pt.vy -= CFG.GRAVITY * dt; pt.pos.y += pt.vy * dt;
     const hx = pt.size[0] / 2, hy = pt.size[1] / 2, hz = pt.size[2] / 2, p = pt.pos;
     if (pt.collide) for (const s of solids) {
       if (s === pt.solid || pt.vy > 0) continue;
       if (p.x + hx > s.minX && p.x - hx < s.maxX && p.z + hz > s.minZ && p.z - hz < s.maxZ && p.y + hy > s.minY && p.y - hy < s.maxY) { p.y = s.maxY + hy; pt.vy = 0; }
     }
+    }
+    const p = pt.pos;
     if (p.y < CFG.FALL_DESTROY_Y) { removePart(pt); continue; }
     if (pt.vy !== 0) pt.mv = true; else if (pt.mv) { pt.mv = false; markPart(pt); }   // settled: tell everyone where it landed
     pt.mesh.position.copy(p); syncSolid(pt);
@@ -117,9 +126,11 @@ function applyRemotePart(d, owner) {
   let pt = userParts.find(q => q.gid === d.g);
   if (pt && pt.owner !== owner) return;                       // nobody can overwrite someone else's part
   if (!pt) { pt = { id: ++partId, gid: d.g, owner, mesh: new THREE.Mesh(), vy: 0, solid: {}, pos: new THREE.Vector3() }; scene.add(pt.mesh); userParts.push(pt); }
-  pt.shape = BT_GEO[d.sh] ? d.sh : "Block"; pt.size = d.sz.map(v => Math.max(0.2, Math.min(512, v)));
-  pt.color = (d.c | 0) & 0xffffff; pt.transp = Math.max(0, Math.min(1, +d.t || 0)); pt.anchored = !!d.an; pt.collide = !!d.co; pt.vy = 0;
-  pt.pos.set(d.p[0], d.p[1], d.p[2]); rebuildPart(pt);
+  pt.shape = BT_GEO[d.sh] ? d.sh : "Block";
+  const normalized = window.TriancleRust && window.TriancleRust.remotePart ? window.TriancleRust.remotePart(d) : null;
+  if (normalized) { pt.size = normalized.slice(0,3); pt.color = normalized[6]; pt.transp = normalized[7]; pt.anchored = !!normalized[8]; pt.collide = !!normalized[9]; pt.vy = 0; pt.pos.set(normalized[3],normalized[4],normalized[5]); }
+  else { pt.size = d.sz.map(v => Math.max(0.2, Math.min(512, v))); pt.color = (d.c | 0) & 0xffffff; pt.transp = Math.max(0, Math.min(1, +d.t || 0)); pt.anchored = !!d.an; pt.collide = !!d.co; pt.vy = 0; pt.pos.set(d.p[0], d.p[1], d.p[2]); }
+  rebuildPart(pt);
 }
 function onPartMsg(m) {
   if (btMode() === "off") return;                                   // building is switched off in this game: ignore anyone else's parts
@@ -175,6 +186,7 @@ $("btMove").addEventListener("click", () => setMode("move")); $("btSize").addEve
 const _ray = new THREE.Raycaster(), _ndc = new THREE.Vector2();
 function aimRay(e) { _ndc.set(e.clientX / window.innerWidth * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1); _ray.setFromCamera(_ndc, camera); }
 function axisParam(origin, dir) {   // where along the axis line the mouse ray passes closest
+  if (window.TriancleRust && window.TriancleRust.axisParam) { const result = window.TriancleRust.axisParam(origin,dir,_ray.ray); if (result) return result.value; }
   const r = _ray.ray, b = dir.dot(r.direction), w0 = origin.clone().sub(r.origin);
   const den = 1 - b * b; if (Math.abs(den) < 1e-4) return null;
   return (b * r.direction.dot(w0) - dir.dot(w0)) / den;

@@ -1,7 +1,7 @@
 # Triancle
 
-Roblox-style 3D game site. Plain HTML/CSS/JavaScript + Three.js, with Supabase for accounts, saving and
-multiplayer. **No build step** - the repo root is the site.
+Roblox-style 3D game site. Plain HTML/CSS/JavaScript + Three.js, a Rust/WebAssembly game core, and
+Supabase for accounts, saving and multiplayer. The frontend has no bundling step - the repo root is the site.
 
 ## Layout
 
@@ -17,7 +17,10 @@ js/
   social/             profiles, friends, badges, owner page
   items/              UGC upload, wallet, item models, inventory, shop, item page, selling
 assets/               logo, game images, face/badge images, stud textures, crosshair
-server.js             optional Node server (static files + WebSocket relay) - see Deploy
+rust/
+  triancle-core/      browser game logic compiled to WebAssembly
+  triancle-server/    supported static-file server + WebSocket relay
+server.js             legacy Node server fallback
 render.yaml           Render blueprint (static site by default)
 ```
 
@@ -40,21 +43,25 @@ this folder - keep them in the repo as before.
 
 ## Run locally
 
-Use any static server (images are real files now, so opening `index.html` straight from disk won't load
-textures):
+Install Rust, then start the supported static-file and WebSocket server:
 
 ```
-node server.js          # http://localhost:3000
-# or: python3 -m http.server 8000
+npm start               # release build, http://localhost:3000
+# or, while developing:
+npm run dev
 ```
+
+`PORT` and `HOST` are supported. `TRIANCLE_ROOT` can point at the site directory when the binary is
+started from somewhere other than the repository root. `npm run start:node` keeps the old Node server
+available as a temporary fallback; it is no longer the default.
 
 ## Deploy
 
 - **GitHub**: push the folder as-is. GitHub Pages works from the repo root (`.nojekyll` is included).
 - **Render, Static Site** (recommended with Supabase): New > Static Site > connect the repo, build command
   empty, publish directory `.` - or just use `render.yaml`.
-- **Render, Web Service** (own multiplayer server): runtime Node, start command `node server.js`. Leave the
-  Supabase fields empty in `config.js`, and either leave `SERVER_URL` empty (same host) or set it to
+- **Render, Web Service** (own multiplayer server): use the commented Rust service in `render.yaml`. Leave
+  the Supabase fields empty in `config.js`, and either leave `SERVER_URL` empty (same host) or set it to
   `wss://your-app.onrender.com`.
 - **Netlify** and similar: publish directory is the repo root, no build command.
 
@@ -78,7 +85,7 @@ Transparent pixels show the body colour.
 ## Desktop app (Windows + macOS)
 
 Games now start only in the Triancle desktop app. In a browser, **Play** tries to open the app (`triancle://join/<game>`) and shows a
-download prompt if nothing opens; `download.html` is the download page. The app itself lives in `desktop/` (Electron) and is built for
+download prompt if nothing opens; `download.html` is the download page. The app itself lives in `desktop/` (Tauri + Rust) and is built for
 Windows and macOS by `.github/workflows/build-desktop.yml`. Setup steps: `desktop/README.md`.
 
 - `js/core/app-config.js` - installer links and the `REQUIRE_APP` switch.  `js/core/app.js` - app detection, Play gate, prompt, `?join=` links.
@@ -116,7 +123,7 @@ Run `supabase_account.sql` once in the Supabase SQL editor (check the wallet tab
 ## Shapes, one-at-a-time and auto-update (update)
 - The currency is now called **Shapes** with the new icon (`assets/img/shapes.png`).
 - Only one Triancle tab/window can be open per browser, and one signed-in account can only play in one place at a time (run `supabase_owner_tools.sql` once for the account part). The desktop app also only runs one copy.
-- `js/core/updater.js` checks for a new version every 45 seconds. The website refreshes itself; the desktop app shows a "Restart Triancle for the new update" box with only a Close button (rebuild the app once so Close can quit it).
+- The update check in `js/game.bundle.js` runs every 45 seconds. The website refreshes itself; the desktop app shows a "Restart Triancle for the new update" box with only a Close button.
 
 ## Taxes, fees and notifications
 

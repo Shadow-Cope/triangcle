@@ -14,9 +14,11 @@ jobs:
           - os: windows-latest
             script: dist:win
             file: desktop/dist/Triancle-Setup.exe
+            rust_targets: x86_64-pc-windows-msvc
           - os: macos-latest
             script: dist:mac
             file: desktop/dist/Triancle-mac.dmg
+            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -26,7 +28,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+      - run: npm ci
       - name: Point the app at your website
         if: ${{ vars.SITE_URL != '' }}
         shell: bash

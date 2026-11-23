@@ -1,8 +1,9 @@
-/* Optional Node server for Render "Web Service" deploys (zero dependencies, Node 18+).
+/* Legacy Node fallback for environments where Rust is unavailable (zero dependencies, Node 18+).
+ * The supported server is rust/triancle-server and is launched by `npm start`.
  *   1. serves the static site (index.html, css/, js/, assets/)
  *   2. relays the game's WebSocket messages between players (only used when Supabase is NOT configured
  *      in js/core/config.js - with Supabase set, multiplayer goes through Supabase Realtime instead).
- * Run:  node server.js     (PORT env var is respected)
+ * Run fallback:  npm run start:node     (PORT env var is respected)
  * If you deploy as a Render *Static Site* you don't need this file at all. */
 "use strict";
 const http = require("http"), fs = require("fs"), path = require("path"), crypto = require("crypto");
@@ -13,7 +14,7 @@ const MAX_MSG = 1024 * 1024;                              // largest WebSocket m
 const PUBLIC = ["index.html", "download.html", "css", "js", "assets"];     // only these are served
 const MIME = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8",
   ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".svg": "image/svg+xml",
-  ".ico": "image/x-icon", ".json": "application/json", ".woff2": "font/woff2" };
+  ".ico": "image/x-icon", ".json": "application/json", ".woff2": "font/woff2", ".wasm": "application/wasm" };
 
 /* ---------------- static files ---------------- */
 const server = http.createServer((req, res) => {

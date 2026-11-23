@@ -20,8 +20,9 @@ const DEFAULT_COLORS = {};
 for (const n of PART_ORDER) DEFAULT_COLORS[n] = "#" + PART_STYLE[n].toString(16).padStart(6, "0");
 
 function sanitizeColors(o) {
+  if (window.TriancleRust && window.TriancleRust.sanitizeColors) { const result = window.TriancleRust.sanitizeColors(o,DEFAULT_COLORS); if (result) return result; }
   const out = {};
-  for (const n of PART_ORDER) out[n] = (o && typeof o[n] === "string" && HEX_RE.test(o[n])) ? o[n].toLowerCase() : DEFAULT_COLORS[n];
+  for (const n of PART_ORDER) out[n] = (o && (window.TriancleRust && window.TriancleRust.validColor ? window.TriancleRust.validColor(o[n]) : typeof o[n] === "string" && HEX_RE.test(o[n]))) ? o[n].toLowerCase() : DEFAULT_COLORS[n];
   out.face = (o && Number.isInteger(o.face) && o.face >= 0 && o.face < 100000) ? o.face : 0;
   out.body = (o && o.body === "female") ? "female" : "male";
   return out;
@@ -59,11 +60,13 @@ let colPart = "Head", saveTimer = 0, netColT = 0;
 function saveStatus(t) { $("colSave").textContent = t; }
 let hsv = { h: 0, s: 0, v: 1 };
 function hsv2rgb(h, s, v) {
+  if (window.TriancleRust && window.TriancleRust.hsvToRgb && Number.isFinite(h) && h >= 0 && h <= 360 && Number.isFinite(s) && s >= 0 && s <= 1 && Number.isFinite(v) && v >= 0 && v <= 1) return window.TriancleRust.hsvToRgb(h, s, v);
   const f = n => { const k = (n + h / 60) % 6; return v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); };
   return [Math.round(f(5) * 255), Math.round(f(3) * 255), Math.round(f(1) * 255)];
 }
 function hsvToHex(c) { return "#" + hsv2rgb(c.h, c.s, c.v).map(x => x.toString(16).padStart(2, "0")).join(""); }
 function hexToHsv(hex) {
+  if (window.TriancleRust && window.TriancleRust.rgbToHsv && typeof hex === "string" && /^#[0-9a-f]{6}$/i.test(hex) && hex.length === 7) return window.TriancleRust.rgbToHsv(parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16));
   const r = parseInt(hex.slice(1, 3), 16) / 255, g = parseInt(hex.slice(3, 5), 16) / 255, b = parseInt(hex.slice(5, 7), 16) / 255;
   const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
   let h = 0;

@@ -40,7 +40,7 @@ const CFG = {
 
   NAME_DISTANCE:   100,      // [R] Humanoid.NameDisplayDistance
   NET_SEND_HZ:     20,       // how often your state is sent to the server
-  SERVER_URL:      "",       // optional own WebSocket server (server.js); ignored if Supabase is set
+  SERVER_URL:      "",       // optional own Rust WebSocket server; ignored if Supabase is set
   SUPABASE_URL:      "https://ospurfoogmaoeycmmwkf.supabase.co",     // https://xxxx.supabase.co   (Project Settings -> API)
   SUPABASE_ANON_KEY: "sb_publishable_ZP8VL5LYlfF8KoF3MpTJVQ_vsYRW2yA",     // the public "anon" key
   ROOM:              "baseplate-1",  // channel name; players in the same room see each other

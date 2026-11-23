@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Triancle</title>
+  <style>
+    html,body{height:100%;margin:0;background:#120f09;color:#fff;font:16px system-ui,sans-serif}
+    body{display:grid;place-items:center;text-align:center}main{max-width:420px;padding:32px}
+    h1{margin:0 0 8px;font-size:28px}p{color:#a79b80;margin:0 0 22px}
+    button{padding:12px 26px;border:0;border-radius:10px;background:#ffbf2f;color:#1a1203;font:inherit;font-weight:700;cursor:pointer}
+    button:hover{background:#ffd25e}
+  </style>
+</head>
+<body><main><h1>Can't reach Triancle</h1><p>Check your internet connection. We'll keep trying.</p><button id="retry" type="button">Try again</button></main>
+<script>
+  const retry=()=>window.TriancleApp&&window.TriancleApp.retry();
+  document.getElementById("retry").addEventListener("click",retry);
+  setInterval(retry,15000);
+</script></body>
+</html>

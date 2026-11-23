@@ -88,6 +88,18 @@ function closeAuth() {
 }
 function friendlyAuthError(e, mode) {
   const msg = String(e && e.message || ""), code = String(e && e.code || "");
+  if (window.TriancleRust && window.TriancleRust.authError && e && typeof e === "object" && (Object.getPrototypeOf(e) === Object.prototype || Object.getPrototypeOf(e) === null)) {
+    const status = Object.getOwnPropertyDescriptor(e,"status");
+    if ((!status || "value" in status) && (status || !("status" in Object.prototype))) {
+      const category = window.TriancleRust.authError(code,msg,!!status && status.value === 429);
+      if (category === 1) return "That username is taken.";
+      if (category === 2) return "Wrong username or password.";
+      if (category === 3) return "Supabase is still asking for email confirmation. Turn off Confirm email in Authentication settings.";
+      if (category === 4) return "Too many tries, wait a minute and try again.";
+      if (category === 5) return "Supabase rejected the fake email domain. Set AUTH_EMAIL_DOMAIN in CFG to a domain that has MX records.";
+      if (category === 6) return msg || "Password is too weak.";
+    }
+  }
   if (code === "user_already_exists" || /already registered/i.test(msg)) return "That username is taken.";
   if (code === "invalid_credentials" || /invalid login/i.test(msg)) return "Wrong username or password.";
   if (code === "email_not_confirmed" || /not confirmed/i.test(msg)) return "Supabase is still asking for email confirmation. Turn off Confirm email in Authentication settings.";
@@ -96,16 +108,19 @@ function friendlyAuthError(e, mode) {
   if (code === "weak_password") return msg || "Password is too weak.";
   return msg || (mode === "signup" ? "Couldn't create the account." : "Couldn't log in.");
 }
+function validUsername(value) { if (window.TriancleRust && window.TriancleRust.validUsername) { const ok = window.TriancleRust.validUsername(value); if (ok !== null) return ok; } return /^[A-Za-z0-9_]{3,20}$/.test(value); }
 async function submitAuth() {
   if (acct.busy) return;
   const sb = getSB();
   if (!sb) return authMsg("Supabase isn't set up yet. Put SUPABASE_URL and SUPABASE_ANON_KEY in CFG at the top of index.html.", true);
   const u = authUser.value.trim(), pw = authPass.value;
-  if (!/^[A-Za-z0-9_]{3,20}$/.test(u)) return authMsg("Username: 3-20 letters, numbers or _", true);
-  if (pw.length < 6) return authMsg("Password must be at least 6 characters.", true);
+  if (!validUsername(u)) return authMsg("Username: 3-20 letters, numbers or _", true);
+  const passwordValid = window.TriancleRust && window.TriancleRust.passwordLengthValid ? window.TriancleRust.passwordLengthValid(pw.length) : null;
+  if (passwordValid === false || (passwordValid === null && pw.length < 6)) return authMsg("Password must be at least 6 characters.", true);
   acct.busy = true; authGo.disabled = true;
   authMsg(acct.mode === "signup" ? "Creating account…" : "Logging in…");
-  let email = u.toLowerCase() + "@" + CFG.AUTH_EMAIL_DOMAIN;
+  const rustEmail = window.TriancleRust && window.TriancleRust.loginEmail ? window.TriancleRust.loginEmail(u,CFG.AUTH_EMAIL_DOMAIN) : null;
+  let email = rustEmail === null ? u.toLowerCase() + "@" + CFG.AUTH_EMAIL_DOMAIN : rustEmail;
   try {
     if (acct.mode === "signup") {                                  // old usernames can't be taken by someone else
       try { const a = await sb.rpc("username_available", { p_username: u }); if (!a.error && a.data === false) { authMsg("That username is taken.", true); return; } } catch (_) {}

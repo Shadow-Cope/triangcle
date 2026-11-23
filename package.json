@@ -4,8 +4,10 @@
   "private": true,
   "description": "Triancle - Roblox-style 3D game site (Three.js + Supabase)",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "cargo run --release --manifest-path rust/triancle-server/Cargo.toml",
+    "dev": "cargo run --manifest-path rust/triancle-server/Cargo.toml",
+    "start:node": "node server.js",
+    "test:server": "cargo build --manifest-path rust/triancle-server/Cargo.toml && node rust/test-server.cjs"
   },
   "engines": { "node": ">=18" }
 }

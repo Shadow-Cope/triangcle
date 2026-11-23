@@ -21,7 +21,8 @@ async function renderShop() {
 function paintShop() {
   const q = $("shSearch").value.trim().toLowerCase(), sort = $("shSort").value, me = acct.user && acct.user.id;
   const ty = $("shType").value;
-  let rows = SHOP.rows.filter(it => (!q || String(it.name).toLowerCase().includes(q)) && (ty === "all" || (ty === "acc" ? !isCloth(it.attach) && !isFace(it.attach) : it.attach === ty)));
+  const filtered = window.TriancleRust && window.TriancleRust.catalogFilter ? window.TriancleRust.catalogFilter(SHOP.rows,q,ty,"",null,null,false,false,SOC.cache,INV.owned) : null;
+  let rows = filtered ? filtered.map(i => SHOP.rows[i]) : SHOP.rows.filter(it => (!q || String(it.name).toLowerCase().includes(q)) && (ty === "all" || (ty === "acc" ? !isCloth(it.attach) && !isFace(it.attach) : it.attach === ty)));
   rows.sort(sort === "low" ? (a, b) => a.price - b.price : sort === "high" ? (a, b) => b.price - a.price : sort === "top" ? (a, b) => b.sales - a.sales
     : (a, b) => String(b.published_at).localeCompare(String(a.published_at)));
   $("shopBox").hidden = rows.length > 0;

@@ -60,7 +60,10 @@ async function renderProfile(id) {
   else {
     try {
       const r = await getSB().from(FR_TABLE).select("requester, addressee").eq("status", "accepted").or(`requester.eq.${id},addressee.eq.${id}`);
-      theirFriends = (r.data || []).map(f => f.requester === id ? f.addressee : f.requester);
+      const rows = r.data || [];
+      const friends = window.TriancleRust && window.TriancleRust.socialLists && Array.isArray(rows)
+        ? window.TriancleRust.socialLists(id,rows.map(f => ({requester:f.requester,addressee:f.addressee,status:"accepted"}))) : null;
+      theirFriends = friends ? friends.friends : rows.map(f => f.requester === id ? f.addressee : f.requester);
       await getProfiles(theirFriends);
     } catch (_) {}
   }

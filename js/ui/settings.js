@@ -10,6 +10,7 @@
 const USERNAME_COST = 150;                                          // keep in step with supabase_account.sql
 const NAME_RE = /^[A-Za-z0-9_]{3,20}$/;
 const DISPLAY_RE = /^[\p{L}\p{N}_.'\- ]{1,20}$/u;
+function validDisplayName(value) { if (window.TriancleRust && window.TriancleRust.validDisplayName) { const ok = window.TriancleRust.validDisplayName(value); if (ok !== null) return ok; } return DISPLAY_RE.test(value); }
 const RENAME_ERR = {
   not_signed_in: "Log in first.", invalid: "Username: 3-20 letters, numbers or _", same: "That's already your username.",
   taken: "That username is taken (or someone used it before).", not_enough: "You don't have enough Triangcles.",
@@ -51,7 +52,7 @@ async function renderSettings() {
 
 async function saveDisplayName() {
   const msg = $("sDispMsg"), v = $("sDisp").value.trim(), sb = getSB();
-  if (v && !DISPLAY_RE.test(v)) { msg.textContent = "Display name: up to 20 letters, numbers, spaces, . _ - '"; return; }
+  if (v && !validDisplayName(v)) { msg.textContent = "Display name: up to 20 letters, numbers, spaces, . _ - '"; return; }
   msg.textContent = "Saving…";
   try {
     const r = await sb.from(CFG.SAVE_TABLE).update({ display_name: v || null }).eq("id", acct.user.id).select("id");
@@ -63,9 +64,10 @@ async function saveDisplayName() {
 
 async function saveUsername() {
   const msg = $("sUserMsg"), btn = $("sUserSave"), v = $("sUser").value.trim(), sb = getSB();
-  if (!NAME_RE.test(v)) { msg.textContent = RENAME_ERR.invalid; return; }
-  if (v.toLowerCase() === acct.username.toLowerCase()) { msg.textContent = RENAME_ERR.same; return; }
-  if (WAL.bal != null && WAL.bal < USERNAME_COST) { msg.textContent = RENAME_ERR.not_enough; return; }
+  const check = window.TriancleRust && window.TriancleRust.renameCheck ? window.TriancleRust.renameCheck(v,acct.username,WAL.bal,USERNAME_COST) : null;
+  if (check === 1 || (check === null && !validUsername(v))) { msg.textContent = RENAME_ERR.invalid; return; }
+  if (check === 2 || (check === null && v.toLowerCase() === acct.username.toLowerCase())) { msg.textContent = RENAME_ERR.same; return; }
+  if (check === 3 || (check === null && WAL.bal != null && WAL.bal < USERNAME_COST)) { msg.textContent = RENAME_ERR.not_enough; return; }
   if (!confirm("Change your username to \"" + v + "\" for " + USERNAME_COST + " Triangcles?\nYour old username will show on your profile.")) return;
   btn.disabled = true; msg.textContent = "Changing…";
   try {

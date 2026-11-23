@@ -1,7 +1,7 @@
 "use strict";
 
 /* =====================================================================
-   Multiplayer client (talks to server.js over WebSocket)
+   Multiplayer client (talks to the Rust relay over WebSocket)
    Client-authoritative: every client simulates itself and broadcasts its
    state; the server only relays.
    ===================================================================== */
@@ -137,7 +137,7 @@ function remoteState(id, m) {
   const num = v => typeof v === "number" && isFinite(v);
   if (!num(m.x) || !num(m.y) || !num(m.z)) return;
   const first = !pl.target;
-  pl.target = { x: m.x, y: m.y, z: m.z, f: num(m.f) ? m.f : 0, a: Array.isArray(m.a) ? m.a : [0, 0, 0, 0], ff: m.ff ? 1 : 0, l: num(m.l) ? m.l : 0, r: num(m.r) ? m.r : 0, b: num(m.b) ? m.b : 0 };
+  pl.target = window.TriancleRust && window.TriancleRust.remoteSnapshot && window.TriancleRust.remoteSnapshot(m) || { x: m.x, y: m.y, z: m.z, f: num(m.f) ? m.f : 0, a: Array.isArray(m.a) ? m.a : [0, 0, 0, 0], ff: m.ff ? 1 : 0, l: num(m.l) ? m.l : 0, r: num(m.r) ? m.r : 0, b: num(m.b) ? m.b : 0 };
   if (m.al === 0) { pl.alive = false; return; }
   if (!pl.alive || first) {                       // (re)spawned: snap into place
     clearDebris(id);
@@ -155,7 +155,7 @@ function remoteDied(id) {
 }
 const LIMBS = ["LeftArm", "RightArm", "LeftLeg", "RightLeg"];
 function updateRemotes(dt) {
-  const k = 1 - Math.exp(-dt * 18);
+  const k = animationBlend(dt, 18);
   for (const pl of players.values()) {
     if (pl.local) continue;
     const av = pl.avatar, t = pl.target;
@@ -163,6 +163,16 @@ function updateRemotes(dt) {
     av.group.visible = !isBlocked(pl.name);
     setFF(av, !!t.ff);
     const g = av.group.position;
+    if (window.TriancleRust && window.TriancleRust.animateRemote) {
+      const state = window.TriancleRust.animateRemote([k, av.ln, av.rl, av.by, g.x, g.y, g.z, av.facing,
+        ...LIMBS.map(n => av.ang[n]), t.l, t.r, t.b, t.x, t.y, t.z, t.f, ...LIMBS.map((_, i) => +t.a[i] || 0)]);
+      if (state) {
+        [av.ln, av.rl, av.by, g.x, g.y, g.z, av.facing] = state.slice(1, 8);
+        av.group.rotation.z = -av.ln; av.group.rotation.x = av.rl; av.group.rotation.y = av.facing + CFG.MODEL_FRONT_OFFSET;
+        for (let i = 0; i < 4; i++) { const n = LIMBS[i]; av.ang[n] = state[8+i]; av.rig[n].rotation.z = av.ang[n]; }
+        continue;
+      }
+    }
     av.ln += (t.l - av.ln) * k; av.rl += (t.r - av.rl) * k; av.by += (t.b - av.by) * k;
     g.x += (t.x - g.x) * k; g.y += (t.y + av.by - g.y) * k; g.z += (t.z - g.z) * k;
     av.group.rotation.z = -av.ln; av.group.rotation.x = av.rl;

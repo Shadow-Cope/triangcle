@@ -19,6 +19,7 @@ const player = {
 function readMoveInput() {
   const fwd = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
   const rgt = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
+  if (window.TriancleRust && window.TriancleRust.moveDirection) return window.TriancleRust.moveDirection(cam.yaw, fwd, rgt);
   const fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw);
   const rx =  Math.cos(cam.yaw), rz = -Math.sin(cam.yaw);
   let mx = fx * fwd + rx * rgt, mz = fz * fwd + rz * rgt;
@@ -28,6 +29,7 @@ function readMoveInput() {
 }
 
 function approach(v, tx, tz, maxDelta) {
+  if (window.TriancleRust && window.TriancleRust.approach) return window.TriancleRust.approach(v, tx, tz, maxDelta);
   const dx = tx - v.x, dz = tz - v.z, l = Math.hypot(dx, dz);
   if (l <= maxDelta || l === 0) { v.x = tx; v.z = tz; }
   else { v.x += dx / l * maxDelta; v.z += dz / l * maxDelta; }
@@ -35,6 +37,7 @@ function approach(v, tx, tz, maxDelta) {
 
 function overlaps(p, b) {
   const h = CFG.CHAR_HALF_XZ;
+  if (window.TriancleRust && window.TriancleRust.boxOverlap) return window.TriancleRust.boxOverlap(p, b, h, CFG.CHAR_HEIGHT);
   return p.x + h > b.minX && p.x - h < b.maxX &&
          p.z + h > b.minZ && p.z - h < b.maxZ &&
          p.y + CFG.CHAR_HEIGHT > b.minY && p.y < b.maxY;

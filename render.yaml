@@ -11,7 +11,7 @@ services:
 #
 #  - type: web
 #    name: triangle
-#    runtime: node
-#    buildCommand: echo "no build step"
-#    startCommand: node server.js
+#    runtime: rust
+#    buildCommand: cargo build --release --manifest-path rust/triancle-server/Cargo.toml
+#    startCommand: ./rust/triancle-server/target/release/triancle-server
 #    healthCheckPath: /healthz

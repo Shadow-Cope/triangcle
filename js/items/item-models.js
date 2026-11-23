@@ -34,7 +34,8 @@ function decodePng(buf) {
 }
 async function clothFromBuffer(buf) {                             // -> 512x512 canvas, or throws Error("png" | "shape")
   const u8 = new Uint8Array(buf);
-  if (!(u8[0] === 0x89 && u8[1] === 0x50 && u8[2] === 0x4e && u8[3] === 0x47)) throw new Error("png");
+  const signature = window.TriancleRust && window.TriancleRust.assetSignature ? window.TriancleRust.assetSignature(buf,"png") : null;
+  if (signature === false || (signature === null && !(u8[0] === 0x89 && u8[1] === 0x50 && u8[2] === 0x4e && u8[3] === 0x47))) throw new Error("png");
   const im = await decodePng(buf), w = im.naturalWidth, h = im.naturalHeight;
   if (!w || !h || Math.abs(w / h - CLOTH_W / CLOTH_H) > 0.01 || w < 256 || w > 2048) throw new Error("shape");
   const cv = document.createElement("canvas"); cv.width = CLOTH_W; cv.height = CLOTH_H;
@@ -71,9 +72,11 @@ function buildHolder(av, it, m) {                                  // same maths
   const model = m.scene.clone(true);
   model.traverse(o => { if (o.isMesh) o.castShadow = true; });
   const inner = new THREE.Group(); inner.scale.setScalar(m.k); inner.add(model);
-  inner.position.set(-m.c.x * m.k, (it.attach === "Head" ? -m.min.y : -m.c.y) * m.k, -m.c.z * m.k);
+  const rust = window.TriancleRust, center = rust && rust.itemCenter || ((c, minimum, k, headY) => (headY ? -minimum : -c) * k);
+  inner.position.set(center(m.c.x,0,m.k,false), center(m.c.y,it.attach === "Head" ? m.min.y : 0,m.k,it.attach === "Head"), center(m.c.z,0,m.k,false));
   const holder = new THREE.Group(); holder.add(inner);
-  holder.position.set(an[0] - pp[0] + pos[0], an[1] - pp[1] + pos[1], an[2] - pp[2] + pos[2]);
+  const position = rust && rust.itemPosition || ((a,p,v) => a-p+v);
+  holder.position.set(position(an[0],pp[0],pos[0]), position(an[1],pp[1],pos[1]), position(an[2],pp[2],pos[2]));
   holder.rotation.set(rot[0] * rad, rot[1] * rad, rot[2] * rad, "XYZ");
   holder.scale.setScalar(+it.scale || 1);
   pv.add(holder);
@@ -90,9 +93,13 @@ async function fetchItemRows(ids) {
 async function applyItemsToAvatar(av, ids) {
   const want = ids.join(",");
   av.itemHolders = av.itemHolders || new Map(); av.clothItems = av.clothItems || new Map();
-  for (const [id, h] of Array.from(av.itemHolders)) if (!ids.includes(id)) { if (h.parent) h.parent.remove(h); av.itemHolders.delete(id); }
-  for (const id of Array.from(av.clothItems.keys())) if (!ids.includes(id)) av.clothItems.delete(id);
-  const need = ids.filter(id => !av.itemHolders.has(id) && !av.clothItems.has(id));
+  const diff = window.TriancleRust && window.TriancleRust.missingIndices;
+  const holders = Array.from(av.itemHolders), holderDrops = diff ? diff(holders.map(x => x[0]),ids) : null;
+  for (const [i,[id,h]] of holders.entries()) if (holderDrops ? holderDrops.includes(i) : !ids.includes(id)) { if (h.parent) h.parent.remove(h); av.itemHolders.delete(id); }
+  const clothes = Array.from(av.clothItems.keys()), clothDrops = diff ? diff(clothes,ids) : null;
+  for (const [i,id] of clothes.entries()) if (clothDrops ? clothDrops.includes(i) : !ids.includes(id)) av.clothItems.delete(id);
+  const missing = diff ? diff(ids,Array.from(av.itemHolders.keys()).concat(Array.from(av.clothItems.keys()))) : null;
+  const need = missing ? missing.map(i => ids[i]) : ids.filter(id => !av.itemHolders.has(id) && !av.clothItems.has(id));
   if (!need.length) { paintClothFor(av, ids); return; }
   const rows = await fetchItemRows(need);
   for (const id of need) {
@@ -117,11 +124,13 @@ function syncAvatarItems(av, ids) {
   applyItemsToAvatar(av, ids);
 }
 function applyRemoteItems(pl, items) {
-  const ids = Array.isArray(items) ? items.filter(x => typeof x === "string" && UUID_RE.test(x)).slice(0, MAX_WORN) : [];
+  const rustIds = window.TriancleRust && window.TriancleRust.wornIds && Array.isArray(items) ? window.TriancleRust.wornIds(items,MAX_WORN) : null;
+  const ids = rustIds || (Array.isArray(items) ? items.filter(x => typeof x === "string" && validItemId(x)).slice(0, MAX_WORN) : []);
   syncAvatarItems(pl.avatar, ids);
 }
 function setMyItems(ids) {
-  WEAR.mine = ids.filter(x => UUID_RE.test(x)).slice(0, MAX_WORN);
+  const rustIds = window.TriancleRust && window.TriancleRust.wornIds ? window.TriancleRust.wornIds(ids,MAX_WORN) : null;
+  WEAR.mine = rustIds || ids.filter(x => validItemId(x)).slice(0, MAX_WORN);
   syncAvatarItems(localAvatar, WEAR.mine);
   netSend({ t: "colors", colors: myColors });                     // re-sends presence, which now includes what you wear
   if (acct.user) queueUpgrade(acct.user.id);                       // your own picture shows what you wear

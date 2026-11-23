@@ -37,14 +37,17 @@ function frame(now) {
   charGroup.position.y += bodyY; charGroup.rotation.z = -lean; charGroup.rotation.x = roll;
 
   // camera
-  cam.zoom += (cam.zoomTarget - cam.zoom) * (1 - Math.exp(-dt * 20));
-  cam.shift += (((shiftLock && !firstPerson && player.alive) ? 1 : 0) - cam.shift) * (1 - Math.exp(-dt * 15));
-  const shiftOff = CFG.SHIFTLOCK_OFFSET * cam.shift;
   if (player.alive) deadFocus.set(tmp.x, tmp.y + CFG.CAM_FOCUS_Y, tmp.z);
   else {                                        // dead: camera follows the loose head
     const hd = debris.find(d => d.owner === "me" && d.name === "Head");
     if (hd) deadFocus.copy(hd.g.position);
   }
+  const cameraState = window.TriancleRust && window.TriancleRust.cameraFrame ? window.TriancleRust.cameraFrame(cam,deadFocus,shiftLock && !firstPerson && player.alive,dt,CFG.SHIFTLOCK_OFFSET,BASEPLATE_HALF) : null;
+  if (cameraState) { cam.zoom = cameraState[0]; cam.shift = cameraState[1]; focus.set(cameraState[2],cameraState[3],cameraState[4]); desired.set(cameraState[5],cameraState[6],cameraState[7]); }
+  else {
+  cam.zoom += (cam.zoomTarget - cam.zoom) * (1 - Math.exp(-dt * 20));
+  cam.shift += (((shiftLock && !firstPerson && player.alive) ? 1 : 0) - cam.shift) * (1 - Math.exp(-dt * 15));
+  const shiftOff = CFG.SHIFTLOCK_OFFSET * cam.shift;
   focus.set(deadFocus.x + Math.cos(cam.yaw) * shiftOff, deadFocus.y, deadFocus.z - Math.sin(cam.yaw) * shiftOff);
   const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
   desired.set(
@@ -58,6 +61,7 @@ function frame(now) {
       Math.abs(desired.x) < BASEPLATE_HALF && Math.abs(desired.z) < BASEPLATE_HALF) {
     const s = (focus.y - MIN_Y) / (focus.y - desired.y);
     desired.sub(focus).multiplyScalar(s).add(focus);
+  }
   }
   camera.position.copy(desired);
   camera.lookAt(focus);
@@ -82,7 +86,7 @@ function frame(now) {
   NET.timer += dt;
   if (NET.timer >= NET.interval) {
     NET.timer = 0;
-    const r2 = v => Math.round(v * 100) / 100;
+    const r2 = v => typeof v === "number" && window.TriancleRust && window.TriancleRust.networkRound ? window.TriancleRust.networkRound(v) : Math.round(v * 100) / 100;
     const msg = { t: "s", x: r2(charGroup.position.x), y: r2(charGroup.position.y - bodyY), z: r2(charGroup.position.z),
       f: r2(facing), a: [r2(ang.LeftArm), r2(ang.RightArm), r2(ang.LeftLeg), r2(ang.RightLeg)], al: player.alive ? 1 : 0, ff: player.ff > 0 ? 1 : 0, l: r2(lean), r: r2(roll), b: r2(bodyY) };
     const sig = JSON.stringify([msg.x, msg.y, msg.z, msg.f, msg.a, msg.al, msg.ff, msg.l, msg.r]);

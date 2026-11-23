@@ -10,12 +10,12 @@ const UG_SLOTS = [["Head", "Head (hat)"], ["Torso", "Torso"], ["LeftArm", "Left 
 const UG_ANCHOR = { Head: [0, 5.05, 0], Torso: [0, 3, 0], LeftArm: [0, 3, -1.5], RightArm: [0, 3, 1.5], LeftLeg: [0, 1, -0.5], RightLeg: [0, 1, 0.5] };
 const UG_VIEW = { Head: [4.6, 8], Torso: [3, 12], LeftArm: [3, 12], RightArm: [3, 12], LeftLeg: [1.4, 12], RightLeg: [1.4, 12], Shirt: [3, 10], Pants: [2, 10], Face: [4.6, 4.6] };
 const CLOTH_SLOTS = [["Shirt", "Shirt"], ["Pants", "Pants"]];       // clothes: a PNG on the 512x512 template instead of a GLB
-const isCloth = a => a === "Shirt" || a === "Pants";
+const isCloth = a => { if (window.TriancleRust && window.TriancleRust.itemKind) { const kind = window.TriancleRust.itemKind(a); if (kind !== null) return kind === 1; } return a === "Shirt" || a === "Pants"; };
 const UG_KINDS = [["model", "3D accessory (GLB)"], ["Shirt", "Shirt (PNG)"], ["Pants", "Pants (PNG)"]];
 const UG_DEFS = [["pos", 0, "Forward / back", -4, 4, 0.01], ["pos", 1, "Up / down", -4, 4, 0.01], ["pos", 2, "Left / right", -4, 4, 0.01],
   ["rot", 0, "Roll", -180, 180, 1], ["rot", 1, "Turn", -180, 180, 1], ["rot", 2, "Tilt", -180, 180, 1], ["scale", 0, "Size", 0.05, 5, 0.01]];
 function canUgc() {
-  try { if (!acct.user) return false; if (isOwner()) return true; return badgeList(acct.user.id).some(k => UGC_ROLES.includes(k)) || hasBadgePerm("can_ugc"); } catch (_) { return false; }
+  try { if (!acct.user) return false; const value = rustPermission("can_ugc"); if (value !== null) return value; if (isOwner()) return true; return badgeList(acct.user.id).some(k => UGC_ROLES.includes(k)) || hasBadgePerm("can_ugc"); } catch (_) { return false; }
 }
 function updateUgcBtn() { $("ugcTabBtn").hidden = !canUgc(); }
 
@@ -142,23 +142,27 @@ function ugApply() {
   if (!UG.holder) return;
   const pv = ugv.av.rig[UG.attach], pp = MODEL_PARTS[UG.attach].pivot, an = UG_ANCHOR[UG.attach], h = UG.holder, rad = Math.PI / 180;
   if (h.parent !== pv) pv.add(h);
-  h.position.set(an[0] - pp[0] + UG.pos[0], an[1] - pp[1] + UG.pos[1], an[2] - pp[2] + UG.pos[2]);
+  const rust = window.TriancleRust, position = rust && rust.itemPosition || ((a, p, v) => a - p + v);
+  h.position.set(position(an[0], pp[0], UG.pos[0]), position(an[1], pp[1], UG.pos[1]), position(an[2], pp[2], UG.pos[2]));
   h.rotation.set(UG.rot[0] * rad, UG.rot[1] * rad, UG.rot[2] * rad, "XYZ");
   h.scale.setScalar(UG.scale);
-  UG.inner.position.set(-UG.c.x * UG.k, (UG.attach === "Head" ? -UG.min.y : -UG.c.y) * UG.k, -UG.c.z * UG.k);
+  const center = rust && rust.itemCenter || ((c, m, k, headY) => (headY ? -m : -c) * k);
+  UG.inner.position.set(center(UG.c.x, 0, UG.k, false), center(UG.c.y, UG.attach === "Head" ? UG.min.y : 0, UG.k, UG.attach === "Head"), center(UG.c.z, 0, UG.k, false));
 }
 function ugMove(dx, dy, depth) {
   const cam = ugv.cam, hpx = ugv.r.domElement.clientHeight || 400, k = 2 * ugv.dist * Math.tan(cam.fov * Math.PI / 360) / hpx;
   const r = new THREE.Vector3(), u = new THREE.Vector3(), f = new THREE.Vector3(); cam.matrixWorld.extractBasis(r, u, f);
   const d = depth ? f.multiplyScalar(dy * k) : r.multiplyScalar(dx * k).add(u.multiplyScalar(-dy * k));
   const pv = ugv.av.rig[UG.attach]; pv.updateMatrixWorld(true);
-  const inv = new THREE.Matrix4().copy(pv.matrixWorld).invert(); inv.setPosition(0, 0, 0); d.applyMatrix4(inv);
-  const dd = [d.x, d.y, d.z]; UG.pos = UG.pos.map((v, i) => ugClamp(v + dd[i], -4, 4));
+  const inv = new THREE.Matrix4().copy(pv.matrixWorld).invert(); inv.setPosition(0, 0, 0);
+  const moved = window.TriancleRust && window.TriancleRust.ugcDrag ? window.TriancleRust.ugcDrag(UG.pos,d,inv.elements) : null;
+  if (moved) UG.pos = moved; else { d.applyMatrix4(inv); const dd = [d.x, d.y, d.z]; UG.pos = UG.pos.map((v, i) => ugClamp(v + dd[i], -4, 4)); }
   ugSync(); ugApply();
 }
 function ugLoad(buf, label) {
   const u8 = new Uint8Array(buf);
-  if (!(u8[0] === 0x67 && u8[1] === 0x6c && u8[2] === 0x54 && u8[3] === 0x46)) return Promise.reject(new Error("not a glb"));
+  const signature = window.TriancleRust && window.TriancleRust.assetSignature ? window.TriancleRust.assetSignature(buf,"glb") : null;
+  if (signature === false || (signature === null && !(u8[0] === 0x67 && u8[1] === 0x6c && u8[2] === 0x54 && u8[3] === 0x46))) return Promise.reject(new Error("not a glb"));
   return new Promise((res, rej) => new THREE.GLTFLoader().parse(buf, "", gltf => {
     try {
       if (UG.holder && UG.holder.parent) UG.holder.parent.remove(UG.holder);

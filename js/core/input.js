@@ -69,12 +69,13 @@ window.addEventListener("mouseup", e => {
 window.addEventListener("mousemove", e => {
   if (!(rmbDown || (hasLock() && (shiftLock || firstPerson)))) return;    // a free cursor never steers the camera
   if (Math.abs(e.movementX) > 400 || Math.abs(e.movementY) > 400) return;   // ignore lock-jump spikes
-  cam.yaw   -= e.movementX * CFG.CAM_SENS;
-  cam.pitch += e.movementY * CFG.CAM_SENS;
-  cam.pitch = Math.max(-CFG.CAM_PITCH_LIMIT, Math.min(CFG.CAM_PITCH_LIMIT, cam.pitch));
+  const aim = window.TriancleRust && window.TriancleRust.cameraAim ? window.TriancleRust.cameraAim(cam.yaw,cam.pitch,e.movementX,e.movementY,CFG.CAM_SENS,CFG.CAM_PITCH_LIMIT) : null;
+  if (aim) { cam.yaw = aim[0]; cam.pitch = aim[1]; }
+  else { cam.yaw -= e.movementX * CFG.CAM_SENS; cam.pitch += e.movementY * CFG.CAM_SENS; cam.pitch = Math.max(-CFG.CAM_PITCH_LIMIT, Math.min(CFG.CAM_PITCH_LIMIT, cam.pitch)); }
 });
 canvas.addEventListener("wheel", e => {
   e.preventDefault();
   const f = e.deltaY > 0 ? 1.14 : 1 / 1.14;
-  cam.zoomTarget = Math.max(CFG.CAM_ZOOM_MIN, Math.min(CFG.CAM_ZOOM_MAX, cam.zoomTarget * f));
+  const zoom = window.TriancleRust && window.TriancleRust.cameraZoom ? window.TriancleRust.cameraZoom(cam.zoomTarget,e.deltaY,CFG.CAM_ZOOM_MIN,CFG.CAM_ZOOM_MAX) : null;
+  cam.zoomTarget = zoom === null ? Math.max(CFG.CAM_ZOOM_MIN, Math.min(CFG.CAM_ZOOM_MAX, cam.zoomTarget * f)) : zoom;
 }, { passive: false });
