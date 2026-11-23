@@ -36,6 +36,22 @@ function getSB() {
   _sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, { realtime: { params: { eventsPerSecond: 20 } } });
   return _sb;
 }
+/* A game published from Studio can cap its server. Supabase presence tells us who is
+   in the room; if we ended up over the cap, leave instead of overflowing it. */
+let capChecked = false;
+function enforceServerCap() {
+  if (capChecked) return;
+  capChecked = true;
+  if (typeof inGame === "undefined" || !inGame) return;
+  if (typeof curGame === "undefined" || !curGame || !curGame.maxPlayers) return;
+  if (!NET.channel) return;
+  const n = Object.keys(NET.channel.presenceState() || {}).length;
+  if (n > curGame.maxPlayers) {
+    try { uiAlert("This server is full (" + curGame.maxPlayers + " players max). Try again in a minute."); } catch (_) {}
+    leaveGame();
+  }
+}
+
 function sbConnect() {
   if (!window.supabase || !window.supabase.createClient) { NET.status = "offline (supabase-js failed to load)"; return; }
   NET.id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now();
@@ -52,7 +68,7 @@ function sbConnect() {
       if (payload && payload.id && payload.id !== NET.id) remoteDied(String(payload.id));
     })
     .subscribe((status, err) => {
-      if (status === "SUBSCRIBED") { NET.status = "online"; NET.err = ""; ch.track(presenceInfo()); setTimeout(() => netSend({ t: "partreq" }), 700); }
+      if (status === "SUBSCRIBED") { NET.status = "online"; NET.err = ""; ch.track(presenceInfo()); setTimeout(() => netSend({ t: "partreq" }), 700); setTimeout(enforceServerCap, 2500); }
       else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") { NET.status = "offline – retrying"; NET.err = err && err.message ? String(err.message).slice(0, 80) : status; }
     });
   NET.channel = ch;

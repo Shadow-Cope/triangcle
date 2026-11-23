@@ -1054,3 +1054,26 @@ html.touch #board { display: none; }
   html:not(.inapp) #gmenu { max-width: 100vw; }
   html:not(.inapp) #auth .authCard, html:not(.inapp) #auth > div { max-width: calc(100vw - 24px); }
 }
+
+/* =====================================================================
+   Triancle Studio playtest (index.html?playtest=1)
+   The real game runs in a Studio window: keep the world, the avatar and
+   the name tags, drop the website, account, chat and lobby UI.
+   ===================================================================== */
+body.playtest #topbar,
+body.playtest #board,
+body.playtest #namebox,
+body.playtest #gfx,
+body.playtest #hotbar,
+body.playtest #bt,
+body.playtest #homeBtn,
+body.playtest #home,
+body.playtest #auth,
+body.playtest #gmenu,
+body.playtest #chatlog,
+body.playtest #chatInput,
+body.playtest #hud,
+body.playtest #veil { display: none !important; }
+body.playtest { background: #000; overflow: hidden; }
+body.playtest #c { position: fixed; inset: 0; }
+

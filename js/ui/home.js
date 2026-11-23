@@ -61,6 +61,8 @@ function fillGamePage() {
   $("gpTitle").textContent = gv(g, "name"); $("gpBy").innerHTML = "By <b>" + gesc(gv(g, "by")) + "</b>";
   $("gpIcon").src = gv(g, "icon"); $("gpBannerImg").src = gBanner(g);
   $("gpAbout").querySelector("p").textContent = gv(g, "about");
+  const stat = $("gpPlayersStat");
+  if (stat) stat.textContent = g.maxPlayers ? "1 – " + g.maxPlayers : "Multiplayer";
   if (window.refreshFav) window.refreshFav();
 }
 $("gameGrid").addEventListener("click", e => { const c = e.target.closest("[data-game]"); if (c) openGamePage(c.dataset.game); });

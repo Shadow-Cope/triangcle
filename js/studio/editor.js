@@ -22,6 +22,7 @@ const StudioEditor = (function () {
   let gizmo = null, gizmoModes = {}, gizmoDrag = null;
   let explorerOn = true, propsOn = true;
   let bound = false, layout = null, layoutTimer = 0, colorTimer = 0;
+  let playing = false, playCam = null;
 
   const keys = new Set();
   const tmpDir = new THREE.Vector3();
@@ -31,6 +32,36 @@ const StudioEditor = (function () {
   const GEO_BOX = new THREE.BoxGeometry(1, 1, 1);
   const GEO_SPHERE = new THREE.SphereGeometry(0.5, 24, 16);
   const GEO_CYL = new THREE.CylinderGeometry(0.5, 0.5, 1, 24); GEO_CYL.rotateZ(Math.PI / 2);
+
+  /* shapes: 0 ball, 1 block, 2 cylinder, 3 wedge, 4 corner wedge */
+  const SHAPES = ["Ball", "Block", "Cylinder", "Wedge", "Corner wedge"];
+  function shapeGeometry(corner) {
+    const w = [
+      -0.5, -0.5, -0.5,  0.5, -0.5, -0.5,  0.5, -0.5, 0.5,
+      -0.5, -0.5, -0.5,  0.5, -0.5, 0.5,  -0.5, -0.5, 0.5,
+      -0.5, -0.5, -0.5, -0.5, 0.5, -0.5,  0.5, 0.5, -0.5,
+      -0.5, -0.5, -0.5,  0.5, 0.5, -0.5,  0.5, -0.5, -0.5,
+      -0.5, -0.5, -0.5, -0.5, -0.5, 0.5, -0.5, 0.5, -0.5,
+      0.5, -0.5, -0.5,  0.5, 0.5, -0.5,  0.5, -0.5, 0.5,
+      -0.5, 0.5, -0.5, -0.5, -0.5, 0.5,  0.5, -0.5, 0.5,
+      -0.5, 0.5, -0.5,  0.5, -0.5, 0.5,  0.5, 0.5, -0.5,
+    ];
+    const c = [
+      -0.5, -0.5, -0.5,  0.5, -0.5, -0.5,  0.5, -0.5, 0.5,
+      -0.5, -0.5, -0.5,  0.5, -0.5, 0.5,  -0.5, -0.5, 0.5,
+      -0.5, -0.5, -0.5, -0.5, 0.5, -0.5,  0.5, -0.5, -0.5,
+      -0.5, -0.5, -0.5, -0.5, -0.5, 0.5, -0.5, 0.5, -0.5,
+      -0.5, 0.5, -0.5,  0.5, -0.5, 0.5,  0.5, -0.5, -0.5,
+      -0.5, 0.5, -0.5, -0.5, -0.5, 0.5,  0.5, -0.5, 0.5,
+    ];
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(corner ? c : w, 3));
+    g.computeVertexNormals();
+    return g;
+  }
+  const GEO_WEDGE = shapeGeometry(false);
+  const GEO_CORNER = shapeGeometry(true);
+  const SHAPE_GEO = [GEO_SPHERE, GEO_BOX, GEO_CYL, GEO_WEDGE, GEO_CORNER];
 
   const MAT = {
     Plastic: { roughness: 0.62, metalness: 0 },
@@ -181,7 +212,7 @@ const StudioEditor = (function () {
     const size = new THREE.Vector3(+row[0] || 1, +row[1] || 1, +row[2] || 1);
     const pos = new THREE.Vector3(+row[3] || 0, +row[4] || 0, +row[5] || 0);
     const quat = quatFromRow(row[6]);
-    const shape = row[10] === 0 || row[10] === 2 ? row[10] : 1;
+    const shape = [0, 1, 2, 3, 4].includes(row[10]) ? row[10] : 1;
     const part = {
       key: "part-" + (++partSeq),
       row, index, size, pos, quat, shape,
@@ -194,14 +225,7 @@ const StudioEditor = (function () {
       name: typeof row[13] === "string" && row[13].trim() ? row[13].trim().slice(0, 40) : defaultName(index),
       texTop: null, texBot: null, texMode: null,
     };
-    part.matSide = new THREE.MeshStandardMaterial();
-    if (shape === 1) {
-      part.matTop = new THREE.MeshStandardMaterial();
-      part.matBot = new THREE.MeshStandardMaterial();
-      part.mesh = new THREE.Mesh(GEO_BOX, [part.matSide, part.matSide, part.matTop, part.matBot, part.matSide, part.matSide]);
-    } else {
-      part.mesh = new THREE.Mesh(shape === 0 ? GEO_SPHERE : GEO_CYL, part.matSide);
-    }
+    buildMesh(part);
     part.mesh.position.copy(pos);
     part.mesh.quaternion.copy(quat);
     part.mesh.scale.copy(size);
@@ -210,6 +234,38 @@ const StudioEditor = (function () {
     applyLook(part, true);
     world.add(part.mesh);
     return part;
+  }
+
+  function buildMesh(part) {
+    part.matSide = new THREE.MeshStandardMaterial();
+    part.matTop = null; part.matBot = null;
+    if (part.shape === 1) {
+      part.matTop = new THREE.MeshStandardMaterial();
+      part.matBot = new THREE.MeshStandardMaterial();
+      part.mesh = new THREE.Mesh(GEO_BOX, [part.matSide, part.matSide, part.matTop, part.matBot, part.matSide, part.matSide]);
+    } else {
+      part.mesh = new THREE.Mesh(SHAPE_GEO[part.shape] || GEO_BOX, part.matSide);
+    }
+  }
+
+  function setPartShape(part, shape) {
+    shape = [0, 1, 2, 3, 4].includes(shape) ? shape : 1;
+    if (part.shape === shape) return;
+    world.remove(part.mesh);
+    disposePart(part);
+    part.shape = shape;
+    part.texTop = null; part.texBot = null; part.texMode = null;
+    buildMesh(part);
+    part.mesh.position.copy(part.pos);
+    part.mesh.quaternion.copy(part.quat);
+    part.mesh.scale.copy(part.size);
+    part.mesh.userData.part = part;
+    applyLook(part, true);
+    world.add(part.mesh);
+    refreshTransform(part);
+    writeRow(part);
+    renderProps();
+    markDirty();
   }
 
   function refreshTransform(part) {
@@ -318,9 +374,12 @@ const StudioEditor = (function () {
       x = p.x; z = p.z;
     }
     x = Math.round(x); z = Math.round(z);
-    let name = "Part", n = 1;
-    while (parts.some(p => p.name === name)) { n++; name = "Part " + n; }
-    const row = [4, 1, 2, x, 0.5, z, [1, 0, 0, 0, 1, 0, 0, 0, 1], 0xa3a2a5, 0, 1, 1, "Plastic", "Studs", name, 1];
+    const pick = $("stToolShape");
+    const shape = pick && [0, 1, 2, 3, 4].includes(+pick.value) ? +pick.value : 1;
+    const base = ["Ball", "Part", "Cylinder", "Wedge", "Corner"][shape] || "Part";
+    let name = base, n = 1;
+    while (parts.some(p => p.name === name)) { n++; name = base + " " + n; }
+    const row = [4, 1, 2, x, 0.5, z, [1, 0, 0, 0, 1, 0, 0, 0, 1], 0xa3a2a5, 0, 1, shape, "Plastic", "Studs", name, 1];
     game.map.parts.push(row);
     const part = makePartFromRow(row, parts.length);
     parts.push(part);
@@ -381,6 +440,7 @@ const StudioEditor = (function () {
       `<div class="rsPropGroup">Data</div>`
       + `<div class="rsPropRow"><span class="rsPropLabel">Name</span><input type="text" data-prop="name" maxlength="40" value="${esc(p.name)}"></div>`
       + `<div class="rsPropRow"><span class="rsPropLabel">Class</span><span class="rsPropVal">${esc(p.className)}</span></div>`
+      + `<div class="rsPropRow"><span class="rsPropLabel">Shape</span><select data-prop="shape">${SHAPES.map((n, i) => `<option value="${i}"${i === p.shape ? " selected" : ""}>${esc(n)}</option>`).join("")}</select></div>`
       + `<div class="rsPropRow"><span class="rsPropLabel">Parent</span><span class="rsPropVal">Workspace</span></div>`
       + `<div class="rsPropGroup">Transform</div>`
       + vecRow("Position", "p", [round(p.pos.x, 1000), round(p.pos.y, 1000), round(p.pos.z, 1000)], 1)
@@ -456,6 +516,9 @@ const StudioEditor = (function () {
     } else if (prop === "material") {
       part.materialName = MAT[input.value] ? input.value : "Plastic";
       applyLook(part, false);
+    } else if (prop === "shape") {
+      const idx = +input.value;
+      if (idx >= 0 && idx <= 4) { setPartShape(part, idx); return; }
     } else if (prop === "texture") {
       part.textureMode = TEXTURES.includes(input.value) ? input.value : "Studs";
       applyLook(part, true);
@@ -754,7 +817,7 @@ const StudioEditor = (function () {
     const canvas = $("stCanvas");
     canvas.addEventListener("contextmenu", e => e.preventDefault());
     canvas.addEventListener("pointerdown", e => {
-      if (!running || (e.button !== 0 && e.button !== 1 && e.button !== 2)) return;
+      if (!running || playing || (e.button !== 0 && e.button !== 1 && e.button !== 2)) return;
       e.preventDefault();
       if (e.button === 0 && tool !== "select" && selected) {
         const handle = pickGizmo(e);
@@ -772,7 +835,7 @@ const StudioEditor = (function () {
       canvas.classList.add("grabbing");
     });
     canvas.addEventListener("pointermove", e => {
-      if (!running) return;
+      if (!running || playing) return;
       if (gizmoDrag) { updateGizmoDrag(e); return; }
       if (!drag) {
         if (tool !== "select" && selected) canvas.style.cursor = pickGizmo(e) ? "pointer" : "";
@@ -808,7 +871,7 @@ const StudioEditor = (function () {
     canvas.addEventListener("pointerup", stop);
     canvas.addEventListener("pointercancel", stop);
     canvas.addEventListener("wheel", e => {
-      if (!running) return;
+      if (!running || playing) return;
       e.preventDefault();
       camera.getWorldDirection(tmpDir);
       camera.position.addScaledVector(tmpDir, -e.deltaY * 0.035);
@@ -819,8 +882,12 @@ const StudioEditor = (function () {
       const tag = (e.target && e.target.tagName || "").toLowerCase();
       const typing = tag === "input" || tag === "textarea" || tag === "select" || (e.target && e.target.isContentEditable);
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); save(); return; }
-      if (e.key === "Escape") { closeMenus(); return; }
-      if (typing) return;
+      if (e.key === "Escape") {
+        if (playing) { e.preventDefault(); stopPlay(); return; }
+        closeMenus(); return;
+      }
+      if (typing || playing) return;
+      if (e.key === "F5") { e.preventDefault(); startPlay(e.shiftKey); return; }
       if ((e.key === "Delete" || e.key === "Backspace") && selected) { e.preventDefault(); deleteSelected(); return; }
       const k = e.key.toLowerCase();
       if (["w", "a", "s", "d", "q", "e", " ", "shift", "control"].includes(k)) e.preventDefault();
@@ -849,6 +916,7 @@ const StudioEditor = (function () {
   function loop() {
     raf = requestAnimationFrame(loop);
     if (!running) return;
+    if (playing) return;               // the embedded real game draws itself
     const dt = Math.min(0.05, clock.getDelta());
     step(dt);
     updateGizmo();
@@ -1068,7 +1136,11 @@ const StudioEditor = (function () {
   }
   function doAction(act) {
     if (act === "save") save();
+    else if (act === "publish") publish();
     else if (act === "saveExit" || act === "exit") close();
+    else if (act === "play") startPlay(false);
+    else if (act === "playHere") startPlay(true);
+    else if (act === "stop") stopPlay();
     else if (act === "toggleExplorer") setPanel("explorer", !explorerOn);
     else if (act === "toggleProps") setPanel("props", !propsOn);
     else if (act === "resetCamera") resetCamera();
@@ -1101,6 +1173,10 @@ const StudioEditor = (function () {
     $("stToolHome").addEventListener("click", () => close());
     $("stBack").addEventListener("click", () => close());
     $("stToolCamera").addEventListener("click", () => resetCamera());
+    const playBtn = $("stToolPlay");
+    if (playBtn) playBtn.addEventListener("click", () => startPlay(false));
+    const stopBtn = $("stToolStop");
+    if (stopBtn) stopBtn.addEventListener("click", () => stopPlay());
 
     $("stTree").addEventListener("click", e => {
       const b = e.target.closest("[data-part]");
@@ -1113,6 +1189,167 @@ const StudioEditor = (function () {
       if (e.key === "Enter") { e.target.blur(); save(); }
     });
     bindLayout();
+  }
+
+  /* =====================================================================
+     play test
+     ===================================================================== */
+  function paintPlayState() {
+    const play = $("stToolPlay"), stop = $("stToolStop");
+    if (play) play.disabled = playing;
+    if (stop) stop.disabled = !playing;
+  }
+
+  function startPlay(here) {
+    if (!running || playing || !game) return;
+    if (typeof StudioPlay === "undefined") return;
+    closeMenus();
+    for (const p of parts) writeRow(p);
+    playing = true;
+    keys.clear();
+    drag = null; down = null; gizmoDrag = null;
+    playCam = { pos: camera.position.clone(), yaw, pitch };
+    if (selBox) selBox.visible = false;
+    if (gizmo) gizmo.visible = false;
+
+    let spawn = null;
+    if (here) {
+      // "Play here": drop the character at the camera's ground position
+      camera.getWorldDirection(tmpDir);
+      const x = camera.position.x, z = camera.position.z;
+      let top = -Infinity;
+      for (const p of parts) {
+        if (!p.collide) continue;
+        p.mesh.updateWorldMatrix(true, false);
+        const b = new THREE.Box3().setFromObject(p.mesh);
+        if (x < b.min.x || x > b.max.x || z < b.min.z || z > b.max.z) continue;
+        if (b.max.y > top) top = b.max.y;
+      }
+      spawn = [x, isFinite(top) ? top + 0.1 : camera.position.y, z];
+    }
+
+    const ok = StudioPlay.start({
+      viewport: $("stViewport"),
+      map: game.map,
+      name: game.name,
+      spawnHere: !!here,
+      spawn,
+      onStop: () => stopPlay(),
+    });
+    if (!ok) {
+      playing = false;
+      playCam = null;
+      if (selBox) selBox.visible = true;
+      if (gizmo) gizmo.visible = true;
+      return;
+    }
+    $("stEditor").classList.add("isPlaying");
+    paintPlayState();
+    clock.getDelta();
+  }
+
+  function stopPlay() {
+    if (!playing) return;
+    playing = false;
+    try { StudioPlay.stop(); } catch (_) {}
+    if (playCam) {
+      camera.position.copy(playCam.pos);
+      yaw = playCam.yaw; pitch = playCam.pitch;
+      camera.rotation.set(pitch, yaw, 0);
+      playCam = null;
+    }
+    if (selBox) selBox.visible = true;
+    if (gizmo) gizmo.visible = true;
+    $("stEditor").classList.remove("isPlaying");
+    keys.clear();
+    drag = null; down = null; gizmoDrag = null;
+    paintPlayState();
+    clock.getDelta();
+    resize();
+    paintStatus(dirty ? "dirty" : "saved");
+  }
+
+  /* =====================================================================
+     publish to Triancle
+     ===================================================================== */
+  function publishId(studioId) {
+    let s = String(studioId || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (s.charAt(0) === "s") s = s.slice(1);
+    s = s.slice(0, 20);
+    while (s.length < 3) s += "0";
+    return "c" + s;
+  }
+
+  function publish() {
+    if (!game) return;
+    const sb = typeof StudioAuth !== "undefined" && StudioAuth.client ? StudioAuth.client() : null;
+    const user = typeof StudioAuth !== "undefined" && StudioAuth.user ? StudioAuth.user() : null;
+    if (!sb || !user) {
+      StudioUI.dialog({
+        title: "Publish to Triancle",
+        body: `<div class="rsAbout">Publishing uses your Triancle account. Sign in to Studio first, then try again.</div>`,
+      });
+      return;
+    }
+    const prev = game.publish || {};
+    const max = clamp(parseInt(prev.maxPlayers, 10) || 12, 1, 100);
+    StudioUI.dialog({
+      title: prev.id ? "Republish to Triancle" : "Publish to Triancle",
+      body:
+        `<label class="rsField">Game name<input id="stPubName" type="text" maxlength="40" spellcheck="false" value="${esc(prev.name || game.name || "Untitled game")}"></label>` +
+        `<label class="rsField">Description<textarea id="stPubDesc" maxlength="600" rows="3" spellcheck="false" placeholder="What do players do in your game?">${esc(prev.description || "")}</textarea></label>` +
+        `<label class="rsField">Max players per server<input id="stPubMax" type="number" min="1" max="100" step="1" value="${max}"></label>` +
+        `<div id="stPubMsg" class="rsAbout"></div>`,
+      buttons: [
+        { label: "Cancel" },
+        { label: prev.id ? "Republish" : "Publish", primary: true, onClick: () => { submitPublish(user); return false; } },
+      ],
+    });
+    setTimeout(() => { const n = $("stPubName"); if (n) n.focus(); }, 30);
+  }
+
+  async function submitPublish(user) {
+    const msg = $("stPubMsg");
+    const name = studioCleanName($("stPubName").value) || "Untitled game";
+    const description = String($("stPubDesc").value || "").replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 600);
+    const maxPlayers = clamp(parseInt($("stPubMax").value, 10) || 12, 1, 100);
+    if (msg) { msg.className = "rsAbout"; msg.textContent = "Publishing…"; }
+    try {
+      const sb = StudioAuth.client();
+      if (!sb) throw new Error("not signed in");
+      for (const p of parts) writeRow(p);
+      save(true);
+      const id = publishId(game.id);
+      const owner = (StudioAuth.name && StudioAuth.name()) || (user.user_metadata && user.user_metadata.username) || "Unknown";
+      const row = {
+        id, name, owner_name: owner,
+        map: JSON.stringify(game.map),
+        thumb: game.thumb || null,
+        icon: game.thumb || null,
+        description, max_players: maxPlayers,
+        created_by: user.id,
+        updated_at: new Date().toISOString(),
+      };
+      let r = await sb.from("custom_games").upsert(row, { onConflict: "id" });
+      let basicOnly = false;
+      if (r.error && /column|could not find|schema cache/i.test(r.error.message || "")) {     // older table: publish the basics
+        const { description: d, max_players: m, updated_at: u, ...base } = row;
+        r = await sb.from("custom_games").upsert(base, { onConflict: "id" });
+        basicOnly = !r.error;
+      }
+      if (r.error) throw r.error;
+      game.publish = { id, name, description, maxPlayers, at: Date.now() };
+      studioUpsert(game);
+      paintStatus(dirty ? "dirty" : "saved");
+      if (msg) {
+        msg.textContent = basicOnly
+          ? "Published, but the description and max players weren't saved: run supabase_publish.sql once, then publish again."
+          : "Published! Open Triancle and look for “" + name + "”.";
+      }
+      setTimeout(() => StudioUI.close(), basicOnly ? 3200 : 1100);
+    } catch (e) {
+      if (msg) { msg.className = "rsAbout"; msg.textContent = "Couldn't publish: " + (e && e.message ? e.message : e); }
+    }
   }
 
   /* =====================================================================
@@ -1170,6 +1407,10 @@ const StudioEditor = (function () {
     $("stLoading").hidden = true;
     $("stMenu").hidden = true;
     $("stEditor").hidden = false;
+    playing = false;
+    playCam = null;
+    $("stEditor").classList.remove("isPlaying");
+    paintPlayState();
     running = true;
     setTool("select");
     setRibbonTab("home");
@@ -1181,11 +1422,12 @@ const StudioEditor = (function () {
     resize();
     if (!raf) raf = requestAnimationFrame(loop);
     clearInterval(autoSave);
-    autoSave = setInterval(() => { if (running && dirty) save(true); }, 15000);
+    autoSave = setInterval(() => { if (playing) return; if (running && dirty) save(true); }, 15000);
   }
 
   function close(saveNow) {
     if (!running) return;
+    if (playing) stopPlay();
     if (saveNow !== false) save(true);
     saveLayoutNow();
     running = false;
@@ -1204,6 +1446,9 @@ const StudioEditor = (function () {
     open,
     close,
     save,
+    startPlay,
+    stopPlay,
+    isPlaying: () => playing,
     onExit: null,
     isOpen: () => running,
     get game() { return game; },

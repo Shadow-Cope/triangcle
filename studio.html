@@ -160,6 +160,10 @@
             <b>Saving your game</b>
             <span>Ctrl+S saves to this device.</span>
           </button>
+          <button class="rsBasic" id="stBasicsPlay" type="button">
+            <b>Play testing</b>
+            <span>Press Play (F5) to walk around your world.</span>
+          </button>
         </div>
       </section>
     </div>
@@ -211,6 +215,7 @@
 
       <div class="rsDrop" id="stDropFile" hidden>
         <button type="button" data-act="save">Save<span>Ctrl+S</span></button>
+        <button type="button" data-act="publish">Publish to Triancle&hellip;</button>
         <button type="button" data-act="saveExit">Save and exit</button>
         <div class="rsDropSep"></div>
         <button type="button" data-act="exit">Exit to games</button>
@@ -231,7 +236,10 @@
         <button type="button" data-act="resetLayout">Reset panel layout</button>
       </div>
       <div class="rsDrop" id="stDropTest" hidden>
-        <button type="button" disabled>Play game<span>Coming soon</span></button>
+        <button type="button" data-act="play">Play game<span>F5</span></button>
+        <button type="button" data-act="playHere">Play here<span>Shift+F5</span></button>
+        <div class="rsDropSep"></div>
+        <button type="button" data-act="stop">Stop<span>Esc</span></button>
       </div>
       <div class="rsDrop" id="stDropHelp" hidden>
         <button type="button" data-act="controls">Camera controls</button>
@@ -274,6 +282,16 @@
         </div>
         <div class="rsSeparator"></div>
         <div class="rsGroup">
+          <label class="rsShapePick" title="Shape the Part tool inserts">
+            <select id="stToolShape">
+              <option value="1">Part</option>
+              <option value="0">Ball</option>
+              <option value="2">Cylinder</option>
+              <option value="3">Wedge</option>
+              <option value="4">Corner wedge</option>
+            </select>
+            <span>Shape</span>
+          </label>
           <button class="rsTool" type="button" id="stToolPart" title="Insert a part">
             <svg viewBox="0 0 24 24"><path d="M4 8l8-4 8 4v8l-8 4-8-4zM4 8l8 4 8-4M12 12v8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
             <span>Part</span>
@@ -281,6 +299,17 @@
           <button class="rsTool" type="button" id="stToolCamera" title="Reset the camera">
             <svg viewBox="0 0 24 24"><rect x="3" y="7" width="13" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M16 11l5-3v8l-5-3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
             <span>Camera</span>
+          </button>
+        </div>
+        <div class="rsSeparator"></div>
+        <div class="rsGroup">
+          <button class="rsTool rsPlay" type="button" id="stToolPlay" title="Play the game (F5)">
+            <svg viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+            <span>Play</span>
+          </button>
+          <button class="rsTool rsStop" type="button" id="stToolStop" title="Stop the playtest (Esc)" disabled>
+            <svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+            <span>Stop</span>
           </button>
         </div>
         <div class="rsSeparator"></div>
@@ -377,6 +406,7 @@
 <script src="js/core/config.js"></script>
 <script src="js/studio/store.js"></script>
 <script src="js/studio/ui.js"></script>
+<script src="js/studio/play.js"></script>
 <script src="js/studio/editor.js"></script>
 <script src="js/studio/menu.js"></script>
 <script src="js/studio/auth.js"></script>

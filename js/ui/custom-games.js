@@ -1,10 +1,11 @@
 "use strict";
 
 /* ---- custom games: made from an uploaded Roblox .rbxl ---- */
-const CUSTOM_LS = "triangle_custom_games", CUSTOM_TABLE = "custom_games";
-function addCustomEntry(id, name, by, thumb, icon, map) {
+const CUSTOM_LS = "triangle_custom_games_v2", CUSTOM_TABLE = "custom_games";
+function addCustomEntry(id, name, by, thumb, icon, map, description, maxPlayers) {
   if (GAMES.some(g => g.id === id)) return GAMES.find(g => g.id === id);
-  const g = { id, room: "c-" + id.toLowerCase(), custom: true, map: map || null, ovr: {}, def: { name: okTxt(name, 40) || "New game", by: okTxt(by, 20) || "Unknown", thumb: okImg(thumb) ? thumb : BLANK, icon: okImg(icon) ? icon : BLANK, banner: okImg(thumb) ? thumb : BLANK, about: "A map made from a Roblox file. Run around, climb, and chat with whoever else is here." } };
+  const about = okTxt(description, 600) || "A game made in Triancle Studio.";
+  const g = { id, room: "c-" + id.toLowerCase(), custom: true, map: map || null, maxPlayers: Math.max(0, Math.min(100, maxPlayers | 0)), ovr: {}, def: { name: okTxt(name, 40) || "New game", by: okTxt(by, 20) || "Unknown", thumb: okImg(thumb) ? thumb : BLANK, icon: okImg(icon) ? icon : BLANK, banner: okImg(thumb) ? thumb : BLANK, about } };
   GAMES.push(g); return g;
 }
 try { const loc = JSON.parse(localStorage.getItem(CUSTOM_LS) || "{}"); for (const id in loc) { const r = loc[id]; let m = null; try { m = JSON.parse(r.map); } catch (_) {} if (m && m.parts) addCustomEntry(id, r.name, r.by, r.thumb, r.icon, m); } renderGames(); } catch (_) {}
@@ -14,8 +15,10 @@ function saveCustomLocal() {
 async function loadCustomGames() {
   const sb = getSB(); if (!sb) return;
   try {
-    const r = await sb.from(CUSTOM_TABLE).select("id, name, owner_name, thumb, icon"); if (r.error) throw r.error;
-    for (const row of (r.data || [])) if (/^c[a-z0-9]{3,20}$/.test(row.id)) addCustomEntry(row.id, row.name, row.owner_name, row.thumb, row.icon, null);
+    let r = await sb.from(CUSTOM_TABLE).select("id, name, owner_name, thumb, icon, description, max_players");
+    if (r.error) r = await sb.from(CUSTOM_TABLE).select("id, name, owner_name, thumb, icon");     // older table (supabase_publish.sql not run yet)
+    if (r.error) throw r.error;
+    for (const row of (r.data || [])) if (/^c[a-z0-9]{3,20}$/.test(row.id)) addCustomEntry(row.id, row.name, row.owner_name, row.thumb, row.icon, null, row.description, row.max_players);
     renderGames();
   } catch (_) {}
 }
@@ -118,7 +121,7 @@ async function rbxToMap(buf) {
     if (rows.length >= RBX_MAX_PARTS) { cut++; continue; }
     const sz = q.p.size || q.p.Size, cf = q.p.CFrame, c = q.p.Color3uint8 || [163, 162, 165];
     const shape = q.p.shape !== undefined ? q.p.shape : q.p.Shape;
-    const row = [r3(sz[0]), r3(sz[1]), r3(sz[2]), r3(cf.pos[0]), r3(cf.pos[1]), r3(cf.pos[2]), cf.rot.map(r4), (c[0] << 16) | (c[1] << 8) | c[2], r3(q.p.Transparency || 0), q.p.CanCollide === false ? 0 : 1, shape === 0 || shape === 2 ? shape : 1];
+    const row = [r3(sz[0]), r3(sz[1]), r3(sz[2]), r3(cf.pos[0]), r3(cf.pos[1]), r3(cf.pos[2]), cf.rot.map(r4), (c[0] << 16) | (c[1] << 8) | c[2], r3(q.p.Transparency || 0), q.p.CanCollide === false ? 0 : 1, [0, 1, 2, 3, 4].includes(shape) ? shape : (q.c === "WedgePart" ? 3 : q.c === "CornerWedgePart" ? 4 : 1)];
     rows.push(row);
     if (q.c === "SpawnLocation" && !spawn) spawn = [row[3], row[4] + row[1] / 2 + 3, row[5]];
   }

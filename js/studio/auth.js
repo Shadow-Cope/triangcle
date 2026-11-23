@@ -213,7 +213,13 @@ const StudioAuth = (function () {
     }
   }
 
-  const api = { init, signOut, checkAccess, showGate, showLogin, currentUser: () => currentUser };
+  const api = {
+    init, signOut, checkAccess, showGate, showLogin,
+    currentUser: () => currentUser,
+    user: () => currentUser,
+    name: () => currentName,
+    client: () => { try { return client(); } catch (_) { return null; } },
+  };
   return api;
 })();
 

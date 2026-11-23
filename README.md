@@ -106,9 +106,11 @@ The first version has:
 - **Editor** - a Studio-style shell with a File/Edit/View/Test/Help menu, Home ribbon, Explorer + Properties dock
   and status bar. The viewport holds a 512 × 512 gray baseplate using the project's `stud.png` top / `inlet.png`
   bottom textures, a sky and sun, plus a 3D orientation gizmo.
-  - **Tools**: Select, Move, Scale and Rotate work on the selected part with coloured 3D handles. **Part** inserts
-    a new part in front of the camera; `Delete` removes the selected part.
-  - **Properties**: name, position, size, orientation, colour, material (plastic, smooth plastic, metal, neon,
+  - **Tools**: Select, Move, Scale and Rotate work on the selected part with coloured 3D handles. **Part** inserts a
+    new part in front of the camera; the **Shape** picker beside it chooses what the Part tool inserts, and Properties
+    has a **Shape** row to change an existing part: Part (block), Ball, Cylinder, Wedge and Corner wedge.
+    `Delete` removes the selected part.
+  - **Properties**: name, shape, position, size, orientation, colour, material (plastic, smooth plastic, metal, neon,
     glass), texture (studs, inlet, smooth), transparency, anchored and can-collide are editable. Changes sync
     with the gizmos and are saved into the game map.
   - **Panels**: drag the bar on the left of the dock to resize Explorer/Properties, drag the bar between them to
@@ -117,11 +119,46 @@ The first version has:
     are remembered on the device.
   - **Camera**: `WASD` move, right-drag look, middle-drag pan, `Q`/`E` down/up, wheel zoom, `Shift` faster.
     `Ctrl+S` / File > Save stores the game and refreshes its card thumbnail; Help > Camera controls lists them all.
+  - **Play testing**: **Play** (Home ribbon, Test > Play game, or `F5`) runs the real game on the map you built:
+    the Studio viewport shows `index.html?playtest=1`, the same bundle the website ships, so the avatar, skin,
+    physics (240 Hz), camera, shift lock, climbing, reset (`R`) and name tags are exactly the live game.
+    **Play here** (`Shift+F5` / Test > Play here) starts you where the Studio camera is instead of at the spawn.
+    **Stop** (next to Play in the Home ribbon, or `Esc`) goes back to editing with the camera where you left it.
+    The editor keeps its normal layout while you play; only the viewport is replaced by the game.
+    The playtest reuses the Supabase session you signed in to Studio with, so it wears your real profile:
+    body colours, face and the shirt/pants/accessories you have equipped (`player_profiles.body_colors`
+    plus `ugc_inventory`). Chat, the home screen and multiplayer are skipped (`NET.status = offline`);
+    the map is handed to the game through `sessionStorage` (`triangle_studio_playtest`), and the two pages
+    talk with `postMessage`.
 
 Code: `css/studio.css`, `js/studio/auth.js` (sign-in + Alpha Publisher gate), `js/studio/store.js` (saved games),
 `js/studio/ui.js` (Studio dialogs), `js/studio/editor.js` (Three.js viewport/camera/tools/panels),
-`js/studio/menu.js` (home screen). The game part rows match the normal map format (with extra Studio-only values
-at the end for material/texture/name), so a later Studio version can publish straight into `custom_games`.
+`js/studio/play.js` (embeds the real game for play tests), `js/studio/menu.js` (home screen),
+`js/core/playtest.js` (the `?playtest=1` boot that skips accounts/home/multiplayer). The game part rows match the
+normal map format (with extra Studio-only values at the end for material/texture/name), so a later Studio version
+can publish straight into `custom_games`.
+
+## Publishing to Triancle (Studio > File > Publish to Triancle)
+
+Studio games are drafts on the device; publishing puts the map on the website.
+
+1. Run `supabase_publish.sql` once in the Supabase SQL editor. It adds `description`, `max_players`,
+   `updated_at` and `created_by` to `custom_games`, adds policies so players can publish and update only
+   their own games, and (one time) deletes every game published so far. Remove the last `delete from
+   custom_games;` line after running it, or re-running the file would wipe the new games too.
+2. In Studio, sign in (Alpha Publisher, as before), open a game and use **File > Publish to Triancle…**.
+   You get a name, a description and **max players per server** (1-100). Publishing again from the same
+   Studio game updates the same row instead of making a duplicate.
+3. The website lists it with the other games; the game page shows the description and "1 – N" players.
+   When a server is already at the cap, a joining player is sent back with "This server is full".
+
+Until the SQL is run, publishing still works but only the basics are saved (name, owner, map, thumbnail);
+Studio tells you when that happened. Nothing is deleted from the website by publishing - it only adds or
+updates the one game you are publishing.
+
+Every part property now carries into the game: colour, shape (ball, block, cylinder, wedge, corner wedge),
+material (plastic, smooth plastic, metal, neon, glass), texture (studs, inlet, smooth), transparency and
+can-collide. Wedges get a stepped collider that follows the slope, so ramps can be walked up.
 
 ## Desktop app (Windows + macOS)
 

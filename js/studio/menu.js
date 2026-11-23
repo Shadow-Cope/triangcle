@@ -153,6 +153,7 @@
   const template = document.querySelector("[data-template='baseplate']");
   if (template) template.addEventListener("click", openCreate);
   $("stBasicsControls").addEventListener("click", () => StudioUI.cameraHelp());
+  $("stBasicsPlay").addEventListener("click", () => StudioUI.cameraHelp());
   $("stBasicsSave").addEventListener("click", () => StudioUI.dialog({
     title: "Saving your game",
     body: `<div class="rsAbout">Press <span class="rsKey">Ctrl</span> + <span class="rsKey">S</span>, use <b>File &gt; Save</b>, or press Save in the Home ribbon.<br><br>

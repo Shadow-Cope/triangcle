@@ -2,6 +2,9 @@
 
 /* Start-up. Loaded last on purpose: everything below kicks off async work (account UI, login check, game list,
    graphics level) that calls into the other files, so all of them must already be loaded. */
+if (window.__PLAYTEST__ && typeof window.__playtestBoot === "function") {
+  window.__playtestBoot();               // Triancle Studio playtest: the real game, no account / home / multiplayer
+} else {
 acctUI();
 (async function initAuth() {            // restore a saved login; without one you only ever see the login page
   const sb = getSB();
@@ -17,3 +20,4 @@ loadAllGames();
 
 requestAnimationFrame(frame);
 setTimeout(() => setGraphics(Math.max(1, Math.min(5, _gl))), 0);
+}

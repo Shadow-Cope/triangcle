@@ -47,7 +47,7 @@ const StudioUI = (function () {
 
   function cameraHelp() {
     dialog({
-      title: "Camera controls",
+      title: "Camera & play controls",
       body: `<table class="rsHelpTable">
         <tr><td><span class="rsKey">W A S D</span></td><td>Move the camera</td></tr>
         <tr><td><span class="rsKey">Right-drag</span></td><td>Look around</td></tr>
@@ -56,7 +56,13 @@ const StudioUI = (function () {
         <tr><td><span class="rsKey">Wheel</span></td><td>Zoom in and out</td></tr>
         <tr><td><span class="rsKey">Shift</span></td><td>Move faster</td></tr>
         <tr><td><span class="rsKey">Ctrl + S</span></td><td>Save the game</td></tr>
-      </table>`,
+        <tr><td><span class="rsKey">F5</span></td><td>Play the game from the spawn point</td></tr>
+        <tr><td><span class="rsKey">Shift + F5</span></td><td>Play here, where the camera is</td></tr>
+        <tr><td><span class="rsKey">Esc</span></td><td>Stop playing and go back to editing</td></tr>
+      </table>
+      <div class="rsAbout" style="margin-top:12px">In play mode: <b>WASD</b> walk, <b>Space</b> jump (hold to keep hopping),
+      <b>Shift</b> sprint, drag to look around, wheel to zoom, <b>R</b> go back to the spawn point. You can also use the
+      <b>Play</b> button in the Home ribbon or <b>Test &gt; Play game</b>.</div>`,
     });
   }
 
