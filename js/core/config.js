@@ -41,8 +41,8 @@ const CFG = {
   NAME_DISTANCE:   100,      // [R] Humanoid.NameDisplayDistance
   NET_SEND_HZ:     20,       // how often your state is sent to the server
   SERVER_URL:      "",       // optional own Rust WebSocket server; ignored if Supabase is set
-  SUPABASE_URL:      "https://ospurfoogmaoeycmmwkf.supabase.co",     // https://xxxx.supabase.co   (Project Settings -> API)
-  SUPABASE_ANON_KEY: "sb_publishable_ZP8VL5LYlfF8KoF3MpTJVQ_vsYRW2yA",     // the public "anon" key
+  SUPABASE_URL:      "https://dkyqelgdnzsuxgfhzinf.supabase.co",     // https://xxxx.supabase.co   (Project Settings -> API)
+  SUPABASE_ANON_KEY: "sb_publishable_69j232n97HQQzJ769gyqxA_YXrju9ld",     // the public "anon" key
   ROOM:              "baseplate-1",  // channel name; players in the same room see each other
   SUPABASE_SEND_HZ:  10,     // keep this low: Supabase Realtime has per-second message limits       // e.g. "wss://my-game.onrender.com". Empty = same host as the page
 
