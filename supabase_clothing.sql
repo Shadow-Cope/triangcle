@@ -18,7 +18,7 @@ end $$;
 
 alter table public.ugc_items
   add constraint ugc_items_attach_chk
-  check (attach in ('Head','Torso','LeftArm','RightArm','LeftLeg','RightLeg','Shirt','Pants'));
+  check (attach in ('Head','Torso','LeftArm','RightArm','LeftLeg','RightLeg','Shirt','Pants','Face'));
 
 -- let the ugc bucket accept PNGs (only if the bucket has a mime-type allow-list at all)
 update storage.buckets
