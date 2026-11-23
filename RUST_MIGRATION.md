@@ -38,7 +38,7 @@ is developed. Review changes locally before pushing to GitHub.
    paths have mocked comparisons against the existing behavior. Debris physics
    has browser comparisons against the JavaScript simulation. Logged-in browser
    flows, real Roblox map files and the desktop app were covered by the phase review.
-5. **Optional server (ready for review):** the supported static server and WebSocket
+5. **Optional server (completed):** the supported static server and WebSocket
    relay now run in `rust/triancle-server`, retaining the existing public-file rules,
    cache behavior, health check, message protocol, keepalive and one-megabyte limit.
    `npm start` and the optional Render Web Service use Rust. The Node implementation
