@@ -567,7 +567,7 @@ create or replace function public.claim_play_session(p_sid text)
 returns boolean language plpgsql security definer set search_path = public as $$
 declare v_row play_sessions;
 begin
-  if auth.uid() is null then return false; end if;
+  if auth.uid() is null then return true; end if;                                 -- anonymous previews never lock anyone out
   select * into v_row from play_sessions where user_id = auth.uid();
   if v_row.user_id is null then
     insert into play_sessions (user_id, sid) values (auth.uid(), p_sid);
@@ -577,7 +577,7 @@ begin
     update play_sessions set updated_at = now() where user_id = auth.uid();
     return true;
   end if;
-  if v_row.updated_at < now() - interval '45 seconds' then
+  if v_row.updated_at < now() - interval '20 seconds' then                        -- heartbeat is 4s: a crashed/reloaded window loses the seat
     update play_sessions set sid = p_sid, updated_at = now() where user_id = auth.uid();
     return true;
   end if;

@@ -4048,7 +4048,20 @@ $("oiList").addEventListener("click", async e => {
    3. When the site is updated, the website refreshes itself; the desktop app shows a box asking to restart. */
 (function () {
   const IN_APP = !!(window.TriancleApp && window.TriancleApp.isApp);
-  const TAB_ID = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "t" + Math.random().toString(36).slice(2) + Date.now();
+  /* Stable for the life of this browser tab: a reload reuses it, so reloading while playing
+     no longer looks like a second session in another window. */
+  const TAB_ID = (function () {
+    try {
+      let v = sessionStorage.getItem("triancle_tab_id");
+      if (!v) {
+        v = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "t" + Math.random().toString(36).slice(2) + Date.now();
+        sessionStorage.setItem("triancle_tab_id", v);
+      }
+      return v;
+    } catch (_) {
+      return (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "t" + Math.random().toString(36).slice(2) + Date.now();
+    }
+  })();
   const st = document.createElement("style");
   st.textContent = `#blockBox{position:fixed;inset:0;z-index:2147483000;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(8,6,3,.94);font-family:"Capriola",system-ui,sans-serif}
 #blockBox.on{display:flex}
@@ -4091,19 +4104,23 @@ $("oiList").addEventListener("click", async e => {
 
   /* ---------- 2. one place per account ---------- */
   let sessionOff = false, lastUser = null;
+  const playingHere = () => { try { return typeof inGame !== "undefined" && !!inGame; } catch (_) { return false; } };
   async function sessionBeat() {
     const sb = typeof getSB === "function" ? getSB() : null, u = typeof acct !== "undefined" && acct.user;
     if (!sb || sessionOff) return;
-    if (!u) { if (lastUser) { try { await sb.rpc("release_play_session", { p_sid: TAB_ID }); } catch (_) {} lastUser = null; } unblock("acct"); return; }
+    if (!u || !playingHere()) {                        // browsing the site is not "playing": only claim while in a game
+      if (lastUser) { try { await sb.rpc("release_play_session", { p_sid: TAB_ID }); } catch (_) {} lastUser = null; }
+      unblock("acct"); return;
+    }
     lastUser = u.id;
     try {
       const r = await sb.rpc("claim_play_session", { p_sid: TAB_ID });
       if (r.error) { sessionOff = true; unblock("acct"); return; }                              // not set up in Supabase yet: don't lock anyone out
-      if (r.data === false) block("acct", "Already playing somewhere else", "This account is open in another window, browser or device. Close it there, and this will continue by itself.");
+      if (r.data === false) block("acct", "Already playing somewhere else", "This account is playing in another window, browser or device. Close it there, and this will continue by itself.");
       else unblock("acct");
     } catch (_) {}
   }
-  setInterval(sessionBeat, 8000); setTimeout(sessionBeat, 1500);
+  setInterval(sessionBeat, 4000); setTimeout(sessionBeat, 1200);
   window.addEventListener("pagehide", () => { const sb = typeof getSB === "function" ? getSB() : null; if (sb && lastUser) { try { sb.rpc("release_play_session", { p_sid: TAB_ID }); } catch (_) {} } });
 
   /* ---------- 3. updates ---------- */

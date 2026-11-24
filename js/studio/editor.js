@@ -105,7 +105,7 @@ const StudioEditor = (function () {
       bar.textContent = "Saved to this device"; bar.className = "ok";
     }
   }
-  function markDirty() { dirty = true; paintStatus("dirty"); }
+  function markDirty() { dirty = true; paintStatus("dirty"); queueHistory(); }
 
   /* =====================================================================
      textures / materials
@@ -319,6 +319,7 @@ const StudioEditor = (function () {
     renderTree();
     renderProps();
     updateGizmo();
+    syncEditMenu();
   }
 
   function buildWorld(map) {
@@ -359,6 +360,7 @@ const StudioEditor = (function () {
     for (const b of $("stTree").querySelectorAll("[data-part]")) b.classList.toggle("on", !!part && b.dataset.part === part.key);
     renderProps();
     updateGizmo();
+    syncEditMenu();
   }
 
   function addPart() {
@@ -402,6 +404,119 @@ const StudioEditor = (function () {
     if (part.name === "SpawnLocation" && game.map) game.map.spawn = [0, 3, 0];
     clearSelection();
     markDirty();
+  }
+
+  /* =====================================================================
+     undo / redo / cut / copy / paste
+     ===================================================================== */
+  const HISTORY_MAX = 80;
+  let undoStack = [], redoStack = [], clip = null, baseline = null, applying = false, histTimer = 0;
+
+  function snapshot() {
+    if (!game || !game.map) return "{}";
+    return JSON.stringify({ spawn: game.map.spawn || [0, 3, 0], parts: game.map.parts || [] });
+  }
+
+  function resetHistory() {
+    if (histTimer) { clearTimeout(histTimer); histTimer = 0; }
+    undoStack = []; redoStack = [];
+    baseline = snapshot();
+    syncEditMenu();
+  }
+
+  function queueHistory() {
+    if (applying || playing || !game) return;
+    if (histTimer) clearTimeout(histTimer);
+    histTimer = setTimeout(commitHistory, 450);
+  }
+
+  function commitHistory() {
+    if (histTimer) { clearTimeout(histTimer); histTimer = 0; }
+    if (!game || applying) return;
+    const cur = snapshot();
+    if (baseline === null) { baseline = cur; return; }
+    if (cur === baseline) return;
+    undoStack.push(baseline);
+    if (undoStack.length > HISTORY_MAX) undoStack.shift();
+    redoStack = [];
+    baseline = cur;
+    syncEditMenu();
+  }
+
+  function applySnapshot(json) {
+    let data = null;
+    try { data = JSON.parse(json); } catch (_) { return; }
+    if (!data || !Array.isArray(data.parts)) return;
+    applying = true;
+    try {
+      game.map.parts = data.parts;
+      if (Array.isArray(data.spawn)) game.map.spawn = data.spawn;
+      buildWorld(game.map);
+    } finally { applying = false; }
+    dirty = true;
+    paintStatus("dirty");
+    syncEditMenu();
+  }
+
+  function undo() {
+    if (!game || playing) return;
+    commitHistory();
+    if (!undoStack.length) return;
+    const cur = snapshot();
+    const prev = undoStack.pop();
+    redoStack.push(cur);
+    baseline = prev;
+    applySnapshot(prev);
+  }
+
+  function redo() {
+    if (!game || playing) return;
+    commitHistory();
+    if (!redoStack.length) return;
+    const cur = snapshot();
+    const next = redoStack.pop();
+    undoStack.push(cur);
+    baseline = next;
+    applySnapshot(next);
+  }
+
+  function copySelected() {
+    if (!selected) return false;
+    clip = JSON.parse(JSON.stringify(selected.row));
+    syncEditMenu();
+    return true;
+  }
+
+  function cutSelected() {
+    if (!copySelected()) return;
+    deleteSelected();
+  }
+
+  function pasteClip() {
+    if (!clip || !game || playing) return;
+    const row = JSON.parse(JSON.stringify(clip));
+    row[3] = round((+row[3] || 0) + 3, 1000);                              // drop the copy beside the original
+    const base = typeof row[13] === "string" && row[13].trim() ? row[13].replace(/ \d+$/, "") : "Part";
+    let name = base, n = 1;
+    while (parts.some(p => p.name === name)) { n++; name = base + " " + n; }
+    row[13] = name;
+    game.map.parts.push(row);
+    const part = makePartFromRow(row, parts.length);
+    parts.push(part);
+    renderTree();
+    selectPart(part.key);
+    markDirty();
+  }
+
+  function syncEditMenu() {
+    const btn = act => document.querySelector('#stDropEdit [data-act="' + act + '"]');
+    const canEdit = !!game && !playing;
+    const set = (act, on) => { const b = btn(act); if (b) b.disabled = !on; };
+    set("undo", canEdit && undoStack.length > 0);
+    set("redo", canEdit && redoStack.length > 0);
+    set("cut", canEdit && !!selected);
+    set("copy", canEdit && !!selected);
+    set("paste", canEdit && !!clip);
   }
 
   /* =====================================================================
@@ -887,6 +1002,14 @@ const StudioEditor = (function () {
         closeMenus(); return;
       }
       if (typing || playing) return;
+      if (e.ctrlKey || e.metaKey) {                       // Edit menu shortcuts
+        const k = e.key.toLowerCase();
+        if (k === "z") { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
+        if (k === "y") { e.preventDefault(); redo(); return; }
+        if (k === "x") { e.preventDefault(); cutSelected(); return; }
+        if (k === "c") { e.preventDefault(); copySelected(); return; }
+        if (k === "v") { e.preventDefault(); pasteClip(); return; }
+      }
       if (e.key === "F5") { e.preventDefault(); startPlay(e.shiftKey); return; }
       if ((e.key === "Delete" || e.key === "Backspace") && selected) { e.preventDefault(); deleteSelected(); return; }
       const k = e.key.toLowerCase();
@@ -1133,10 +1256,16 @@ const StudioEditor = (function () {
     drop.style.left = Math.max(4, r.left - bar.left) + "px";
     drop.hidden = false;
     button.classList.add("open");
+    if (name === "edit") syncEditMenu();
   }
   function doAction(act) {
     if (act === "save") save();
     else if (act === "publish") publish();
+    else if (act === "undo") undo();
+    else if (act === "redo") redo();
+    else if (act === "cut") cutSelected();
+    else if (act === "copy") copySelected();
+    else if (act === "paste") pasteClip();
     else if (act === "saveExit" || act === "exit") close();
     else if (act === "play") startPlay(false);
     else if (act === "playHere") startPlay(true);
@@ -1401,6 +1530,7 @@ const StudioEditor = (function () {
     document.title = (g.name || "Untitled game") + " - Triancle Studio";
     $("stName").value = g.name || "Untitled game";
     buildWorld(g.map);
+    resetHistory();
     resetCamera();
     dirty = false;
     paintStatus("saved");
@@ -1431,6 +1561,8 @@ const StudioEditor = (function () {
     if (saveNow !== false) save(true);
     saveLayoutNow();
     running = false;
+    undoStack = []; redoStack = []; baseline = null; clip = null; syncEditMenu();
+    if (histTimer) { clearTimeout(histTimer); histTimer = 0; }
     clearInterval(autoSave);
     if (raf) cancelAnimationFrame(raf);
     raf = 0;
