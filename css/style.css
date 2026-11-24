@@ -91,7 +91,7 @@ body.nohud #hud { display: none !important; }
 .gp-x:hover { background: rgba(255,255,255,.35); }
 :root { --bg: #120f09; --panel: #1b1710; --bd: #3a3322; --fg: #f3ecd8; --dim: #a79b80; --y: #ffbf2f; --px: "Pixelify Sans", "Press Start 2P", monospace; }
 body.home { background: var(--bg); }
-body.home > *:not(#home):not(#auth):not(#veil):not(script) { visibility: hidden; }
+body.home > *:not(#home):not(#auth):not(#veil):not(script):not(.uiPop):not(#appPrompt):not(#touchUI) { visibility: hidden; }
 body:not(.home) #home { display: none; }
 body.boot #home, body.boot #auth { display: none !important; }
 #home, #auth { font-family: var(--px); font-weight: 500; letter-spacing: .02em; color: var(--fg); -webkit-font-smoothing: none; }
@@ -469,6 +469,8 @@ body.chatopen #chatInput { display: block; }
 #owImport .owRow2 { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
 #owImport label { flex: 1; min-width: 180px; }
 .owGame { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; padding: 14px; margin-bottom: 14px; max-width: 700px; }
+.owGame.owHidden { opacity: .72; }
+.owHideTag { display: inline-block; padding: 3px 9px; border: 1px solid var(--bd); border-radius: 999px; color: var(--dim); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
 .owGame .owPrev { display: flex; gap: 10px; align-items: flex-end; }
 .owGame .owThumb { width: 160px; height: 90px; border-radius: 10px; border: 1px solid var(--bd); object-fit: cover; background: #2a2418; }
 .owGame .owIcon { width: 64px; height: 64px; border-radius: 12px; border: 1px solid var(--bd); object-fit: cover; background: #2a2418; }
@@ -942,7 +944,7 @@ html.inapp .webonly { display: none !important; }
 #hMenu button:hover { background: #1f1b12; }
 #hMenu button.hOut { margin-top: 8px; background: #e05555; color: #fff; }
 #hMenu button.hOut:hover { background: #ec6767; }
-#hLogin { padding: 8px 18px; border: 1px solid var(--bd); border-radius: 10px; background: var(--panel); color: #fff; cursor: pointer; font-size: 15px; }
+#hLogin { padding: 8px 18px; border: 1px solid var(--bd); border-radius: 10px; background: var(--panel); color: #fff; cursor: pointer; font-size: 15px; white-space: nowrap; }
 #hLogin:hover { border-color: var(--y); }
 .txUser .txAv { flex: none; width: 30px; height: 30px; border-radius: 8px; object-fit: cover; background: #2a2418; border: 1px solid var(--bd); }
 @media (max-width: 700px) { #hUser #hWho { display: none; } #hUser { padding: 0 8px 0 5px; } }
@@ -1053,14 +1055,76 @@ html.touch #board { display: none; }
   html:not(.inapp) #chatlog { height: 200px; } html:not(.inapp) #chatInput { top: 268px; }
   html:not(.inapp) #gmenu { max-width: 100vw; }
   html:not(.inapp) #auth .authCard, html:not(.inapp) #auth > div { max-width: calc(100vw - 24px); }
+  html:not(.inapp) .gpHero { grid-template-columns: 1fr; }
+  html:not(.inapp) .gpHeroArt { aspect-ratio: 16 / 9; }
+  html:not(.inapp) .gpGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 12px; }
+  html:not(.inapp) .gpSearch input { width: 130px; }
 }
+
+/* =====================================================================
+   Games page (tabGames) - hero, recently played, full grid
+   ===================================================================== */
+.secHead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 28px 0 0; }
+.secHead h3 { margin: 0 0 12px; }
+.secMore { border: 0; background: none; color: var(--dim); font-size: 15px; cursor: pointer; padding: 0; }
+.secMore:hover { color: var(--y); }
+
+.gpHead { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+.gpHead h2 { margin: 0; }
+.gpSub { margin: 6px 0 0; color: var(--dim); font-size: 15px; }
+.gpTools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.gpSearch { display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 12px; border: 1px solid var(--bd); border-radius: 10px; background: var(--panel); color: var(--dim); }
+.gpSearch:focus-within { border-color: var(--y); }
+.gpSearch svg { width: 16px; height: 16px; flex: none; }
+.gpSearch input { width: 180px; border: 0; background: none; color: #fff; font-size: 15px; outline: none; }
+.gpSearch input::placeholder { color: var(--dim); }
+
+.gpHero { display: grid; grid-template-columns: 1.15fr 1fr; min-height: 268px; border: 1px solid var(--bd); border-radius: 16px; overflow: hidden; background: var(--panel); }
+.gpHeroArt { position: relative; overflow: hidden; background: var(--accent, #2a2418); }
+.gpHeroArt::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent 55%, var(--panel)); pointer-events: none; }
+.gpHeroArt > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.gpHeroFallback { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 64px; color: rgba(255,255,255,.16); letter-spacing: .04em; }
+.gpHeroInfo { position: relative; display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 26px 28px 24px 6px; }
+.gpHeroTag { align-self: flex-start; padding: 3px 10px; border: 1px solid var(--bd); border-radius: 999px; color: var(--dim); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; }
+.gpHeroInfo h3 { margin: 2px 0 0; font-size: 30px; line-height: 1.1; }
+.gpHeroBy { margin: 0; color: var(--y); font-size: 15px; }
+.gpHeroAbout { margin: 4px 0 10px; color: var(--dim); font-size: 15px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.gpHeroBtns { display: flex; gap: 10px; flex-wrap: wrap; }
+.gpHeroBtns .btnP, .gpHeroBtns .btnG { font-size: 16px; }
+
+.gpRowHead { display: flex; align-items: baseline; gap: 10px; margin: 28px 0 12px; font-size: 20px; }
+.gpRowSub { color: var(--dim); font-size: 13px; font-weight: 400; }
+.gpShelf { display: flex; gap: 16px; overflow-x: auto; padding: 2px 2px 10px; scroll-snap-type: x proximity; }
+.gpShelf .gcard2 { flex: none; width: 250px; scroll-snap-align: start; }
+.gpGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 20px 16px; padding-bottom: 10px; }
+.gpEmpty { margin-top: 10px; }
+
+.gcard2 { display: flex; flex-direction: column; align-items: stretch; gap: 2px; padding: 0; border: 0; background: none; color: inherit; text-align: left; font-family: inherit; cursor: pointer; min-width: 0; }
+.gcArt { position: relative; display: block; aspect-ratio: 16 / 10; border: 1px solid var(--bd); border-radius: 14px; overflow: hidden; background: var(--accent, #2a2418); transition: border-color .14s, transform .14s, box-shadow .14s; }
+.gcArt > img.gcImg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.gcFallback { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 34px; color: rgba(255,255,255,.18); letter-spacing: .04em; }
+.gcIcon { position: absolute; left: 9px; bottom: 9px; width: 40px; height: 40px; border-radius: 10px; border: 2px solid rgba(0,0,0,.55); background: var(--panel); box-shadow: 0 2px 8px rgba(0,0,0,.45); object-fit: cover; }
+.gcTag { position: absolute; right: 9px; top: 9px; padding: 3px 8px; border-radius: 999px; background: rgba(18,15,9,.78); color: var(--y); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; }
+.gcTagOff { color: var(--dim); }
+.gcName { display: block; margin-top: 8px; font-size: 17px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gcBy { display: block; font-size: 13px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gcard2:hover .gcArt { border-color: var(--y); transform: translateY(-2px); box-shadow: 0 8px 22px rgba(0,0,0,.35); }
+.gcard2:hover .gcName { color: var(--y); }
+.gcWide .gcArt { aspect-ratio: 16 / 9; }
+
+#hTabs button { white-space: nowrap; }
+@media (max-width: 1120px) and (min-width: 761px) {
+  #hTop { gap: 14px; }
+  #hTabs { gap: 2px; }
+  #hTabs button { padding: 7px 10px; }
+}
+
 
 /* =====================================================================
    Triancle Studio playtest (index.html?playtest=1)
    The real game runs in a Studio window: keep the world, the avatar and
    the name tags, drop the website, account, chat and lobby UI.
-   ===================================================================== */
-body.playtest #topbar,
+   ===================================================================== */body.playtest #topbar,
 body.playtest #board,
 body.playtest #namebox,
 body.playtest #gfx,
@@ -1076,4 +1140,15 @@ body.playtest #hud,
 body.playtest #veil { display: none !important; }
 body.playtest { background: #000; overflow: hidden; }
 body.playtest #c { position: fixed; inset: 0; }
+
+/* =====================================================================
+   StarterGUI runtime (ScreenGuis saved by Triancle Studio)
+   ===================================================================== */
+#gameGui { position: fixed; inset: 0; z-index: 4; overflow: hidden; pointer-events: none; }
+.ggScreen { position: absolute; left: 0; right: 0; bottom: 0; pointer-events: none; }
+.ggObj { position: absolute; box-sizing: border-box; display: flex; pointer-events: none; }
+.gg-TextLabel, .gg-TextButton { align-items: center; justify-content: center; }
+.gg-ImageLabel, .gg-ImageButton { background-position: center; background-repeat: no-repeat; }
+.gg-ImageLabel > img, .gg-ImageButton > img { border: 0; }
+
 

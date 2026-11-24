@@ -440,17 +440,20 @@ function addWedgeCollision(sx, sy, sz, x, y, z, R, corner) {
   }
 }
 
-/* one builder for every map: the Sharknado data, published Triancle Studio games and any .rbxl the owner uploads.
-   row = [sizeX, sizeY, sizeZ, x, y, z, rotation(3x3 row-major), colour, transparency, canCollide, shape,
+/* one builder for every map: the Sharknado data, published Triancle Studio games and any .rbxl the owner uploads.   row = [sizeX, sizeY, sizeZ, x, y, z, rotation(3x3 row-major), colour, transparency, canCollide, shape,
           material, texture, name, anchored]
    shape: 0 ball, 1 block, 2 cylinder, 3 wedge, 4 corner wedge
    material: Plastic / Smooth Plastic / Metal / Neon / Glass
    texture: Studs / Inlet / Smooth (blocks only) */
+const PART_MESHES = new Map();   // part name -> mesh, for block scripts
+const PART_SOLIDS = new Map();   // part name -> collision boxes, so moved parts still collide
 function buildMapWorld(map) {
   SPAWN.set(map.spawn[0], map.spawn[1], map.spawn[2]);
   let half = 0;                                                         // camera stays above the ground only where there is a big ground part
   for (const r of map.parts) if (r[1] <= 64 && Math.abs(r[4] + r[1] / 2) < 2) half = Math.max(half, Math.min(4096, Math.max(r[0], r[2]) / 2));
   BASEPLATE_HALF = half;
+  PART_MESHES.clear();
+  PART_SOLIDS.clear();
   const texC = new Map(), matC = new Map(), geoC = new Map();
   const presetOf = name => MAT_PRESETS[name] || MAT_PRESETS.Plastic;
   const opacityOf = (preset, tr) => Math.max(0.02, Math.min(1, (preset.glass ? 0.55 : 1) * (1 - (tr || 0))));
@@ -512,13 +515,503 @@ function buildMapWorld(map) {
     m.receiveShadow = true;
     m.castShadow = tr === 0 && !preset.glass;
     scene.add(m);
+    if (typeof row[13] === "string" && row[13]) PART_MESHES.set(row[13], m);
     if (!col) continue;
+    const solidFrom = solids.length;
     if (shape === 0 && Math.min(sx, sy, sz) > Math.max(sx, sy, sz) * 0.95) {      // a round ball: exact sphere hitbox
       solids.push({ minX: x - sx / 2, maxX: x + sx / 2, minY: y - sy / 2, maxY: y + sy / 2, minZ: z - sz / 2, maxZ: z + sz / 2, ball: { cx: x, cy: y, cz: z, r: Math.min(sx, sy, sz) / 2 } });
     } else if (shape === 3 || shape === 4) addWedgeCollision(sx, sy, sz, x, y, z, R, shape === 4);
     else addRotatedCollision(sx, sy, sz, x, y, z, R);
+    if (typeof row[13] === "string" && row[13]) PART_SOLIDS.set(row[13], solids.slice(solidFrom));
   }
 }
+
+/* =====================================================================
+   StarterGUI runtime: draws the ScreenGui tree saved by Triancle Studio
+   (map.gui) over the game canvas. Same rules as the editor preview:
+   UDim2 scale/offset, anchor points, colours, text and z-order. There is
+   no scripting yet, so nothing here captures clicks.
+   ===================================================================== */
+let guiLayerEl = null, guiLayerMap = null, guiResizeTimer = 0;
+
+function guiNum(v, fallback) { const n = parseFloat(v); return Number.isFinite(n) ? n : (fallback || 0); }
+function guiPx(udim, total) { return Array.isArray(udim) ? guiNum(udim[0]) * total + guiNum(udim[1]) : 0; }
+function guiRgba(hex, transparency) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || "#000000"));
+  const n = parseInt(m ? m[1] : "000000", 16);
+  const a = Math.max(0, Math.min(1, 1 - guiNum(transparency)));
+  return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a.toFixed(3) + ")";
+}
+function guiFontFamily(font) {
+  if (font === "Legacy") return "Arial, Helvetica, sans-serif";
+  if (font === "Code") return "Consolas, ui-monospace, monospace";
+  if (font === "Fantasy") return "Georgia, serif";
+  return '"Inter", system-ui, -apple-system, "Segoe UI", sans-serif';
+}
+function guiSafeImage(url) {
+  const value = String(url || "").trim();
+  return /^(https?:\/\/|data:image\/)/i.test(value) ? value : "";
+}
+
+function setGuiText(el, text) {
+  const first = el.firstChild;
+  if (first && first.nodeType === 3) first.nodeValue = text;
+  else el.insertBefore(document.createTextNode(text), el.firstChild);
+}
+
+/* Applies every visual property to an existing element (no children touched),
+   so text/colour updates never replace the nodes the player is clicking. */
+function styleGuiElement(el, node, parentW, parentH) {
+  if (node.class === "ScreenGui") {
+    el.style.zIndex = String(100 + guiNum(node.props.DisplayOrder));
+    el.style.top = (node.props.IgnoreGuiInset ? 0 : 36) + "px";
+    return { width: parentW, height: Math.max(1, parentH - (node.props.IgnoreGuiInset ? 0 : 36)) };
+  }
+  const p = node.props;
+  const width = Math.max(1, guiPx(p.Size, parentW));
+  const height = Math.max(1, guiPx(p.Size.slice(2), parentH));
+  el.style.left = guiPx(p.Position, parentW) + "px";
+  el.style.top = guiPx(p.Position.slice(2), parentH) + "px";
+  el.style.width = width + "px";
+  el.style.height = height + "px";
+  el.style.background = guiRgba(p.BackgroundColor3, p.BackgroundTransparency);
+  const borderSize = guiNum(p.BorderSizePixel);
+  el.style.border = borderSize > 0 ? borderSize + "px solid " + String(p.BorderColor3 || "#1b2a35") : "0";
+  el.style.visibility = p.Visible === false ? "hidden" : "";
+  el.style.zIndex = String(guiNum(p.ZIndex, 1));
+  el.style.overflow = p.ClipsDescendants ? "hidden" : "visible";
+  const ax = Number(p.AnchorPoint && p.AnchorPoint[0]) || 0;
+  const ay = Number(p.AnchorPoint && p.AnchorPoint[1]) || 0;
+  el.style.transformOrigin = (ax * 100) + "% " + (ay * 100) + "%";
+  el.style.transform = "translate(" + (-ax * 100) + "%," + (-ay * 100) + "%)" + (guiNum(p.Rotation) ? " rotate(" + guiNum(p.Rotation) + "deg)" : "");
+
+  if (node.class === "TextLabel" || node.class === "TextButton") {
+    const text = String(p.Text == null ? "" : p.Text);
+    setGuiText(el, text);
+    el.style.color = guiRgba(p.TextColor3, p.TextTransparency);
+    el.style.justifyContent = p.TextXAlignment === "Left" ? "flex-start" : p.TextXAlignment === "Right" ? "flex-end" : "center";
+    el.style.alignItems = p.TextYAlignment === "Top" ? "flex-start" : p.TextYAlignment === "Bottom" ? "flex-end" : "center";
+    el.style.textAlign = p.TextXAlignment === "Left" ? "left" : p.TextXAlignment === "Right" ? "right" : "center";
+    el.style.whiteSpace = p.TextWrapped || p.TextScaled ? "pre-wrap" : "pre";
+    el.style.fontFamily = guiFontFamily(p.Font);
+    el.style.lineHeight = String(guiNum(p.LineHeight, 1));
+    if (p.TextScaled) {
+      const byHeight = height * 0.62;
+      const byWidth = width / Math.max(1, text.length * 0.52);
+      el.style.fontSize = Math.max(4, Math.min(byHeight, byWidth)) + "px";
+    } else {
+      el.style.fontSize = Math.max(1, guiNum(p.TextSize, 14)) + "px";
+    }
+    if (guiNum(p.TextStrokeTransparency, 1) < 1) {
+      el.style.webkitTextStroke = "1px " + guiRgba(p.TextStrokeColor3, p.TextStrokeTransparency);
+    }
+  }
+  if (node.class === "ImageLabel" || node.class === "ImageButton") {
+    const src = guiSafeImage(p.Image);
+    let img = el.querySelector('[data-guiimg]');
+    if (src) {
+      if (!img) {
+        img = document.createElement("img");
+        img.dataset.guiimg = "1";
+        img.alt = "";
+        img.draggable = false;
+        el.appendChild(img);
+      }
+      img.src = src;
+      img.style.cssText = "position:absolute;inset:0;width:100%;height:100%;pointer-events:none;object-fit:" +
+        (p.ScaleType === "Fit" ? "contain" : "fill") + ";opacity:" + (1 - guiNum(p.ImageTransparency));
+    } else if (img) {
+      img.remove();
+    }
+  }
+  return { width, height };
+}
+
+function buildGuiElement(node, parentW, parentH) {
+  if (!node || !node.props) return null;
+  if (node.class === "Script" || node.class === "LocalScript") return null;
+  if (node.class === "Folder") {
+    const frag = document.createDocumentFragment();
+    for (const kid of node.children || []) {
+      const el = buildGuiElement(kid, parentW, parentH);
+      if (el) frag.appendChild(el);
+    }
+    return frag;
+  }
+  if (node.class === "ScreenGui") {
+    if (node.props.Enabled === false) return null;
+    const screen = document.createElement("div");
+    screen.className = "ggScreen";
+    screen.dataset.name = node.name || "";
+    screen.dataset.gid = node.id;
+    const size = styleGuiElement(screen, node, parentW, parentH);
+    for (const kid of node.children || []) {
+      const el = buildGuiElement(kid, parentW, size.height);
+      if (el) screen.appendChild(el);
+    }
+    return screen;
+  }
+
+  const el = document.createElement("div");
+  el.className = "ggObj gg-" + node.class;
+  el.dataset.name = node.name || "";
+  el.dataset.gid = node.id;
+  const size = styleGuiElement(el, node, parentW, parentH);
+  for (const kid of node.children || []) {
+    const child = buildGuiElement(kid, size.width, size.height);
+    if (child) el.appendChild(child);
+  }
+  return el;
+}
+
+/* Repaint one node in place (no DOM replacement), so clicks and hovers keep working. */
+function paintRuntimeNode(node) {
+  if (!guiLayerEl || !node) return;
+  const el = guiLayerEl.querySelector('[data-gid="' + node.id + '"]');
+  if (!el) return;
+  const parent = el.parentElement;
+  const pw = Math.max(1, parent ? parent.clientWidth : window.innerWidth);
+  const ph = Math.max(1, parent ? parent.clientHeight : window.innerHeight);
+  styleGuiElement(el, node, pw, ph);
+}
+
+function buildRuntimeGui(g) {
+  const map = (g && g.map) || {};
+  guiLayerMap = map;
+  if (!guiLayerEl || !guiLayerEl.isConnected) {
+    guiLayerEl = document.createElement("div");
+    guiLayerEl.id = "gameGui";
+    document.body.appendChild(guiLayerEl);
+  }
+  guiLayerEl.innerHTML = "";
+  const list = Array.isArray(map.gui) ? map.gui : [];
+  if (!list.length) return;
+  const w = Math.max(1, window.innerWidth), h = Math.max(1, window.innerHeight);
+  for (const root of list) {
+    const el = buildGuiElement(root, w, h);
+    if (el) guiLayerEl.appendChild(el);
+  }
+  bindScriptEvents(map);
+}
+
+/* ---- block scripts (Script = server, LocalScript = client) ---- */
+function parseUdimText(text) {
+  const nums = String(text || "").split(/[,\s]+/).map(parseFloat).filter(n => Number.isFinite(n));
+  if (!nums.length) return null;
+  if (nums.length === 1) { const n = nums[0]; return Math.abs(n) < 1 ? [n, 0, n, 0] : [0, n, 0, n]; }
+  if (nums.length === 2) return [nums[0], 0, nums[1], 0];
+  if (nums.length === 3) return [nums[0], nums[1], nums[2], 0];
+  return nums.slice(0, 4);
+}
+
+function findRuntimeNode(map, name) {
+  const wanted = String(name || "").trim().toLowerCase();
+  if (!wanted) return null;
+  let hit = null;
+  (function walk(list) {
+    for (const node of list || []) {
+      if (hit) return;
+      const cls = node.class;
+      if (cls !== "Folder" && cls !== "Script" && cls !== "LocalScript" && String(node.name || "").toLowerCase() === wanted) { hit = node; return; }
+      if (node.children) walk(node.children);
+    }
+  })(map.gui);
+  return hit;
+}
+
+function setRuntimeProp(map, target, prop, raw) {
+  const node = findRuntimeNode(map, target);
+  if (!node || !node.props || !prop) return false;
+  const p = node.props;
+  const text = String(raw == null ? "" : raw);
+  switch (prop) {
+    case "Text": p.Text = text; break;
+    case "Visible": p.Visible = !/^(false|0|no|off)$/i.test(text); break;
+    case "Position":
+    case "Size": { const udim = parseUdimText(text); if (udim) p[prop] = udim; break; }
+    case "Rotation": case "TextSize": case "TextTransparency": case "BackgroundTransparency":
+    case "ImageTransparency": case "ZIndex": case "BorderSizePixel":
+      p[prop] = guiNum(text); break;
+    case "TextColor3": case "BackgroundColor3": case "ImageColor3":
+      p[prop] = text.charAt(0) === "#" ? text : "#" + text; break;
+    default: p[prop] = text;
+  }
+  if (node.class === "ScreenGui" || prop === "Size") buildRuntimeGui({ map });
+  else paintRuntimeNode(node);
+  return true;
+}
+
+function testScriptCondition(map, args) {
+  const node = findRuntimeNode(map, args.target);
+  if (!node || !node.props) return false;
+  const raw = node.props[args.prop];
+  const a = Array.isArray(raw) ? raw.join(", ") : String(raw == null ? "" : raw);
+  return compareValues(a, args.value, args.op);
+}
+
+function compareValues(a, b, op) {
+  const left = String(a == null ? "" : a);
+  const right = String(b == null ? "" : b);
+  if (op === "=") return left.toLowerCase() === right.toLowerCase();
+  if (op === "≠") return left.toLowerCase() !== right.toLowerCase();
+  const na = parseFloat(left), nb = parseFloat(right);
+  if (!Number.isFinite(na) || !Number.isFinite(nb)) return false;
+  return op === "<" ? na < nb : op === ">" ? na > nb : false;
+}
+
+function runtimePart(name) {
+  const wanted = String(name || "").toLowerCase();
+  if (!wanted) return null;
+  for (const [key, mesh] of PART_MESHES) {
+    if (String(key).toLowerCase() === wanted) return mesh;
+  }
+  return null;
+}
+
+function eachPartMaterial(mesh, fn) {
+  const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  for (const mat of mats) if (mat) fn(mat);
+}
+
+/* Identical parts share one cached material, so recolouring one would recolour them
+   all. Give the part its own copy before changing anything. */
+function ownPartMaterials(mesh) {
+  if (!mesh) return;
+  if (Array.isArray(mesh.material)) mesh.material = mesh.material.map(mat => mat.clone());
+  else if (mesh.material) mesh.material = mesh.material.clone();
+}
+
+function setPartColour(name, hex) {
+  const mesh = runtimePart(name);
+  if (!mesh) return;
+  const value = parseInt(String(hex || "").replace("#", ""), 16);
+  if (!Number.isFinite(value)) return;
+  ownPartMaterials(mesh);
+  eachPartMaterial(mesh, mat => { if (mat.color) mat.color.setHex(value); });
+}
+
+function setPartTransparency(name, raw) {
+  const mesh = runtimePart(name);
+  if (!mesh) return;
+  const t = Math.max(0, Math.min(1, guiNum(raw)));
+  ownPartMaterials(mesh);
+  eachPartMaterial(mesh, mat => {
+    mat.transparent = t > 0;
+    mat.opacity = 1 - t;
+    mat.depthWrite = t <= 0.55;
+    mat.needsUpdate = true;
+  });
+}
+
+function setPartVisible(name, on) {
+  const mesh = runtimePart(name);
+  if (mesh) mesh.visible = !!on;
+}
+
+function moveRuntimePart(name, dx, dy, dz) {
+  const mesh = runtimePart(name);
+  if (!mesh) return;
+  const dxn = guiNum(dx), dyn = guiNum(dy), dzn = guiNum(dz);
+  const boxes = PART_SOLIDS.get(name) || [];
+  let carry = false;
+  for (const b of boxes) {
+    if (Math.abs(player.pos.y - b.maxY) < 0.3 &&
+        player.pos.x > b.minX - 1 && player.pos.x < b.maxX + 1 &&
+        player.pos.z > b.minZ - 1 && player.pos.z < b.maxZ + 1) { carry = true; break; }
+  }
+  mesh.position.x += dxn; mesh.position.y += dyn; mesh.position.z += dzn;
+  for (const b of boxes) {
+    b.minX += dxn; b.maxX += dxn;
+    b.minY += dyn; b.maxY += dyn;
+    b.minZ += dzn; b.maxZ += dzn;
+  }
+  if (carry) {
+    player.pos.x += dxn; player.pos.y += dyn; player.pos.z += dzn;
+    player.prev.copy(player.pos);
+  }
+}
+
+function teleportPlayer(x, y, z) {
+  player.pos.set(guiNum(x), guiNum(y), guiNum(z));
+  player.prev.copy(player.pos);
+  player.vel.set(0, 0, 0);
+  player.onGround = false;
+}
+
+const HOVER_HANDLERS = [];
+const TOUCH_HANDLERS = [];
+
+function scriptVar(map, name) {
+  return map && map.vars && Object.prototype.hasOwnProperty.call(map.vars, name) ? map.vars[name] : "";
+}
+
+function setScriptVar(map, name, value) {
+  if (!map || !name) return;
+  if (!map.vars || typeof map.vars !== "object" || Array.isArray(map.vars)) map.vars = {};
+  map.vars[name] = String(value == null ? "" : value);
+}
+
+function scriptElements(target) {
+  const wanted = String(target || "").toLowerCase();
+  const out = [];
+  if (!guiLayerEl || !wanted) return out;
+  for (const el of guiLayerEl.querySelectorAll(".ggObj, .ggScreen")) {
+    if (String(el.dataset.name || "").toLowerCase() === wanted) out.push(el);
+  }
+  return out;
+}
+
+function bindScriptEvents(map) {
+  if (!guiLayerEl || !map) return;
+  for (const handler of map.__clicks || []) {
+    for (const el of scriptElements(handler.target)) {
+      el.style.pointerEvents = "auto";
+      el.style.cursor = "pointer";
+      el.addEventListener("click", ev => { ev.stopPropagation(); handler.fire(); });
+    }
+  }
+  for (const handler of map.__hovers || []) {
+    for (const el of scriptElements(handler.target)) {
+      el.style.pointerEvents = "auto";
+      el.addEventListener("mouseenter", () => handler.fire());
+    }
+  }
+}
+
+/* runs every frame while a "when player touches" script exists */
+function checkTouchScripts() {
+  if (!TOUCH_HANDLERS.length) return;
+  const half = (typeof CFG !== "undefined" && CFG.CHAR_HALF_XZ) || 1;
+  const height = (typeof CFG !== "undefined" && CFG.CHAR_HEIGHT) || 5;
+  const p = player.pos;
+  for (const handler of TOUCH_HANDLERS) {
+    const boxes = PART_SOLIDS.get(handler.part) || [];
+    let hit = false;
+    for (const b of boxes) {
+      if (p.x + half > b.minX && p.x - half < b.maxX &&
+          p.z + half > b.minZ && p.z - half < b.maxZ &&
+          p.y + height > b.minY - 0.1 && p.y < b.maxY + 0.6) { hit = true; break; }
+    }
+    if (hit && !handler.inside) { handler.inside = true; handler.fire(); }
+    else if (!hit) handler.inside = false;
+  }
+}
+
+async function runScriptStack(blocks, map, ctl) {
+  for (const block of blocks || []) {
+    if (ctl && ctl.stop) return;
+    if (!block || !block.type) continue;
+    if (block.type === "wait") {
+      const seconds = Math.max(0, Math.min(60, guiNum(block.args.n)));
+      await new Promise(resolve => setTimeout(resolve, seconds * 1000));
+    } else if (block.type === "repeat") {
+      const times = Math.max(0, Math.min(100, Math.round(guiNum(block.args.n))));
+      for (let i = 0; i < times; i++) await runScriptStack(block.body, map, ctl);
+    } else if (block.type === "if") {
+      if (testScriptCondition(map, block.args || {})) await runScriptStack(block.body, map, ctl);
+    } else if (block.type === "ifVar") {
+      if (compareValues(scriptVar(map, block.args.var), block.args.value, block.args.op)) await runScriptStack(block.body, map, ctl);
+      else await runScriptStack(block.elseBody, map, ctl);
+    } else if (block.type === "setVar") {
+      setScriptVar(map, block.args.var, block.args.value);
+    } else if (block.type === "changeVar") {
+      setScriptVar(map, block.args.var, String(guiNum(scriptVar(map, block.args.var)) + guiNum(block.args.n)));
+    } else if (block.type === "stop") {
+      if (ctl) ctl.stop = true;
+      return;
+    } else if (block.type === "setText") {
+      setRuntimeProp(map, block.args.target, "Text", block.args.text);
+    } else if (block.type === "setTextVar") {
+      setRuntimeProp(map, block.args.target, "Text", scriptVar(map, block.args.var));
+    } else if (block.type === "setProp") {
+      setRuntimeProp(map, block.args.target, block.args.prop, block.args.value);
+    } else if (block.type === "setPropVar") {
+      setRuntimeProp(map, block.args.target, block.args.prop, scriptVar(map, block.args.var));
+    } else if (block.type === "show") {
+      setRuntimeProp(map, block.args.target, "Visible", "true");
+    } else if (block.type === "hide") {
+      setRuntimeProp(map, block.args.target, "Visible", "false");
+    } else if (block.type === "partColor") {
+      setPartColour(block.args.part, block.args.color);
+    } else if (block.type === "partTrans") {
+      setPartTransparency(block.args.part, block.args.n);
+    } else if (block.type === "partShow") {
+      setPartVisible(block.args.part, true);
+    } else if (block.type === "partHide") {
+      setPartVisible(block.args.part, false);
+    } else if (block.type === "movePart") {
+      moveRuntimePart(block.args.part, block.args.x, block.args.y, block.args.z);
+    } else if (block.type === "teleport") {
+      teleportPlayer(block.args.x, block.args.y, block.args.z);
+    } else if (block.type === "walkSpeed") {
+      CFG.WALK_SPEED = Math.max(1, Math.min(200, guiNum(block.args.n)));
+    } else if (block.type === "jumpPower") {
+      CFG.JUMP_POWER = Math.max(0, Math.min(500, guiNum(block.args.n)));
+    } else if (block.type === "print") {
+      console.log("[Triancle script]", block.args.text);
+    }
+  }
+}
+
+function runScripts(map) {
+  if (!map || map.__scriptsStarted) return;
+  map.__scriptsStarted = true;
+  map.__clicks = [];
+  map.__hovers = [];
+  HOVER_HANDLERS.length = 0;
+  TOUCH_HANDLERS.length = 0;
+  if (!map.vars || typeof map.vars !== "object" || Array.isArray(map.vars)) map.vars = {};
+  const scripts = [];
+  (function walk(list) {
+    for (const node of list || []) {
+      if (node.class === "Script" || node.class === "LocalScript") scripts.push(node);
+      if (node.children) walk(node.children);
+    }
+  })(map.gui);
+  (function walk(list) {
+    for (const node of list || []) if (node.class === "Script" || node.class === "LocalScript") scripts.push(node);
+  })(map.workspaceScripts);
+  (function walk(list) {
+    for (const node of list || []) if (node.class === "Script" || node.class === "LocalScript") scripts.push(node);
+  })(map.replicatedStorage);
+
+  const ordered = scripts.filter(s => s.class === "Script").concat(scripts.filter(s => s.class === "LocalScript"));
+  for (const script of ordered) {
+    const blocks = script.blocks || [];
+    if (!blocks.length) continue;
+    const hat = blocks[0].type;
+    const body = blocks.slice(1);
+    const fail = err => console.warn("[Triancle script] " + (script.name || "Script") + " failed:", err);
+    const fire = () => runScriptStack(body, map, { stop: false }).catch(fail);
+    if (hat === "onClick") {
+      map.__clicks.push({ target: blocks[0].args && blocks[0].args.target, fire });
+      continue;
+    }
+    if (hat === "onHover") {
+      map.__hovers.push({ target: blocks[0].args && blocks[0].args.target, fire });
+      continue;
+    }
+    if (hat === "onTouch") {
+      TOUCH_HANDLERS.push({ part: blocks[0].args && blocks[0].args.part, inside: false, fire });
+      continue;
+    }
+    if (hat === "every") {
+      const ms = Math.max(100, guiNum(blocks[0].args && blocks[0].args.n) * 1000);
+      if (!map.__timers) map.__timers = [];
+      map.__timers.push(setInterval(fire, ms));
+      continue;
+    }
+    if (hat === "onStart") runScriptStack(body, map, { stop: false }).catch(fail);
+    else runScriptStack(blocks, map, { stop: false }).catch(fail);
+  }
+  bindScriptEvents(map);
+}
+
+window.addEventListener("resize", () => {
+  if (!guiLayerMap) return;
+  clearTimeout(guiResizeTimer);
+  guiResizeTimer = setTimeout(() => buildRuntimeGui({ map: guiLayerMap }), 120);
+});
 
 let worldBuilt = false;
 function buildWorld(g) {
@@ -526,6 +1019,9 @@ function buildWorld(g) {
   if (g.id === "baseplate") buildBaseplateWorld();
   else if (g.id === "sharknado") buildMapWorld({ spawn: [0, 3, 0], parts: SHARK_MAP.parts.concat([SHARK_MAP.base]) });
   else buildMapWorld(g.map);
+  buildRuntimeGui(g);
+  const guiMap = (g && g.map) || {};
+  setTimeout(() => runScripts(guiMap), 80);
   player.pos.copy(SPAWN); player.prev.copy(SPAWN);
 }
 
@@ -2007,6 +2503,7 @@ function frame(now) {
   acc += dt;
   while (acc >= FIXED) { physicsStep(FIXED); acc -= FIXED; }
   const alpha = acc / FIXED;
+  if (TOUCH_HANDLERS.length) checkTouchScripts();
 
   animate(dt);
 
@@ -2433,6 +2930,7 @@ function startGame(web) {
   if (APP.required && !APP.in && web !== true) { showAppPrompt(curGame && curGame.id); return; }   // games run in the desktop app
   if (!acct.user) { openAuth("login"); return; }
   if (starting) return; starting = true;
+  if (typeof rememberGame === "function" && curGame) rememberGame(curGame.id);
   const veil = $("veil"); veil.classList.add("on");                  // quick fade to black, swap to the game, fade back in
   setTimeout(async () => {
     if (curGame.custom && !curGame.map) { try { await loadCustomMap(curGame); } catch (_) { veil.classList.remove("on"); starting = false; uiAlert("Couldn't load that map."); return; } }
@@ -2482,7 +2980,8 @@ function applyGameRow(id, r) {                                        // r = { n
   g.ovr = o;
 }
 function renderGames() {
-  $("gameGrid").innerHTML = GAMES.map(g => `<button class="gcard" data-game="${g.id}" type="button"><span class="gimg"><img alt="${gesc(gv(g, "name"))}" src="${gesc(gv(g, "thumb"))}"><img class="gico" alt="" src="${gesc(gv(g, "icon"))}"></span><span class="gname">${gesc(gv(g, "name"))}</span><span class="gby">made by ${gesc(gv(g, "by"))}</span></button>`).join("");
+  $("gameGrid").innerHTML = GAMES.filter(g => !hiddenGames.has(g.id)).map(g => `<button class="gcard" data-game="${g.id}" type="button"><span class="gimg"><img alt="${gesc(gv(g, "name"))}" src="${gesc(gv(g, "thumb"))}"><img class="gico" alt="" src="${gesc(gv(g, "icon"))}"></span><span class="gname">${gesc(gv(g, "name"))}</span><span class="gby">made by ${gesc(gv(g, "by"))}</span></button>`).join("");
+  if (typeof renderGamesPage === "function") renderGamesPage();
 }
 function fillGamePage() {
   const g = curGame;
@@ -2495,6 +2994,126 @@ function fillGamePage() {
   if (window.refreshGameEdit) window.refreshGameEdit();
   $("gpPlayWeb").hidden = !(APP.required && !APP.in);                // only needed when games normally open in the desktop app
 }
+
+/* ---- Games page: featured hero, recently played shelf and the full grid ---- */
+const HIDDEN_LS = "triangle_hidden_games", HIDDEN_ROW = "__hidden_games";
+let hiddenGames = new Set();
+try { const v = JSON.parse(localStorage.getItem(HIDDEN_LS) || "[]"); if (Array.isArray(v)) hiddenGames = new Set(v.filter(x => typeof x === "string")); } catch (_) {}
+function hiddenIds() { return Array.from(hiddenGames); }
+function visibleGames() { return GAMES.filter(g => !hiddenGames.has(g.id)); }
+function setHiddenIds(list) {
+  hiddenGames = new Set((Array.isArray(list) ? list : []).filter(x => typeof x === "string"));
+  try { localStorage.setItem(HIDDEN_LS, JSON.stringify(hiddenIds())); } catch (_) {}
+  if (curGame && hiddenGames.has(curGame.id)) curGame = visibleGames()[0] || GAMES[0];
+  renderGames();
+}
+async function syncHiddenCloud() {
+  const sb = getSB();
+  if (!sb) return { ok: false, why: "no supabase" };
+  try {
+    const r = await sb.from(GAME_TABLE).upsert({
+      id: HIDDEN_ROW, name: JSON.stringify(hiddenIds()),
+      updated_by: acct.user && acct.user.id, updated_at: new Date().toISOString(),
+    });
+    return { ok: !r.error, why: r.error && r.error.message };
+  } catch (e) { return { ok: false, why: e && e.message }; }
+}
+if (curGame && hiddenGames.has(curGame.id)) curGame = visibleGames()[0] || GAMES[0];
+const RECENT_LS = "triangle_recent_games";
+function recentGameIds() {
+  try { const v = JSON.parse(localStorage.getItem(RECENT_LS) || "[]"); return Array.isArray(v) ? v.filter(x => typeof x === "string") : []; }
+  catch (_) { return []; }
+}
+function rememberGame(id) {
+  if (!id) return;
+  try { localStorage.setItem(RECENT_LS, JSON.stringify([id].concat(recentGameIds().filter(x => x !== id)).slice(0, 12))); } catch (_) {}
+}
+function gameArt(g) { const thumb = gv(g, "thumb"); return thumb && thumb !== BLANK ? thumb : ""; }
+function gameIcon(g) { const icon = gv(g, "icon"); return icon && icon !== BLANK ? icon : ""; }
+function gameAccent(g) {
+  const s = gv(g, "name") + "|" + gv(g, "by"); let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
+  return "hsl(" + h + " 26% 26%)";
+}
+function gameInitials(name) {
+  return String(name || "?").trim().split(/\s+/).slice(0, 2).map(w => w.charAt(0).toUpperCase()).join("") || "?";
+}
+function gameCardHtml(g, extraClass) {
+  const art = gameArt(g), icon = gameIcon(g);
+  return '<button class="gcard2' + (extraClass ? " " + extraClass : "") + '" data-games-id="' + gesc(g.id) + '" type="button">' +
+    '<span class="gcArt" style="--accent:' + gameAccent(g) + '">' +
+      (art ? '<img class="gcImg" alt="" src="' + gesc(art) + '">' : '<span class="gcFallback">' + gesc(gameInitials(gv(g, "name"))) + '</span>') +
+      (icon ? '<img class="gcIcon" alt="" src="' + gesc(icon) + '">' : "") +
+      '<span class="gcTag' + (g.custom ? "" : " gcTagOff") + '">' + (g.custom ? "Community" : "Official") + '</span>' +
+    '</span>' +
+    '<span class="gcName">' + gesc(gv(g, "name")) + '</span>' +
+    '<span class="gcBy">by ' + gesc(gv(g, "by")) + '</span>' +
+  '</button>';
+}
+function featuredGame() {
+  for (const id of recentGameIds()) { const hit = GAMES.find(g => g.id === id && !hiddenGames.has(g.id)); if (hit) return hit; }
+  return visibleGames().find(g => g.id === "baseplate") || visibleGames()[0];
+}
+function gameHeroHtml(g) {
+  if (!g) return "";
+  const art = gameArt(g);
+  const about = gv(g, "about") || "A Triancle map. Press play and see what is waiting inside.";
+  return '<div class="gpHeroArt" style="--accent:' + gameAccent(g) + '">' +
+      (art ? '<img alt="" src="' + gesc(art) + '">' : '<span class="gpHeroFallback">' + gesc(gameInitials(gv(g, "name"))) + '</span>') +
+    '</div>' +
+    '<div class="gpHeroInfo">' +
+      '<span class="gpHeroTag">' + (g.custom ? "Community game" : "Official game") + '</span>' +
+      '<h3>' + gesc(gv(g, "name")) + '</h3>' +
+      '<p class="gpHeroBy">by ' + gesc(gv(g, "by")) + '</p>' +
+      '<p class="gpHeroAbout">' + gesc(about).slice(0, 220) + '</p>' +
+      '<div class="gpHeroBtns">' +
+        '<button class="btnP" type="button" data-games-play="' + gesc(g.id) + '">Play now</button>' +
+        '<button class="btnG" type="button" data-games-open="' + gesc(g.id) + '">Game page</button>' +
+      '</div>' +
+    '</div>';
+}
+function renderGamesPage() {
+  const listEl = $("gamesList"); if (!listEl) return;
+  const searchEl = $("gamesSearch"), sortEl = $("gamesSort");
+  const q = String((searchEl && searchEl.value) || "").trim().toLowerCase();
+  const sort = (sortEl && sortEl.value) || "featured";
+  const pool = visibleGames();
+  let list = pool.slice();
+  if (q) list = list.filter(g => (gv(g, "name") + " " + gv(g, "by") + " " + (gv(g, "about") || "")).toLowerCase().indexOf(q) >= 0);
+  if (sort === "az") list.sort((a, b) => gv(a, "name").localeCompare(gv(b, "name")));
+  if (sort === "community") list.sort((a, b) => (b.custom ? 1 : 0) - (a.custom ? 1 : 0));
+
+  const heroWrap = $("gamesHeroWrap");
+  if (heroWrap) {
+    heroWrap.hidden = !pool.length || !!q || sort !== "featured";
+    if (!heroWrap.hidden) $("gamesHero").innerHTML = gameHeroHtml(featuredGame());
+  }
+  const recents = recentGameIds().map(id => GAMES.find(g => g.id === id && !hiddenGames.has(g.id))).filter(Boolean).slice(0, 8);
+  const recentWrap = $("gamesRecentWrap");
+  if (recentWrap) {
+    recentWrap.hidden = !recents.length || !!q;
+    if (!recentWrap.hidden) $("gamesRecent").innerHTML = recents.map(g => gameCardHtml(g, "gcWide")).join("");
+  }
+  listEl.innerHTML = list.map(g => gameCardHtml(g)).join("");
+  const empty = $("gamesEmpty");
+  if (empty) {
+    empty.hidden = list.length > 0;
+    empty.textContent = !pool.length ? "No games are up right now. Check back soon." : "No games match that search. Try another name.";
+  }
+  const count = $("gamesCount"); if (count) count.textContent = list.length === 1 ? "1 game" : list.length + " games";
+}
+$("tabGames").addEventListener("click", e => {
+  const play = e.target.closest("[data-games-play]");
+  if (play) { const g = GAMES.find(x => x.id === play.dataset.gamesPlay); if (g) { curGame = g; startGame(); } return; }
+  const open = e.target.closest("[data-games-open]");
+  if (open) { openGamePage(open.dataset.gamesOpen); return; }
+  const card = e.target.closest("[data-games-id]");
+  if (card) openGamePage(card.dataset.gamesId);
+});
+if ($("gamesSearch")) $("gamesSearch").addEventListener("input", renderGamesPage);
+if ($("gamesSort")) $("gamesSort").addEventListener("change", renderGamesPage);
+if ($("homeSeeGames")) $("homeSeeGames").addEventListener("click", () => showTab("games"));
+
 $("gameGrid").addEventListener("click", e => { const c = e.target.closest("[data-game]"); if (c) openGamePage(c.dataset.game); });
 try { const saved = JSON.parse(localStorage.getItem(GAME_LS) || "{}"); for (const id in saved) applyGameRow(id, saved[id]); } catch (_) {}
 renderGames();
@@ -2506,7 +3125,21 @@ async function loadGameSettings() {                                    // everyo
     if (r.error) r = await sb.from(GAME_TABLE).select("id, name, owner_name, thumb, icon");     // btools column not added yet (supabase_schema.sql)
     if (r.error) throw r.error;
     const cache = {};
-    for (const row of (r.data || [])) { const v = { name: row.name, by: row.owner_name, thumb: row.thumb, icon: row.icon, btools: row.btools, about: row.about }; applyGameRow(row.id, v); cache[row.id] = v; }
+    for (const row of (r.data || [])) {
+      if (row.id === HIDDEN_ROW) {                                   // shared list of games the owner hid
+        try {
+          const list = JSON.parse(row.name || "[]");
+          if (Array.isArray(list)) {
+            hiddenGames = new Set(list.filter(x => typeof x === "string"));
+            try { localStorage.setItem(HIDDEN_LS, JSON.stringify(hiddenIds())); } catch (_) {}
+          }
+        } catch (_) {}
+        continue;
+      }
+      const v = { name: row.name, by: row.owner_name, thumb: row.thumb, icon: row.icon, btools: row.btools, about: row.about };
+      applyGameRow(row.id, v); cache[row.id] = v;
+    }
+    if (curGame && hiddenGames.has(curGame.id)) curGame = visibleGames()[0] || curGame;
     try { localStorage.setItem(GAME_LS, JSON.stringify(cache)); } catch (_) {}
     renderGames(); if (!$("pageGame").hidden) fillGamePage(); if (!$("tabOwner").hidden) renderOwnerGames();
   } catch (_) {}
@@ -2672,14 +3305,15 @@ const OWG = {};                                                        // drafts
 function owDraft(g) { return OWG[g.id] || (OWG[g.id] = { name: gv(g, "name"), by: gv(g, "by"), thumb: gv(g, "thumb"), icon: gv(g, "icon"), about: gv(g, "about") || "", btools: g.btools || "all" }); }
 function renderOwnerGames() {
   if (!isOwner()) return;
-  $("owGames").innerHTML = GAMES.map(g => { const d = owDraft(g); return `<div class="owGame box" data-gid="${g.id}">
+  $("owGames").innerHTML = GAMES.map(g => { const d = owDraft(g), hidden = hiddenGames.has(g.id); return `<div class="owGame box${hidden ? " owHidden" : ""}" data-gid="${g.id}">
     <div class="owPrev"><img class="owThumb" alt="Thumbnail" src="${gesc(d.thumb)}"><img class="owIcon" alt="Icon" src="${gesc(d.icon)}"></div>
     <div class="owFields">
+      ${hidden ? '<span class="owHideTag">Hidden from the Games page</span>' : ""}
       <label>Game name<input type="text" data-f="name" maxlength="40" value="${gesc(d.name)}" autocomplete="off" spellcheck="false"></label>
       <label>Owner (made by)<input type="text" data-f="by" maxlength="20" value="${gesc(d.by)}" autocomplete="off" spellcheck="false"></label>
       <label>Description<textarea data-f="about" maxlength="600" rows="3" spellcheck="false">${gesc(d.about)}</textarea></label>
       <label>Building tools (BTools)<select data-f="btools" class="plSel"><option value="all"${d.btools === "all" ? " selected" : ""}>Everyone can use them</option><option value="staff"${d.btools === "staff" ? " selected" : ""}>Admins &amp; Owner only</option><option value="off"${d.btools === "off" ? " selected" : ""}>Off for everyone</option></select></label>
-      <div class="owBtnRow"><button type="button" class="btnG" data-pick="thumb">Thumbnail…</button><button type="button" class="btnG" data-pick="icon">Icon…</button><button type="button" class="btnG" data-reset="1">Reset</button>${g.custom ? '<button type="button" class="btnG" data-del="1">Delete</button>' : ""}<button type="button" class="btnP" data-save="1">Save</button></div>
+      <div class="owBtnRow"><button type="button" class="btnG" data-pick="thumb">Thumbnail…</button><button type="button" class="btnG" data-pick="icon">Icon…</button><button type="button" class="btnG" data-reset="1">Reset</button>${hidden ? '<button type="button" class="btnG" data-restore="1">Restore</button>' : '<button type="button" class="btnG" data-del="1">Delete</button>'}<button type="button" class="btnP" data-save="1">Save</button></div>
       <input type="file" accept="image/*" data-file="thumb" hidden><input type="file" accept="image/*" data-file="icon" hidden>
     </div></div>`; }).join("");
 }
@@ -2730,11 +3364,47 @@ $("owGames").addEventListener("click", async e => {
   const pick = e.target.closest("[data-pick]");
   if (pick) { box.querySelector(`[data-file="${pick.dataset.pick}"]`).click(); return; }
   if (e.target.closest("[data-del]")) {
-    if (!g.custom || !(await uiConfirm("Delete " + gv(g, "name") + " for everyone?", "Delete", true))) return;
-    GAMES.splice(GAMES.indexOf(g), 1); delete OWG[g.id]; saveCustomLocal(); renderGames(); renderOwnerGames();
-    try { const all = JSON.parse(localStorage.getItem(GAME_LS) || "{}"); delete all[g.id]; localStorage.setItem(GAME_LS, JSON.stringify(all)); } catch (_) {}
-    const sb = getSB(); if (sb) { try { await sb.from(CUSTOM_TABLE).delete().eq("id", g.id); await sb.from(GAME_TABLE).delete().eq("id", g.id); } catch (_) {} }
-    msg.textContent = "Deleted."; return;
+    if (g.custom) {
+      if (!(await uiConfirm("Delete " + gv(g, "name") + " for everyone?\nThe game and its map are removed for good.", "Delete", true))) return;
+      GAMES.splice(GAMES.indexOf(g), 1); delete OWG[g.id]; saveCustomLocal();
+      if (curGame === g) curGame = visibleGames()[0] || GAMES[0];
+      try { const all = JSON.parse(localStorage.getItem(GAME_LS) || "{}"); delete all[g.id]; localStorage.setItem(GAME_LS, JSON.stringify(all)); } catch (_) {}
+      try { localStorage.setItem(RECENT_LS, JSON.stringify(recentGameIds().filter(x => x !== g.id))); } catch (_) {}
+      renderGames(); renderOwnerGames();
+      const sb = getSB();
+      if (!sb) { msg.textContent = "\"" + gv(g, "name") + "\" deleted from this device."; return; }
+      msg.textContent = "Deleting…";
+      try {
+        const a = await sb.from(CUSTOM_TABLE).delete().eq("id", g.id); if (a.error) throw a.error;
+        const b = await sb.from(GAME_TABLE).delete().eq("id", g.id); if (b.error) throw b.error;
+        msg.textContent = "\"" + gv(g, "name") + "\" deleted for everyone.";
+      } catch (err) {
+        msg.textContent = "Gone from this device, but the server copy stayed (" + (err && err.message ? err.message : "no connection") + "). It will come back on reload.";
+      }
+      return;
+    }
+    // built-in game: you can't remove the code, so hide it from every Games list
+    if (!(await uiConfirm("Hide " + gv(g, "name") + " from the Games page for everyone?\nYou can restore it here whenever you want.", "Hide", true))) return;
+    hiddenGames.add(g.id);
+    setHiddenIds(hiddenIds());
+    renderOwnerGames();
+    msg.textContent = "Hiding…";
+    const hr = await syncHiddenCloud();
+    msg.textContent = hr.ok
+      ? "\"" + gv(g, "name") + "\" is hidden for everyone. Use Restore here to bring it back."
+      : "\"" + gv(g, "name") + "\" is hidden on this device (" + (hr.why || "no connection") + "). It will come back on reload.";
+    return;
+  }
+  if (e.target.closest("[data-restore]")) {
+    hiddenGames.delete(g.id);
+    setHiddenIds(hiddenIds());
+    renderOwnerGames();
+    msg.textContent = "Restoring…";
+    const rr = await syncHiddenCloud();
+    msg.textContent = rr.ok
+      ? "\"" + gv(g, "name") + "\" is back on the Games page."
+      : "\"" + gv(g, "name") + "\" is back on this device (" + (rr.why || "no connection") + "). Reload to check the server copy.";
+    return;
   }
   if (e.target.closest("[data-reset]")) {
     g.ovr = {}; delete OWG[g.id]; msg.textContent = "Reset to the original. Press Save on this game to keep it.";
@@ -2896,6 +3566,7 @@ function showTab(name) {
   playIn($(SECID[name]));
   if (prevOn) { openColors(); if (!prevRunning) { prevRunning = true; requestAnimationFrame(prevLoop); } }
   if (name === "home") renderHome();
+  if (name === "games") renderGamesPage();
   if (name === "friends") renderFriends();
   if (name === "players") renderPlayers(true);
   if (name === "owner") { renderOwner(); renderOwnerGames(); if (typeof renderOwnerItems === "function") renderOwnerItems(); }
