@@ -81,6 +81,7 @@ jobs:
           if-no-files-found: error
           path: |
             desktop/src-tauri/target/**/release/bundle/**/*.nsis.zip
+            desktop/src-tauri/target/**/release/bundle/**/*-setup.exe
             desktop/src-tauri/target/**/release/bundle/**/*.app.tar.gz
             desktop/src-tauri/target/**/release/bundle/**/*.sig
   release:
