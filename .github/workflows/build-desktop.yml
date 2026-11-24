@@ -49,6 +49,15 @@ jobs:
         with:
           workspaces: desktop/src-tauri
       - run: npm ci
+      - name: Check the update signing key
+        shell: bash
+        run: |
+          if [ -z "${TAURI_SIGNING_PRIVATE_KEY}" ]; then
+            echo "::error::Add the TAURI_SIGNING_PRIVATE_KEY repository secret (see desktop/README.md, 'Auto-update')."
+            exit 1
+          fi
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       - name: Point the app at your website
         if: ${{ vars.SITE_URL != '' }}
         shell: bash
@@ -57,20 +66,35 @@ jobs:
         env:
           SITE_URL: ${{ vars.SITE_URL }}
       - run: npm run ${{ matrix.script }}
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       - uses: actions/upload-artifact@v4
         with:
           name: triancle-${{ matrix.app }}-${{ matrix.os }}
           path: ${{ matrix.file }}
           if-no-files-found: error
+      - name: Upload updater bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: update-${{ matrix.app }}-${{ matrix.os }}
+          if-no-files-found: error
+          path: |
+            desktop/src-tauri/target/**/release/bundle/**/*.nsis.zip
+            desktop/src-tauri/target/**/release/bundle/**/*.app.tar.gz
+            desktop/src-tauri/target/**/release/bundle/**/*.sig
   release:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
+      - name: Build update manifests
+        run: node desktop/scripts/make-latest-json.cjs artifacts "${GITHUB_REF_NAME#v}"
       - uses: softprops/action-gh-release@v2
         with:
           files: artifacts/*

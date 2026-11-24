@@ -34,6 +34,40 @@ npm run dist:studio:mac                      # on a Mac   -> dist/Triancle-Studi
 ```
 (Windows installers can't be built on a Mac, and the Mac build needs a Mac - that's why the CI workflow uses both.)
 
+## Auto-update (forced)
+
+The apps check for a new build on start-up and players cannot get in without updating.
+
+1. **Create the signing key once** (never commit the private key):
+   ```
+   cd desktop
+   npx tauri signer generate -w ~/.tauri/triancle.key
+   ```
+   It prints a public key and writes `triancle.key` + `triancle.key.pub`.
+2. Paste the **public** key into `src-tauri/tauri.conf.json` -> `plugins.updater.pubkey`.
+3. Repo -> Settings -> Secrets and variables -> Actions -> **Secrets**:
+   - `TAURI_SIGNING_PRIVATE_KEY` = the contents of `triancle.key`
+   - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` = the password you typed (add an empty secret if you left it empty)
+4. Bump the version in `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`,
+   `src-tauri/tauri.studio.conf.json` and `package.json`, commit, then push a tag:
+   `git tag v1.0.9 && git push --tags`.
+
+The workflow builds signed updater bundles (`*.nsis.zip` on Windows, `*.app.tar.gz` on macOS) and the
+release job writes `latest.json` (game) and `latest-studio.json` (Studio) into the GitHub release.
+
+What a player sees: on start-up `check_updates_or_exit` (in `src/main.rs`) reads the manifest. If a newer
+version exists the app shows **"Update required"** with **Update now** / **Quit**. Update now downloads,
+installs (NSIS passive mode on Windows, in-place `.app` swap on macOS) and restarts. Quit closes the app.
+The game window is only created after the check passes, so an old build can never be used. If the check
+fails (offline, or the manifest isn't published yet) the app opens normally, so it can't lock anyone out
+because of a network problem.
+
+Notes:
+- Builds now need `TAURI_SIGNING_PRIVATE_KEY`; the workflow stops with a clear error when it's missing.
+- The first release with this feature has to be installed by hand - older builds don't know about the updater.
+- Installed apps update from `releases/latest/download/latest.json`, so the release must be the newest
+  non-draft, non-prerelease one.
+
 ## Good to know
 - **Not code-signed yet**, so Windows shows "Windows protected your PC" (More info -> Run anyway) and macOS needs right-click -> Open.
   The download page explains both. For public players, get a Windows code-signing certificate and an Apple Developer ID and add the

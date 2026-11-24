@@ -13,6 +13,8 @@ use tauri::{
     App, AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder,
 };
 use tauri_plugin_deep_link::DeepLinkExt;
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+use tauri_plugin_updater::UpdaterExt;
 
 #[cfg(feature = "studio")]
 const SCHEME: &str = "triancle-studio";
@@ -225,6 +227,83 @@ fn initialization_script(site: Option<&Url>, version: &str) -> String {
     )
 }
 
+/* Forced auto-update: on start-up the app checks the release manifest. If there is a newer
+   build the player may only pick "Update now" (download + install + restart) or "Quit" -
+   the game window is never created until the app is up to date. A failed check (offline,
+   no manifest yet) does not block anybody, so an unconfigured build still opens. */
+/* The plugin config keeps the public key; until it is replaced with a real one the
+   check is skipped so a fresh checkout can still run. */
+fn updater_configured(app: &AppHandle) -> bool {
+    app.config()
+        .plugins
+        .0
+        .get("updater")
+        .and_then(|value| value.get("pubkey"))
+        .and_then(|value| value.as_str())
+        .map(|key| !key.is_empty() && !key.starts_with("PASTE_"))
+        .unwrap_or(false)
+}
+
+#[allow(unreachable_code)]
+fn check_updates_or_exit(app: &AppHandle) -> bool {
+    if !updater_configured(app) {
+        eprintln!("updater has no signing key yet: skipping the update check");
+        return true;
+    }
+    let updater = match app.updater() {
+        Ok(updater) => updater,
+        Err(err) => {
+            eprintln!("updater unavailable: {err}");
+            return true;
+        }
+    };
+    let update = match tauri::async_runtime::block_on(updater.check()) {
+        Ok(Some(update)) => update,
+        Ok(None) => return true,
+        Err(err) => {
+            eprintln!("update check failed: {err}");
+            return true;
+        }
+    };
+
+    let version = update.version.clone();
+    let go = app
+        .dialog()
+        .message(format!(
+            "{APP_NAME} {version} is available.\n\nYou need this update before you can play."
+        ))
+        .title("Update required")
+        .kind(MessageDialogKind::Info)
+        .buttons(MessageDialogButtons::OkCancelCustom(
+            "Update now".to_string(),
+            "Quit".to_string(),
+        ))
+        .blocking_show();
+    if !go {
+        app.exit(0);
+        return false;
+    }
+
+    let installed = tauri::async_runtime::block_on(update.download_and_install(
+        |_chunk, _total| {},
+        || {},
+    ))
+    .is_ok();
+    if !installed {
+        app.dialog()
+            .message("The update couldn't be installed. Check your connection and open the app again.")
+            .title("Update failed")
+            .kind(MessageDialogKind::Error)
+            .buttons(MessageDialogButtons::Ok)
+            .blocking_show();
+        app.exit(1);
+        return false;
+    }
+
+    app.restart();
+    false
+}
+
 fn build_menu(app: &App) -> tauri::Result<()> {
     let triancle = SubmenuBuilder::new(app, APP_NAME)
         .text("home", "Home")
@@ -281,6 +360,8 @@ fn main() {
 
     let app = builder
         .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(state)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "home" => {
@@ -308,6 +389,12 @@ fn main() {
             if !cfg!(feature = "studio") {
                 build_menu(app)?;
             }
+
+            // Nothing below runs until the app is on the newest published version.
+            if !check_updates_or_exit(app.handle()) {
+                return Ok(());
+            }
+
             let state = app.state::<AppState>().inner().clone();
 
             if let Some(urls) = app.deep_link().get_current()? {

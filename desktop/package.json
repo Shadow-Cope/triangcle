@@ -1,7 +1,7 @@
 {
   "name": "triancle-desktop",
   "productName": "Triancle",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Triancle desktop app (Windows and macOS)",
   "author": "Triancle",
   "private": true,
@@ -10,9 +10,9 @@
     "tauri": "tauri",
     "check": "cargo test --manifest-path src-tauri/Cargo.toml",
     "dist:win": "tauri build --bundles nsis && node scripts/collect-artifact.cjs win",
-    "dist:mac": "tauri build --bundles dmg --target universal-apple-darwin && node scripts/collect-artifact.cjs mac",
+    "dist:mac": "tauri build --bundles dmg,app --target universal-apple-darwin && node scripts/collect-artifact.cjs mac",
     "dist:studio:win": "tauri build --features studio --config src-tauri/tauri.studio.conf.json --bundles nsis && node scripts/collect-artifact.cjs studio-win",
-    "dist:studio:mac": "tauri build --features studio --config src-tauri/tauri.studio.conf.json --bundles dmg --target universal-apple-darwin && node scripts/collect-artifact.cjs studio-mac"
+    "dist:studio:mac": "tauri build --features studio --config src-tauri/tauri.studio.conf.json --bundles dmg,app --target universal-apple-darwin && node scripts/collect-artifact.cjs studio-mac"
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.12.6"
