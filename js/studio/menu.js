@@ -152,6 +152,14 @@
 
   const template = document.querySelector("[data-template='baseplate']");
   if (template) template.addEventListener("click", openCreate);
+  const showcaseTemplate = document.querySelector("[data-template='showcase']");
+  if (showcaseTemplate) showcaseTemplate.addEventListener("click", () => {
+    const game = studioNewGame("Relay Ascent");
+    game.map = studioShowcaseMap();
+    studioUpsert(game);
+    render();
+    openGame(game);
+  });
   $("stBasicsControls").addEventListener("click", () => StudioUI.cameraHelp());
   $("stBasicsPlay").addEventListener("click", () => StudioUI.cameraHelp());
   $("stBasicsSave").addEventListener("click", () => StudioUI.dialog({

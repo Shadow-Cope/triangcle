@@ -117,6 +117,17 @@ The first version has:
     change their heights, drag the Properties header into the viewport to float it (drag it back over the dock to
     re-dock, or use the dock button). View > Reset panel layout restores the defaults. Sizes and float position
     are remembered on the device.
+  - **Block scripting**: insert a **Script** (server) or **LocalScript** (client) under Workspace, ReplicatedStorage
+    or StarterGUI and double-click it (or use Properties > Open block editor). Start with a hat: **when game starts**,
+    **when &lt;object&gt; is clicked**, **when &lt;object&gt; is hovered**, **when the player touches &lt;part&gt;** or
+    **every N seconds**. The Scratch-style editor has a palette on the left and a vertical stack in the middle;
+    `repeat`, `if` and `if variable` have nested bodies, and `stop this script` ends a run. **Variables** are made from
+    the palette, have a starting value and are **shared by every script in the game**. UI blocks find objects by name
+    and set text, colours, position, size, visibility, image and z-index; **Parts &amp; Player** blocks recolour,
+    hide/show or **move** parts (collision moves too, and standing players ride along), teleport the player, and change
+    walk/jump speed. Scripts run in the playtest and in published games - server scripts first, then local ones.
+    **Home > Open a Template > Relay Station** is a finished showcase using all of it (pads, charge pips, timer,
+    lifting door, help/reset buttons).
   - **Camera**: `WASD` move, right-drag look, middle-drag pan, `Q`/`E` down/up, wheel zoom, `Shift` faster.
     `Ctrl+S` / File > Save stores the game and refreshes its card thumbnail; Help > Camera controls lists them all.
   - **Play testing**: **Play** (Home ribbon, Test > Play game, or `F5`) runs the real game on the map you built:

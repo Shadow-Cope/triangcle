@@ -309,20 +309,19 @@ const StudioEditor = (function () {
   }
 
   function clearSelection() {
-    if (selBox) {
-      scene.remove(selBox);
-      selBox.geometry.dispose();
-      selBox.material.dispose();
-      selBox = null;
-    }
+    dropSelBox();
     selected = null;
+    selGui = null;
+    selService = null;
     renderTree();
     renderProps();
+    renderGui();
     updateGizmo();
     syncEditMenu();
   }
 
   function buildWorld(map) {
+    ensureGui();
     if (selBox) {
       scene.remove(selBox);
       selBox.geometry.dispose(); selBox.material.dispose(); selBox = null;
@@ -350,6 +349,8 @@ const StudioEditor = (function () {
       selBox.geometry.dispose(); selBox.material.dispose(); selBox = null;
     }
     selected = part || null;
+    selGui = null;
+    selService = null;
     if (part) {
       selBox = new THREE.BoxHelper(part.mesh, 0x0d99ff);
       selBox.material.depthTest = false;
@@ -359,11 +360,12 @@ const StudioEditor = (function () {
     }
     for (const b of $("stTree").querySelectorAll("[data-part]")) b.classList.toggle("on", !!part && b.dataset.part === part.key);
     renderProps();
+    renderGui();
     updateGizmo();
     syncEditMenu();
   }
 
-  function addPart() {
+  function addPart(shapePick) {
     if (!game) return;
     camera.getWorldDirection(tmpDir);
     let x, z;
@@ -377,7 +379,8 @@ const StudioEditor = (function () {
     }
     x = Math.round(x); z = Math.round(z);
     const pick = $("stToolShape");
-    const shape = pick && [0, 1, 2, 3, 4].includes(+pick.value) ? +pick.value : 1;
+    const shape = [0, 1, 2, 3, 4].includes(+shapePick) ? +shapePick
+      : pick && [0, 1, 2, 3, 4].includes(+pick.value) ? +pick.value : 1;
     const base = ["Ball", "Part", "Cylinder", "Wedge", "Corner"][shape] || "Part";
     let name = base, n = 1;
     while (parts.some(p => p.name === name)) { n++; name = base + " " + n; }
@@ -392,6 +395,7 @@ const StudioEditor = (function () {
   }
 
   function deleteSelected() {
+    if (selGui) { removeGui(selGui); return; }
     if (!selected) return;
     const part = selected;
     const i = parts.indexOf(part);
@@ -414,7 +418,14 @@ const StudioEditor = (function () {
 
   function snapshot() {
     if (!game || !game.map) return "{}";
-    return JSON.stringify({ spawn: game.map.spawn || [0, 3, 0], parts: game.map.parts || [] });
+    return JSON.stringify({
+      spawn: game.map.spawn || [0, 3, 0],
+      parts: game.map.parts || [],
+      gui: game.map.gui || [],
+      replicatedStorage: game.map.replicatedStorage || [],
+      workspaceScripts: game.map.workspaceScripts || [],
+      vars: game.map.vars || {},
+    });
   }
 
   function resetHistory() {
@@ -450,11 +461,19 @@ const StudioEditor = (function () {
     applying = true;
     try {
       game.map.parts = data.parts;
+      game.map.gui = Array.isArray(data.gui) ? data.gui : [];
+      game.map.replicatedStorage = Array.isArray(data.replicatedStorage) ? data.replicatedStorage : [];
+      game.map.workspaceScripts = Array.isArray(data.workspaceScripts) ? data.workspaceScripts : [];
+      game.map.vars = data.vars && typeof data.vars === "object" && !Array.isArray(data.vars) ? data.vars : {};
       if (Array.isArray(data.spawn)) game.map.spawn = data.spawn;
+      selGui = null; selService = null;
       buildWorld(game.map);
+      renderTree();
+      renderGui();
     } finally { applying = false; }
     dirty = true;
     paintStatus("dirty");
+    renderProps();
     syncEditMenu();
   }
 
@@ -481,8 +500,13 @@ const StudioEditor = (function () {
   }
 
   function copySelected() {
+    if (selGui) {
+      clip = { kind: "gui", node: JSON.parse(JSON.stringify(selGui)), listKey: listKeyOf(selGui) };
+      syncEditMenu();
+      return true;
+    }
     if (!selected) return false;
-    clip = JSON.parse(JSON.stringify(selected.row));
+    clip = { kind: "part", row: JSON.parse(JSON.stringify(selected.row)) };
     syncEditMenu();
     return true;
   }
@@ -492,20 +516,182 @@ const StudioEditor = (function () {
     deleteSelected();
   }
 
-  function pasteClip() {
+  function pasteClip(targetNode) {
     if (!clip || !game || playing) return;
-    const row = JSON.parse(JSON.stringify(clip));
-    row[3] = round((+row[3] || 0) + 3, 1000);                              // drop the copy beside the original
-    const base = typeof row[13] === "string" && row[13].trim() ? row[13].replace(/ \d+$/, "") : "Part";
+    if (clip.kind === "gui") { pasteGuiClip(targetNode); return; }
+    pastePartRow(clip.row || clip);
+  }
+
+  function pastePartRow(row) {
+    const copy = JSON.parse(JSON.stringify(row));
+    copy[3] = round((+copy[3] || 0) + 3, 1000);                              // drop the copy beside the original
+    const base = typeof copy[13] === "string" && copy[13].trim() ? copy[13].replace(/ \d+$/, "") : "Part";
     let name = base, n = 1;
     while (parts.some(p => p.name === name)) { n++; name = base + " " + n; }
-    row[13] = name;
-    game.map.parts.push(row);
-    const part = makePartFromRow(row, parts.length);
+    copy[13] = name;
+    game.map.parts.push(copy);
+    const part = makePartFromRow(copy, parts.length);
     parts.push(part);
     renderTree();
     selectPart(part.key);
     markDirty();
+  }
+
+  function uniqueGuiName(cls, siblings) {
+    let n = 0, name = cls;
+    const taken = new Set((siblings || []).map(x => x.name));
+    while (taken.has(name)) { n++; name = cls + n; }
+    return name;
+  }
+
+  function cloneGuiNode(node, siblings) {
+    const copy = JSON.parse(JSON.stringify(node));
+    (function fresh(n) {
+      n.id = "ui" + (++guiSeq) + Math.random().toString(36).slice(2, 6);
+      for (const kid of n.children || []) fresh(kid);
+    })(copy);
+    copy.name = uniqueGuiName(node.class, siblings);
+    return copy;
+  }
+
+  function acceptsGui(container, cls) {
+    if (!container) return cls === "ScreenGui";
+    if (cls === "ScreenGui") return false;
+    return container.class === "ScreenGui" || container.class === "Frame" || container.class === "Folder";
+  }
+
+  function guiListOf(node) {
+    const hit = findNode(node.id);
+    if (!hit) return GUI_ROOTS();
+    return hit.list || (hit.parent ? hit.parent.children : GUI_ROOTS());
+  }
+
+  function pasteTargetNode() {
+    if (!selGui) return null;
+    if (isScript(selGui)) return null;
+    if (acceptsGui(selGui, "Frame")) return selGui;
+    const hit = findNode(selGui.id);
+    return hit && hit.parent ? hit.parent : null;
+  }
+
+  function pasteGuiClip(targetNode) {
+    const copy = JSON.parse(JSON.stringify(clip.node));
+    let list = null, parent = null;
+    if (isScript(copy)) {
+      const key = targetNode && isScript(targetNode) ? listKeyOf(targetNode) : (clip.listKey || "gui");
+      list = listByKey(key);
+    } else if (copy.class === "ScreenGui") list = GUI_ROOTS();
+    else if (targetNode && acceptsGui(targetNode, copy.class)) { list = targetNode.children; parent = targetNode; }
+    else if (targetNode) {
+      const hit = findNode(targetNode.id);
+      if (hit && hit.parent && acceptsGui(hit.parent, copy.class)) { list = hit.parent.children; parent = hit.parent; }
+    }
+    if (!list) {                                                             // pasted into StarterGUI: needs a ScreenGui
+      const screen = GUI_ROOTS().find(n => n.class === "ScreenGui") || insertGui(null, "ScreenGui");
+      list = screen.children;
+      parent = screen;
+    }
+    (function fresh(n) {
+      n.id = "ui" + (++guiSeq) + Math.random().toString(36).slice(2, 6);
+      for (const kid of n.children || []) fresh(kid);
+    })(copy);
+    copy.name = uniqueGuiName(copy.class, list);
+    list.push(copy);
+    if (parent) expanded[parent.id] = true;
+    renderTree(); selectGui(copy.id); markDirty();
+  }
+
+  function duplicateSelected() {
+    if (!game || playing) return;
+    if (selGui) {
+      const list = guiListOf(selGui);
+      const copy = cloneGuiNode(selGui, list);
+      list.push(copy);
+      const hit = findNode(selGui.id);
+      if (hit && hit.parent) expanded[hit.parent.id] = true;
+      renderTree(); selectGui(copy.id); markDirty();
+      return;
+    }
+    if (selected) pastePartRow(selected.row);
+  }
+
+  function renameGui(node) {
+    if (!node) return;
+    StudioUI.dialog({
+      title: "Rename",
+      body: '<label class="rsField">Name<input id="stRename" type="text" maxlength="40" spellcheck="false" value="' + esc(node.name) + '"></label>',
+      buttons: [
+        { label: "Cancel" },
+        {
+          label: "Rename",
+          primary: true,
+          onClick: () => {
+            const value = String($("stRename").value || "").replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 40);
+            if (value) { node.name = value; renderTree(); renderProps(); renderGui(); markDirty(); }
+          },
+        },
+      ],
+    });
+    setTimeout(() => { const input = $("stRename"); if (input) { input.focus(); input.select(); } }, 30);
+  }
+
+  /* ---- right-click context menu ---- */
+  let ctxTarget = null;
+
+  function closeContextMenu() {
+    const menu = $("stContextMenu");
+    if (menu) menu.hidden = true;
+    ctxTarget = null;
+  }
+
+  function canInsertInto(target) {
+    if (target.kind === "part") return false;
+    if (target.kind === "service") return target.key === "workspace" || target.key === "starterGui" || target.key === "replicatedStorage";
+    return !!target.node && !isScript(target.node) && (target.node.class === "ScreenGui" || target.node.class === "Frame" || target.node.class === "Folder");
+  }
+
+  function openContextMenu(x, y, target) {
+    const menu = $("stContextMenu");
+    if (!menu) return;
+    ctxTarget = target;
+    const item = (label, cmd, enabled, hint) =>
+      '<button type="button" class="stCtxItem" data-cmd="' + cmd + '"' + (enabled ? "" : " disabled") + "><span class=\"stCtxLabel\">" + label + "</span>" +
+      (hint ? "<kbd>" + hint + "</kbd>" : "") + "</button>";
+    const editable = target.kind !== "service";
+    let html = "";
+    if (canInsertInto(target)) html += item("Insert Object", "insert", true, "");
+    if (html) html += '<div class="stCtxSep"></div>';
+    html += item("Copy", "copy", editable, "Ctrl+C");
+    html += item("Cut", "cut", editable, "Ctrl+X");
+    html += item("Paste Into", "paste", !!clip, "Ctrl+V");
+    html += item("Duplicate", "duplicate", editable, "Ctrl+D");
+    if (target.kind === "gui") html += item("Rename", "rename", true, "F2");
+    html += '<div class="stCtxSep"></div>';
+    html += item("Delete", "delete", editable, "Del");
+    menu.innerHTML = html;
+    menu.hidden = false;
+    const w = menu.offsetWidth, h = menu.offsetHeight;
+    menu.style.left = Math.min(window.innerWidth - w - 8, Math.max(8, x)) + "px";
+    menu.style.top = Math.min(window.innerHeight - h - 8, Math.max(8, y)) + "px";
+  }
+
+  function runContextCommand(cmd, target) {
+    if (!target) return;
+    if (cmd === "insert") {
+      const kind = target.kind === "service"
+        ? (target.key === "workspace" ? "workspace" : target.key === "replicatedStorage" ? "replicatedStorage" : "starterGui")
+        : "gui";
+      const menuTarget = target.kind === "service" ? { kind } : { kind: "gui", node: target.node };
+      const anchor = target.el || $("stTree");
+      openInsertMenu(anchor, menuTarget);
+      return;
+    }
+    if (cmd === "copy") { copySelected(); return; }
+    if (cmd === "cut") { cutSelected(); return; }
+    if (cmd === "paste") { pasteClip(target.kind === "gui" ? target.node : null); return; }
+    if (cmd === "duplicate") { duplicateSelected(); return; }
+    if (cmd === "rename" && target.node) { renameGui(target.node); return; }
+    if (cmd === "delete") { deleteSelected(); return; }
   }
 
   function syncEditMenu() {
@@ -520,13 +706,1253 @@ const StudioEditor = (function () {
   }
 
   /* =====================================================================
-     explorer
+     explorer: services + GUI objects (Roblox-style)
      ===================================================================== */
-  const TREE_ICON = '<svg class="rsTreeIco" viewBox="0 0 24 24"><path d="M4 9h16v10H4zM4 9l3-3h10l3 3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>';
+  const SERVICE_ROWS = [
+    { key: "workspace", name: "Workspace" },
+    { key: "replicatedStorage", name: "ReplicatedStorage" },
+    { key: "starterGui", name: "StarterGUI" },
+  ];
+  const FOLDER_ICON = '<svg class="rsTreeIco" viewBox="0 0 24 24"><path d="M3 6h7l2 2h9v11H3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>';
+  const PART_ICON = '<svg class="rsTreeIco" viewBox="0 0 24 24"><path d="M4 9h16v10H4zM4 9l3-3h10l3 3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>';
+  const GUI_ICON = {
+    ScreenGui: '<svg class="rsTreeIco" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3 8h18" stroke="currentColor" stroke-width="1.7"/></svg>',
+    Frame: '<svg class="rsTreeIco" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>',
+    TextLabel: '<svg class="rsTreeIco" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M7 10.5h10M7 13.5h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
+    TextButton: '<svg class="rsTreeIco" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M8 12h8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
+    ImageLabel: '<svg class="rsTreeIco" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="8.5" cy="9.5" r="1.6" fill="currentColor"/><path d="M4 17l5-5 4 4 3-3 4 4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
+    Folder: '<svg class="rsTreeIco" viewBox="0 0 24 24"><path d="M3 6h7l2 2h9v11H3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
+    Script: '<svg class="rsTreeIco" viewBox="0 0 24 24"><path d="M6 4h9l4 4v12H6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 12l2 2-2 2M13 16h3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
+    LocalScript: '<svg class="rsTreeIco" viewBox="0 0 24 24"><path d="M6 4h9l4 4v12H6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 11l-2 2 2 2M13 15l2-2-2-2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  };
+
+  let selGui = null, selService = null, guiSeq = 0, guiDrag = null, insertTarget = null;
+  const expanded = { workspace: true, replicatedStorage: true, starterGui: true };
+
+  function ensureGui() {
+    if (!game || !game.map) return;
+    if (!Array.isArray(game.map.gui)) game.map.gui = [];
+    if (!Array.isArray(game.map.replicatedStorage)) game.map.replicatedStorage = [];
+    if (!Array.isArray(game.map.workspaceScripts)) game.map.workspaceScripts = [];
+    if (!game.map.vars || typeof game.map.vars !== "object" || Array.isArray(game.map.vars)) game.map.vars = {};
+    for (const list of [game.map.gui, game.map.replicatedStorage, game.map.workspaceScripts]) migrateScriptVars(list);
+  }
+
+  function migrateScriptVars(list) {
+    for (const node of list || []) {
+      if (Array.isArray(node.vars)) {
+        for (const name of node.vars) if (!(name in game.map.vars)) game.map.vars[name] = "0";
+        delete node.vars;
+      }
+      if (node.children) migrateScriptVars(node.children);
+    }
+  }
+
+  const SCRIPT_CLASSES = ["Script", "LocalScript"];
+  const isScript = node => !!node && SCRIPT_CLASSES.includes(node.class);
+
+  function guiDefaults(cls) {
+    if (SCRIPT_CLASSES.includes(cls)) return {};
+    const base = {
+      Position: [0, 0, 0, 0], Size: [0, 200, 0, 100], AnchorPoint: [0, 0], Rotation: 0,
+      BackgroundColor3: "#a3a2a5", BackgroundTransparency: 0,
+      BorderSizePixel: 1, BorderColor3: "#1b2a35",
+      Visible: true, ZIndex: 1, ClipsDescendants: false,
+    };
+    if (cls === "ScreenGui") {
+      return { Enabled: true, DisplayOrder: 0, IgnoreGuiInset: false, ResetOnSpawn: true, ZIndexBehavior: "Sibling", ClipToDeviceSafeArea: true };
+    }
+    if (cls === "Folder") {
+      return { Enabled: true };
+    }
+    if (cls === "TextLabel" || cls === "TextButton") {
+      return Object.assign(base, {
+        Size: [0, 200, 0, 50],
+        Text: cls === "TextButton" ? "Button" : "TextLabel",
+        TextColor3: "#000000", TextSize: 14, Font: "SourceSans",
+        TextScaled: false, TextWrapped: false, TextXAlignment: "Center", TextYAlignment: "Center",
+        RichText: false, LineHeight: 1, TextTransparency: 0,
+        TextStrokeTransparency: 1, TextStrokeColor3: "#000000",
+      });
+    }
+    if (cls === "ImageLabel") {
+      return Object.assign(base, {
+        Size: [0, 200, 0, 200], BackgroundTransparency: 1,
+        Image: "", ImageColor3: "#ffffff", ImageTransparency: 0, ScaleType: "Stretch",
+      });
+    }
+    return base;
+  }
+
+  function newGuiNode(cls, siblings) {
+    ensureGui();
+    let n = 0, name = cls;
+    const taken = new Set((siblings || []).map(child => child.name));
+    while (taken.has(name)) { n++; name = cls + n; }
+    const node = {
+      id: "ui" + (++guiSeq) + Math.random().toString(36).slice(2, 6),
+      class: cls, name, props: guiDefaults(cls), children: [],
+    };
+    if (SCRIPT_CLASSES.includes(cls)) node.blocks = [];
+    return node;
+  }
+
+  function findNode(id) {
+    ensureGui();
+    const guiHit = guiFind(id, game.map.gui);
+    if (guiHit) return guiHit;
+    for (const list of [game.map.workspaceScripts, game.map.replicatedStorage]) {
+      const index = (list || []).findIndex(node => node.id === id);
+      if (index >= 0) return { node: list[index], parent: null, list, index };
+    }
+    return null;
+  }
+
+  function listKeyOf(node) {
+    ensureGui();
+    if ((game.map.workspaceScripts || []).includes(node)) return "workspaceScripts";
+    if ((game.map.replicatedStorage || []).includes(node)) return "replicatedStorage";
+    return "gui";
+  }
+
+  function listByKey(key) {
+    ensureGui();
+    if (key === "workspaceScripts") return game.map.workspaceScripts;
+    if (key === "replicatedStorage") return game.map.replicatedStorage;
+    return game.map.gui;
+  }
+
+  function guiFind(id, list, parent) {
+    for (const node of list || []) {
+      if (node.id === id) return { node, parent: parent || null };
+      const hit = guiFind(id, node.children, node);
+      if (hit) return hit;
+    }
+    return null;
+  }
+
+  function guiListFor(parent) { return parent ? parent.children : (game && game.map.gui) || []; }
+
+  function insertGui(parent, cls) {
+    ensureGui();
+    const node = newGuiNode(cls, guiListFor(parent));
+    guiListFor(parent).push(node);
+    if (parent) expanded[parent.id] = true;
+    renderTree();
+    selectGui(node.id);
+    markDirty();
+    return node;
+  }
+
+  function removeGui(node) {
+    const hit = findNode(node.id);
+    if (!hit) return;
+    if (scriptEdit === node) closeScriptEditor();
+    const list = hit.list || (hit.parent ? hit.parent.children : GUI_ROOTS());
+    const i = list.indexOf(hit.node);
+    if (i >= 0) list.splice(i, 1);
+    if (selGui === node) { selGui = null; }
+    renderTree(); renderGui(); renderProps();
+    markDirty();
+  }
+
+  function GUI_ROOTS() { ensureGui(); return game.map.gui; }
+
+  function guiChildren(node) {
+    if (node.class === "ScreenGui" || node.class === "Frame" || node.class === "Folder") return node.children || [];
+    return [];
+  }
+
+  /* ---- GUI rendering (2D overlay over the viewport) ---- */
+  function toPx(udim, total) { return (Number(udim[0]) || 0) * total + (Number(udim[1]) || 0); }
+
+  function hexToRgba(hex, transparency) {    const h = /^#?([0-9a-f]{6})$/i.exec(String(hex || "#000000"));
+    const n = parseInt(h ? h[1] : "000000", 16);
+    const a = Math.max(0, Math.min(1, 1 - (Number(transparency) || 0)));
+    return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a.toFixed(3) + ")";
+  }
+
+  function guiFontStack(font) {
+    if (font === "Legacy") return "Arial, Helvetica, sans-serif";
+    if (font === "Code") return "Consolas, ui-monospace, monospace";
+    if (font === "Fantasy") return "Georgia, serif";
+    return '"Inter", system-ui, -apple-system, "Segoe UI", sans-serif';
+  }
+
+  function guiImageUrl(url) {
+    const value = String(url || "").trim();
+    return /^(https?:\/\/|data:image\/)/i.test(value) ? value : "";
+  }
+
+  function buildGuiNode(node, parentW, parentH) {
+    if (isScript(node)) return document.createDocumentFragment();
+    if (node.class === "Folder") {
+      const frag = document.createDocumentFragment();
+      for (const child of node.children || []) frag.appendChild(buildGuiNode(child, parentW, parentH));
+      return frag;
+    }
+    if (node.class === "ScreenGui") {
+      const screen = document.createElement("div");
+      screen.className = "stGuiScreen" + (selGui === node ? " isSel" : "");
+      screen.dataset.gui = node.id;
+      screen.style.display = node.props.Enabled === false ? "none" : "";
+      screen.style.zIndex = String(300 + (Number(node.props.DisplayOrder) || 0));
+      screen.style.top = node.props.IgnoreGuiInset ? "0px" : "36px";
+      if (selGui === node) screen.appendChild(guiTag(node));
+      for (const child of node.children || []) screen.appendChild(buildGuiNode(child, parentW, Math.max(1, parentH - (node.props.IgnoreGuiInset ? 0 : 36))));
+      return screen;
+    }
+    const el = document.createElement("div");
+    el.className = "stGui stGui-" + node.class + (selGui === node ? " isSel" : "");
+    el.dataset.gui = node.id;
+    const p = node.props;
+    const width = Math.max(1, toPx(p.Size, parentW));
+    const height = Math.max(1, toPx(p.Size.slice(2), parentH));
+    const left = toPx(p.Position, parentW);
+    const top = toPx(p.Position.slice(2), parentH);
+    el.style.left = left + "px";
+    el.style.top = top + "px";
+    el.style.width = width + "px";
+    el.style.height = height + "px";
+    el.style.background = hexToRgba(p.BackgroundColor3, p.BackgroundTransparency);
+    el.style.border = (Number(p.BorderSizePixel) || 0) + "px solid " + (Number(p.BorderSizePixel) ? String(p.BorderColor3 || "#1b2a35") : "transparent");
+    el.style.visibility = p.Visible === false ? "hidden" : "";
+    el.style.zIndex = String(Number(p.ZIndex) || 0);
+    el.style.overflow = p.ClipsDescendants ? "hidden" : "visible";
+    el.style.transformOrigin = ((Number(p.AnchorPoint[0]) || 0) * 100) + "% " + ((Number(p.AnchorPoint[1]) || 0) * 100) + "%";
+    el.style.transform = "translate(" + (-(Number(p.AnchorPoint[0]) || 0) * 100) + "%," + (-(Number(p.AnchorPoint[1]) || 0) * 100) + "%)" + (Number(p.Rotation) ? " rotate(" + Number(p.Rotation) + "deg)" : "");
+    if (node.class === "TextLabel" || node.class === "TextButton") {
+      const text = String(p.Text == null ? "" : p.Text);
+      el.textContent = text;
+      el.style.color = hexToRgba(p.TextColor3, p.TextTransparency);
+      el.style.justifyContent = p.TextXAlignment === "Left" ? "flex-start" : p.TextXAlignment === "Right" ? "flex-end" : "center";
+      el.style.alignItems = p.TextYAlignment === "Top" ? "flex-start" : p.TextYAlignment === "Bottom" ? "flex-end" : "center";
+      el.style.textAlign = p.TextXAlignment === "Left" ? "left" : p.TextXAlignment === "Right" ? "right" : "center";
+      el.style.whiteSpace = p.TextWrapped || p.TextScaled ? "pre-wrap" : "pre";
+      el.style.fontFamily = guiFontStack(p.Font);
+      el.style.lineHeight = String(Number(p.LineHeight) || 1);
+      if (p.TextScaled) {
+        const byHeight = height * 0.62;
+        const byWidth = width / Math.max(1, text.length * 0.52);
+        el.style.fontSize = Math.max(4, Math.min(byHeight, byWidth)) + "px";
+      } else {
+        el.style.fontSize = Math.max(1, Number(p.TextSize) || 14) + "px";
+      }
+      if (Number(p.TextStrokeTransparency) < 1) {
+        el.style.webkitTextStroke = "1px " + hexToRgba(p.TextStrokeColor3, p.TextStrokeTransparency);
+      }
+    }
+    if (node.class === "ImageLabel") {
+      const src = guiImageUrl(p.Image);
+      if (src) {
+        const img = document.createElement("img");
+        img.src = src;
+        img.alt = "";
+        img.draggable = false;
+        img.style.cssText = "position:absolute;inset:0;width:100%;height:100%;pointer-events:none;object-fit:" +
+          (p.ScaleType === "Fit" ? "contain" : "fill") + ";opacity:" + (1 - (Number(p.ImageTransparency) || 0));
+        el.appendChild(img);
+      }
+    }
+    for (const child of node.children || []) el.appendChild(buildGuiNode(child, width, height));
+    if (selGui === node) {
+      el.appendChild(guiTag(node));
+      for (const dir of ["nw", "n", "ne", "e", "se", "s", "sw", "w"]) {
+        const handle = document.createElement("span");
+        handle.className = "stGuiHandle stGuiHandle-" + dir;
+        handle.dataset.handle = dir;
+        el.appendChild(handle);
+      }
+    }
+    return el;
+  }
+
+  function guiTag(node) {
+    const tag = document.createElement("span");
+    tag.className = "stGuiTag";
+    tag.textContent = node.name;
+    return tag;
+  }
+
+  function renderGui() {
+    const layer = $("stGuiLayer");
+    if (!layer) return;
+    ensureGui();
+    layer.innerHTML = "";
+    if (!game || playing) { layer.hidden = true; return; }
+    layer.hidden = false;
+    const w = Math.max(1, layer.clientWidth), h = Math.max(1, layer.clientHeight);
+    for (const root of game.map.gui) layer.appendChild(buildGuiNode(root, w, h));
+  }
+
+  /* ---- selection ---- */
+  function dropSelBox() {
+    if (selBox) {
+      scene.remove(selBox);
+      selBox.geometry.dispose();
+      selBox.material.dispose();
+      selBox = null;
+    }
+  }
+
+  function selectGui(id) {
+    const hit = findNode(id);
+    selGui = hit ? hit.node : null;
+    selService = null;
+    if (selGui) { selected = null; dropSelBox(); }
+    renderTree();
+    renderProps();
+    renderGui();
+    updateGizmo();
+  }
+
+  function selectService(key) {
+    selService = key;
+    selGui = null;
+    selected = null;
+    dropSelBox();
+    renderTree();
+    renderProps();
+    renderGui();
+    updateGizmo();
+  }
+
+  /* ---- explorer rendering ---- */
+  function twisty(key, hasKids) {
+    if (!hasKids) return '<span class="rsTwistyWrap"></span>';
+    return '<button class="rsTwisty' + (expanded[key] ? " open" : "") + '" type="button" data-twist="' + esc(key) + '" aria-label="Expand">' +
+      '<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>';
+  }
+
+  function insertBtn(kind, id, title) {
+    return '<button class="rsInsert" type="button" data-insert="' + esc(kind) + '"' + (id ? ' data-insert-id="' + esc(id) + '"' : "") + ' title="' + esc(title) + '">+</button>';
+  }
+
   function renderTree() {
-    const box = $("stTreeChildren");
+    const box = $("stTree");
+    if (!box || !game) return;
+    ensureGui();
+    let html = "";
+    for (const svc of SERVICE_ROWS) {
+      const isOpen = expanded[svc.key] !== false;
+      const rows = [];
+      if (svc.key === "workspace") {
+        for (const p of parts) {
+          rows.push('<div class="rsTreeRow rsChild' + (selected === p ? " on" : "") + '" data-part="' + p.key + '">' + PART_ICON + '<span class="rsTreeName">' + esc(p.name) + "</span></div>");
+        }
+        for (const node of game.map.workspaceScripts) rows.push(guiRowHtml(node, 1));
+      } else if (svc.key === "starterGui") {
+        for (const node of game.map.gui) rows.push(guiRowHtml(node, 1));
+      } else if (svc.key === "replicatedStorage") {
+        for (const node of game.map.replicatedStorage) rows.push(guiRowHtml(node, 1));
+        if (!game.map.replicatedStorage.length) rows.push('<div class="rsTreeNote">Nothing in here yet</div>');
+      }
+      const active = selService === svc.key;
+      html += '<div class="rsTreeRow rsServiceRow' + (active ? " on" : "") + '" data-service="' + svc.key + '">'
+        + twisty(svc.key, rows.length > 0)
+        + FOLDER_ICON
+        + '<span class="rsTreeName">' + svc.name + "</span>"
+        + insertBtn("service:" + svc.key, "", "Insert object into " + svc.name)
+        + "</div>";
+      if (isOpen && rows.length) html += '<div class="rsTreeKids">' + rows.join("") + "</div>";
+    }
+    box.innerHTML = html;
+  }
+
+  function guiRowHtml(node, depth) {
+    const kids = guiChildren(node);
+    const isOpen = expanded[node.id] !== false;
+    let html = '<div class="rsTreeRow rsChild' + (selGui === node ? " on" : "") + '" data-gui="' + esc(node.id) + '" style="padding-left:' + (6 + depth * 12) + 'px">'
+      + twisty(node.id, kids.length > 0)
+      + (GUI_ICON[node.class] || FOLDER_ICON)
+      + '<span class="rsTreeName">' + esc(node.name) + "</span>"
+      + '<span class="rsTreeClass">' + esc(node.class) + "</span>"
+      + insertBtn("gui:" + node.id, "", "Insert object into " + node.name)
+      + "</div>";
+    if (isOpen && kids.length) html += '<div class="rsTreeKids">' + kids.map(kid => guiRowHtml(kid, depth + 1)).join("") + "</div>";
+    return html;
+  }
+
+  /* ---- insert menu ---- */
+  function insertablesFor(target) {
+    if (!target) return [];
+    if (target.kind === "workspace") {
+      return SHAPES.map((name, shape) => ({ label: name, shape }))
+        .concat([{ label: "Script", cls: "Script" }, { label: "LocalScript", cls: "LocalScript" }]);
+    }
+    if (target.kind === "replicatedStorage") {
+      return [{ label: "Script", cls: "Script" }, { label: "LocalScript", cls: "LocalScript" }];
+    }
+    if (target.kind === "starterGui") {
+      return [
+        { label: "ScreenGui", cls: "ScreenGui" },
+        { label: "Folder", cls: "Folder" },
+        { label: "Script", cls: "Script" },
+        { label: "LocalScript", cls: "LocalScript" },
+      ];
+    }
+    if (target.kind === "gui" && target.node) {
+      const c = target.node.class;
+      if (c === "ScreenGui" || c === "Frame" || c === "Folder") {
+        return [
+          { label: "Frame", cls: "Frame" },
+          { label: "TextLabel", cls: "TextLabel" },
+          { label: "TextButton", cls: "TextButton" },
+          { label: "ImageLabel", cls: "ImageLabel" },
+          { label: "Folder", cls: "Folder" },
+        ];
+      }
+    }
+    return [];
+  }
+
+  function openInsertMenu(anchor, target) {
+    const menu = $("stInsertMenu");
+    if (!menu) return;
+    const items = insertablesFor(target);
+    insertTarget = target;
+    menu.innerHTML = '<div class="stInsertHead">Insert Object</div>'
+      + (items.length
+        ? items.map(item => '<button type="button" class="stInsertItem" data-cls="' + esc(item.cls || "") + '" data-shape="' + (item.shape == null ? "" : item.shape) + '">'
+          + (item.cls ? (GUI_ICON[item.cls] || FOLDER_ICON) : PART_ICON) + '<span>' + esc(item.label) + "</span></button>").join("")
+        : '<div class="stInsertEmpty">Nothing can be inserted here yet.</div>');
+    const rect = anchor.getBoundingClientRect();
+    menu.hidden = false;
+    const mw = menu.offsetWidth, mh = menu.offsetHeight;
+    const left = Math.min(window.innerWidth - mw - 8, Math.max(8, rect.right - mw));
+    const top = Math.min(window.innerHeight - mh - 8, rect.bottom + 4);
+    menu.style.left = left + "px";
+    menu.style.top = top + "px";
+  }
+
+  function closeInsertMenu() {
+    const menu = $("stInsertMenu");
+    if (menu) menu.hidden = true;
+    insertTarget = null;
+  }
+
+  function insertFromMenu(btn) {
+    const target = insertTarget;
+    closeInsertMenu();
+    if (!target) return;
+    const cls = btn.dataset.cls;
+    if (target.kind === "workspace") {
+      if (cls) { insertNodeInto(game.map.workspaceScripts, cls); return; }
+      const shape = btn.dataset.shape === "" ? 1 : +btn.dataset.shape;
+      addPart(shape);
+      return;
+    }
+    if (target.kind === "replicatedStorage") {
+      if (cls) insertNodeInto(game.map.replicatedStorage, cls);
+      return;
+    }
+    if (cls) insertGui(target.kind === "gui" ? target.node : null, cls);
+  }
+
+  function insertNodeInto(list, cls) {
+    ensureGui();
+    const node = newGuiNode(cls, list);
+    list.push(node);
+    renderTree();
+    selectGui(node.id);
+    markDirty();
+    return node;
+  }
+
+  /* ---- GUI properties ---- */
+  function fmtUdim(values) {
+    return [0, 1, 2, 3].map(i => round(+values[i] || 0, 1000)).join(", ");
+  }
+
+  function parseUdim(text) {
+    const nums = String(text || "").split(/[,\s]+/).map(parseFloat).filter(n => Number.isFinite(n));
+    if (!nums.length) return null;
+    if (nums.length === 1) {
+      const n = nums[0];
+      return Math.abs(n) < 1 ? [n, 0, n, 0] : [0, n, 0, n];
+    }
+    if (nums.length === 2) return [nums[0], 0, nums[1], 0];
+    if (nums.length === 3) return [nums[0], nums[1], nums[2], 0];
+    return nums.slice(0, 4);
+  }
+
+  function parseAnchor(text) {
+    const nums = String(text || "").split(/[,\s]+/).map(parseFloat).filter(n => Number.isFinite(n));
+    if (!nums.length) return null;
+    if (nums.length === 1) return [nums[0], nums[0]];
+    return [nums[0], nums[1]];
+  }
+
+  function guiVecRow(label, prop, values) {
+    return '<div class="rsPropRow"><span class="rsPropLabel">' + label + '</span>'
+      + '<input type="text" class="rsUdim" spellcheck="false" data-gpudim="' + prop + '" value="' + fmtUdim(values) + '" title="Scale X, Offset X, Scale Y, Offset Y"></div>';
+  }
+
+  function guiAnchorRow(value) {
+    return '<div class="rsPropRow"><span class="rsPropLabel">AnchorPoint</span>'
+      + '<input type="text" class="rsUdim" spellcheck="false" data-gpanchor="1" value="' + round(+value[0] || 0, 1000) + ", " + round(+value[1] || 0, 1000) + '" title="X, Y (0 to 1)"></div>';
+  }
+
+  function guiBoolRow(label, prop, value) {
+    return '<div class="rsPropRow"><span class="rsPropLabel">' + label + '</span><input type="checkbox" data-gp="' + prop + '"' + (value ? " checked" : "") + "></div>";
+  }
+
+  function guiColorRow(label, prop, value) {
+    return '<div class="rsPropRow"><span class="rsPropLabel">' + label + '</span><span class="rsColorWrap"><input type="color" data-gp="' + prop + '" value="' + esc(value) + '"><span class="rsHex">' + esc(value) + "</span></span></div>";
+  }
+
+  function guiSelectRow(label, prop, list, value) {
+    return '<div class="rsPropRow"><span class="rsPropLabel">' + label + '</span><select data-gp="' + prop + '">' + optionList(list, value) + "</select></div>";
+  }
+
+  function guiNumberRow(label, prop, value, step, min, max) {
+    return '<div class="rsPropRow"><span class="rsPropLabel">' + label + '</span><input type="number" data-gp="' + prop + '" step="' + step + '"'
+      + (min == null ? "" : ' min="' + min + '"') + (max == null ? "" : ' max="' + max + '"') + ' value="' + round(+value || 0, 1000) + '"></div>';
+  }
+
+  function renderGuiProps(box, node) {
+    if (isScript(node)) { renderScriptProps(box, node); return; }
+    const p = node.props;
+    let html = '<div class="rsPropGroup">Data</div>'
+      + '<div class="rsPropRow"><span class="rsPropLabel">Name</span><input type="text" data-gp="Name" maxlength="40" value="' + esc(node.name) + '"></div>'
+      + '<div class="rsPropRow"><span class="rsPropLabel">Class</span><span class="rsPropVal">' + esc(node.class) + "</span></div>"
+      + '<div class="rsPropRow"><span class="rsPropLabel">Parent</span><span class="rsPropVal">' + (guiFind(node.id, GUI_ROOTS()) && guiFind(node.id, GUI_ROOTS()).parent ? esc(guiFind(node.id, GUI_ROOTS()).parent.name) : "StarterGUI") + "</span></div>";
+
+    if (node.class === "ScreenGui") {
+      html += '<div class="rsPropGroup">ScreenGui</div>'
+        + guiBoolRow("Enabled", "Enabled", p.Enabled)
+        + guiNumberRow("DisplayOrder", "DisplayOrder", p.DisplayOrder, 1)
+        + guiBoolRow("IgnoreGuiInset", "IgnoreGuiInset", p.IgnoreGuiInset)
+        + guiBoolRow("ResetOnSpawn", "ResetOnSpawn", p.ResetOnSpawn)
+        + guiBoolRow("ClipToDeviceSafeArea", "ClipToDeviceSafeArea", p.ClipToDeviceSafeArea)
+        + guiSelectRow("ZIndexBehavior", "ZIndexBehavior", ["Sibling", "Global"], p.ZIndexBehavior);
+    } else if (node.class !== "Folder") {
+      html += '<div class="rsPropGroup">Transform</div>'
+        + guiVecRow("Position", "Position", p.Position)
+        + guiVecRow("Size", "Size", p.Size)
+        + guiAnchorRow(p.AnchorPoint)
+        + guiNumberRow("Rotation", "Rotation", p.Rotation, 1)
+        + '<div class="rsPropGroup">Appearance</div>'
+        + guiColorRow("BackgroundColor3", "BackgroundColor3", p.BackgroundColor3)
+        + guiNumberRow("BackgroundTransparency", "BackgroundTransparency", p.BackgroundTransparency, 0.05, 0, 1)
+        + guiNumberRow("BorderSizePixel", "BorderSizePixel", p.BorderSizePixel, 1, 0, 100)
+        + guiColorRow("BorderColor3", "BorderColor3", p.BorderColor3)
+        + guiBoolRow("Visible", "Visible", p.Visible)
+        + guiNumberRow("ZIndex", "ZIndex", p.ZIndex, 1)
+        + guiBoolRow("ClipsDescendants", "ClipsDescendants", p.ClipsDescendants);
+      if (node.class === "TextLabel" || node.class === "TextButton") {
+        html += '<div class="rsPropGroup">Text</div>'
+          + '<div class="rsPropRow"><span class="rsPropLabel">Text</span><textarea data-gp="Text" rows="2" maxlength="400">' + esc(p.Text) + "</textarea></div>"
+          + guiColorRow("TextColor3", "TextColor3", p.TextColor3)
+          + guiNumberRow("TextSize", "TextSize", p.TextSize, 1, 1, 200)
+          + guiBoolRow("TextScaled", "TextScaled", p.TextScaled)
+          + guiBoolRow("TextWrapped", "TextWrapped", p.TextWrapped)
+          + guiSelectRow("TextXAlignment", "TextXAlignment", ["Left", "Center", "Right"], p.TextXAlignment)
+          + guiSelectRow("TextYAlignment", "TextYAlignment", ["Top", "Center", "Bottom"], p.TextYAlignment)
+          + guiSelectRow("Font", "Font", ["Legacy", "SourceSans", "Code", "Fantasy"], p.Font)
+          + guiNumberRow("LineHeight", "LineHeight", p.LineHeight, 0.1, 0.1, 5)
+          + guiNumberRow("TextTransparency", "TextTransparency", p.TextTransparency, 0.05, 0, 1)
+          + guiNumberRow("TextStrokeTransparency", "TextStrokeTransparency", p.TextStrokeTransparency, 0.05, 0, 1)
+          + guiColorRow("TextStrokeColor3", "TextStrokeColor3", p.TextStrokeColor3)
+          + guiBoolRow("RichText", "RichText", p.RichText);
+      }
+      if (node.class === "ImageLabel") {
+        html += '<div class="rsPropGroup">Image</div>'
+          + '<div class="rsPropRow"><span class="rsPropLabel">Image</span><input type="text" data-gp="Image" spellcheck="false" placeholder="https://…" value="' + esc(p.Image || "") + '"></div>'
+          + guiColorRow("ImageColor3", "ImageColor3", p.ImageColor3)
+          + guiNumberRow("ImageTransparency", "ImageTransparency", p.ImageTransparency, 0.05, 0, 1)
+          + guiSelectRow("ScaleType", "ScaleType", ["Stretch", "Fit"], p.ScaleType);
+      }
+    }
+    box.innerHTML = html;
+  }
+
+  function renderServiceProps(box, key) {
+    const svc = SERVICE_ROWS.find(row => row.key === key);
+    const count = key === "workspace" ? parts.length : key === "starterGui" ? GUI_ROOTS().length : (game.map.replicatedStorage || []).length;
+    box.innerHTML = '<div class="rsPropGroup">Service</div>'
+      + '<div class="rsPropRow"><span class="rsPropLabel">Name</span><span class="rsPropVal">' + esc(svc ? svc.name : key) + "</span></div>"
+      + '<div class="rsPropRow"><span class="rsPropLabel">Class</span><span class="rsPropVal">' + esc(svc ? svc.name : key) + "</span></div>"
+      + '<div class="rsPropRow"><span class="rsPropLabel">Children</span><span class="rsPropVal">' + count + "</span></div>"
+      + '<div class="rsPropsEmpty" style="padding:12px 0 0">Use the + button on this row to insert objects.</div>';
+  }
+
+  function onGuiProp(input) {
+    if (!selGui) return;
+    const node = selGui, p = node.props;
+    const num = (v, fallback) => { const n = parseFloat(v); return Number.isFinite(n) ? n : fallback; };
+    if (input.dataset.gpudim) {
+      const values = parseUdim(input.value);
+      if (values) p[input.dataset.gpudim] = values;
+    } else if (input.dataset.gpanchor) {
+      const values = parseAnchor(input.value);
+      if (values) p.AnchorPoint = values;
+    } else if (input.dataset.gpvec) {
+      const key = input.dataset.gpvec, idx = +input.dataset.idx;
+      if (!Array.isArray(p[key])) return;
+      p[key][idx] = num(input.value, p[key][idx]);
+    } else {
+      const key = input.dataset.gp;
+      if (!key) return;
+      if (key === "Name") {
+        node.name = String(input.value || "").replace(/[\u0000-\u001f<>]/g, "").slice(0, 40) || node.class;
+        renderTree();
+      } else if (input.type === "checkbox") {
+        p[key] = !!input.checked;
+      } else if (input.type === "color") {
+        p[key] = String(input.value || "#000000");
+        const hex = input.parentElement && input.parentElement.querySelector(".rsHex");
+        if (hex) hex.textContent = p[key];
+      } else if (typeof p[key] === "number") {
+        let v = num(input.value, p[key]);
+        if (key === "BackgroundTransparency" || key === "TextTransparency" || key === "TextStrokeTransparency") v = Math.max(0, Math.min(1, v));
+        if (key === "TextSize") v = Math.max(1, Math.min(200, v));
+        p[key] = v;
+      } else {
+        p[key] = input.value;
+      }
+    }
+    renderGui();
+    markDirty();
+  }
+
+  function syncGuiVecInputs() {
+    if (!selGui) return;
+    for (const input of $("stProps").querySelectorAll("[data-gpudim]")) {
+      if (document.activeElement === input) continue;
+      const value = selGui.props[input.dataset.gpudim];
+      if (Array.isArray(value)) input.value = fmtUdim(value);
+    }
+    for (const input of $("stProps").querySelectorAll("[data-gpanchor]")) {
+      if (document.activeElement === input) continue;
+      const a = selGui.props.AnchorPoint;
+      input.value = round(+a[0] || 0, 1000) + ", " + round(+a[1] || 0, 1000);
+    }
+  }
+
+  /* ---- dragging and resizing on the overlay ---- */
+  function bindGuiLayer() {
+    const layer = $("stGuiLayer");
+    if (!layer || layer.dataset.bound) return;
+    layer.dataset.bound = "1";
+    layer.addEventListener("pointerdown", e => {
+      const handle = e.target.closest("[data-handle]");
+      const el = e.target.closest("[data-gui]");
+      if (!el) return;
+      const id = el.dataset.gui;
+      const handleDir = handle ? handle.dataset.handle : "";
+      const box = el.parentElement;
+      const pw = Math.max(1, box ? box.clientWidth : 1);
+      const ph = Math.max(1, box ? box.clientHeight : 1);
+      const x = e.clientX, y = e.clientY;
+      selectGui(id);
+      if (!selGui || selGui.class === "ScreenGui") { e.preventDefault(); return; }
+      guiDrag = { id, handle: handleDir, x, y, pw, ph, pos: selGui.props.Position.slice(), size: selGui.props.Size.slice() };
+      document.body.classList.add("stGuiDragging");
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    window.addEventListener("pointermove", onGuiDragMove);
+    window.addEventListener("pointerup", onGuiDragEnd);
+    window.addEventListener("pointercancel", onGuiDragEnd);
+    layer.addEventListener("contextmenu", e => {
+      const el = e.target.closest("[data-gui]");
+      if (!el) return;
+      e.preventDefault();
+      selectGui(el.dataset.gui);
+      const hit = guiFind(el.dataset.gui, GUI_ROOTS());
+      if (hit) openContextMenu(e.clientX, e.clientY, { kind: "gui", node: hit.node, el: null });
+    });
+  }
+
+  function onGuiDragMove(e) {
+    if (!guiDrag || !selGui || selGui.id !== guiDrag.id) return;
+    const dx = Math.round(e.clientX - guiDrag.x);
+    const dy = Math.round(e.clientY - guiDrag.y);
+    const p = selGui.props;
+    if (!guiDrag.handle) {
+      p.Position = [guiDrag.pos[0], guiDrag.pos[1] + dx, guiDrag.pos[2], guiDrag.pos[3] + dy];
+    } else {
+      const h = guiDrag.handle;
+      let w = guiDrag.size[0] * guiDrag.pw + guiDrag.size[1];
+      let height = guiDrag.size[2] * guiDrag.ph + guiDrag.size[3];
+      if (h.includes("e")) w += dx;
+      if (h.includes("w")) w -= dx;
+      if (h.includes("s")) height += dy;
+      if (h.includes("n")) height -= dy;
+      w = Math.max(4, Math.round(w));
+      height = Math.max(4, Math.round(height));
+      p.Size = [0, w, 0, height];
+      if (h.includes("w")) p.Position = [guiDrag.pos[0], guiDrag.pos[1] + dx, guiDrag.pos[2], guiDrag.pos[3]];
+      if (h.includes("n")) p.Position = [guiDrag.pos[0], guiDrag.pos[1], guiDrag.pos[2], guiDrag.pos[3] + dy];
+    }
+    renderGui();
+    syncGuiVecInputs();
+  }
+
+  function onGuiDragEnd() {
+    if (!guiDrag) return;
+    guiDrag = null;
+    document.body.classList.remove("stGuiDragging");
+    renderProps();
+    markDirty();
+  }
+
+  /* =====================================================================
+     block scripting (Script = server, LocalScript = client)
+     ===================================================================== */
+  const SCRIPT_BLOCKS = {
+    onStart: { cat: "event", label: "when game starts", args: {}, hat: true },
+    onClick: { cat: "event", label: "when {target} is clicked", args: { target: "" }, hat: true },
+    onHover: { cat: "event", label: "when {target} is hovered", args: { target: "" }, hat: true },
+    onTouch: { cat: "event", label: "when player touches {part}", args: { part: "" }, hat: true },
+    every:   { cat: "event", label: "every {n} seconds", args: { n: "1" }, hat: true },
+
+    wait:    { cat: "flow", label: "wait {n} seconds", args: { n: "1" } },
+    repeat:  { cat: "flow", label: "repeat {n} times", args: { n: "3" }, body: true },
+    if:      { cat: "flow", label: "if {target} · {prop} {op} {value}", args: { target: "", prop: "Text", op: "=", value: "" }, body: true },
+    stop:    { cat: "flow", label: "stop this script", args: {} },
+
+    setVar:    { cat: "var", label: "set {var} to {value}", args: { var: "", value: "0" } },
+    changeVar: { cat: "var", label: "change {var} by {n}", args: { var: "", n: "1" } },
+    ifVar:     { cat: "var", label: "if {var} {op} {value}", args: { var: "", op: "=", value: "0" }, body: true, elseBody: true },
+
+    setText:   { cat: "ui", label: "set text of {target} to {text}", args: { target: "", text: "Hello" } },
+    setTextVar:{ cat: "ui", label: "set text of {target} to variable {var}", args: { target: "", var: "" } },
+    setProp:   { cat: "ui", label: "set {prop} of {target} to {value}", args: { target: "", prop: "BackgroundColor3", value: "#ffbf2f" } },
+    setPropVar:{ cat: "ui", label: "set {prop} of {target} to variable {var}", args: { target: "", prop: "Text", var: "" } },
+    show:      { cat: "ui", label: "show {target}", args: { target: "" } },
+    hide:      { cat: "ui", label: "hide {target}", args: { target: "" } },
+
+    partColor:  { cat: "world", label: "set colour of part {part} to {color}", args: { part: "", color: "#ff4444" } },
+    partTrans:  { cat: "world", label: "set transparency of part {part} to {n}", args: { part: "", n: "0.5" } },
+    partShow:   { cat: "world", label: "show part {part}", args: { part: "" } },
+    partHide:   { cat: "world", label: "hide part {part}", args: { part: "" } },
+    movePart:   { cat: "world", label: "move part {part} by {x} {y} {z}", args: { part: "", x: "0", y: "1", z: "0" } },
+    teleport:   { cat: "world", label: "teleport player to {x} {y} {z}", args: { x: "0", y: "3", z: "0" } },
+    walkSpeed:  { cat: "world", label: "set walk speed to {n}", args: { n: "16" } },
+    jumpPower:  { cat: "world", label: "set jump power to {n}", args: { n: "50" } },
+
+    print:   { cat: "debug", label: "log {text}", args: { text: "hello" } },
+  };
+  const BLOCK_CATS = { event: "Events", flow: "Flow", var: "Variables", ui: "UI", world: "Parts & Player", debug: "Debug" };
+  const BLOCK_COLORS = { event: "#8a6a2f", flow: "#7c5a2d", var: "#9a5a2c", ui: "#2f5d8a", world: "#35664a", debug: "#5a4a7a" };
+  const BLOCK_PROPS = ["Text", "TextColor3", "TextSize", "TextTransparency", "BackgroundColor3", "BackgroundTransparency", "BorderSizePixel", "Visible", "ZIndex", "Position", "Size", "Rotation", "Image", "ImageTransparency"];
+  const BLOCK_OPS = ["=", "≠", "<", ">"];
+
+  let scriptEdit = null, selectedBlock = null, blockSeq = 0;
+  let blkDrag = null, blkDropLine = null;
+
+  function blockColor(type) {
+    const def = SCRIPT_BLOCKS[type];
+    return (def && BLOCK_COLORS[def.cat]) || "#555";
+  }
+
+  function clearDropMarks() {
+    if (blkDropLine && blkDropLine.parentElement) blkDropLine.remove();
+    for (const el of document.querySelectorAll(".blkStack.dropOn")) el.classList.remove("dropOn");
+    const trash = document.querySelector(".blkTrash");
+    if (trash) trash.classList.remove("on");
+    const pal = $("stPalette");
+    if (pal) pal.classList.remove("dragOver");
+  }
+
+  function endBlockDrag() {
+    blkDrag = null;
+    clearDropMarks();
+    document.body.classList.remove("blkDragging");
+    for (const el of document.querySelectorAll(".isDragging")) el.classList.remove("isDragging");
+  }
+
+  function dropLineAt(stack, index) {
+    if (!blkDropLine) { blkDropLine = document.createElement("div"); blkDropLine.className = "blkDropLine"; }
+    const kids = Array.from(stack.children).filter(child => child.dataset && child.dataset.block);
+    const before = kids[index] || null;
+    if (blkDropLine.parentElement !== stack || blkDropLine.nextSibling !== before) {
+      stack.insertBefore(blkDropLine, before);
+    }
+  }
+
+  function newBlock(type) {
+    const def = SCRIPT_BLOCKS[type];
+    if (!def) return null;
+    const block = {
+      id: "b" + (++blockSeq) + Math.random().toString(36).slice(2, 5),
+      type,
+      args: Object.assign({}, def.args),
+    };
+    if (def.body) block.body = [];
+    if (def.elseBody) block.elseBody = [];
+    return block;
+  }
+
+  function ensureScriptVars(node) { if (!Array.isArray(node.vars)) node.vars = []; return node.vars; }
+
+  function setHat(block) {
+    if (!scriptEdit || !block) return;
+    const root = scriptEdit.blocks || (scriptEdit.blocks = []);
+    for (let i = root.length - 1; i >= 0; i--) {
+      if (SCRIPT_BLOCKS[root[i].type] && SCRIPT_BLOCKS[root[i].type].hat) root.splice(i, 1);
+    }
+    root.unshift(block);
+    selectedBlock = block;
+    markDirty();
+    renderBlocks();
+  }
+
+  function promptVariable() {
+    if (!scriptEdit) return;
+    StudioUI.dialog({
+      title: "Make a Variable",
+      body: '<label class="rsField">Variable name<input id="stVarName" type="text" maxlength="30" spellcheck="false" placeholder="score"></label>'
+        + '<label class="rsField">Starting value<input id="stVarValue" type="text" maxlength="40" spellcheck="false" value="0"></label>'
+        + '<div class="rsAbout">Variables are shared by every script in this game.</div>',
+      buttons: [
+        { label: "Cancel" },
+        {
+          label: "Create",
+          primary: true,
+          onClick: () => {
+            const nameInput = $("stVarName");
+            const valueInput = $("stVarValue");
+            const raw = String((nameInput && nameInput.value) || "").replace(/[^A-Za-z0-9_ ]/g, "").trim().slice(0, 30);
+            if (!raw) return false;
+            ensureGui();
+            if (!(raw in game.map.vars)) game.map.vars[raw] = String((valueInput && valueInput.value) || "0").slice(0, 40);
+            markDirty();
+            renderPalette();
+            renderBlocks();
+          },
+        },
+      ],
+    });
+    setTimeout(() => { const input = $("stVarName"); if (input) input.focus(); }, 30);
+  }
+
+  function removeVariable(name) {
+    if (!game || !game.map || !game.map.vars) return;
+    delete game.map.vars[name];
+    markDirty();
+    renderPalette();
+    renderBlocks();
+  }
+
+  function guiNamesForScripts() {
+    const names = [];
+    (function walk(list) {
+      for (const node of list || []) {
+        if (!isScript(node) && node.class !== "Folder") names.push(node.name);
+        if (node.children) walk(node.children);
+      }
+    })(game.map.gui);
+    return Array.from(new Set(names));
+  }
+
+  function blockSlotPlaceholder(key) {
+    return ({ target: "object", prop: "property", op: "=", n: "number", text: "text", value: "value" })[key] || key;
+  }
+
+  function blockInputHtml(key, block) {
+    const value = block.args[key] == null ? "" : block.args[key];
+    const common = ' data-arg="' + key + '" draggable="false"';
+    if (key === "target") {
+      const names = guiNamesForScripts();
+      return '<select class="blkInput"' + common + '><option value="">— object —</option>'
+        + names.map(n => '<option value="' + esc(n) + '"' + (n === value ? " selected" : "") + ">" + esc(n) + "</option>").join("")
+        + "</select>";
+    }
+    if (key === "part") {
+      const names = Array.from(new Set(parts.map(p => p.name)));
+      return '<select class="blkInput"' + common + '><option value="">— part —</option>'
+        + names.map(n => '<option value="' + esc(n) + '"' + (n === value ? " selected" : "") + ">" + esc(n) + "</option>").join("")
+        + "</select>";
+    }
+    if (key === "var") {
+      const vars = (game && game.map && game.map.vars) ? Object.keys(game.map.vars) : [];
+      return '<select class="blkInput"' + common + '><option value="">— variable —</option>'
+        + vars.map(n => '<option value="' + esc(n) + '"' + (n === value ? " selected" : "") + ">" + esc(n) + "</option>").join("")
+        + "</select>";
+    }
+    if (key === "prop") return '<select class="blkInput"' + common + ">" + optionList(BLOCK_PROPS, value || "Text") + "</select>";
+    if (key === "op") return '<select class="blkInput"' + common + ">" + optionList(BLOCK_OPS, value || "=") + "</select>";
+    if (key === "color") return '<input class="blkInput blkColor" type="color"' + common + ' value="' + esc(value || "#ff4444") + '">';
+    if (key === "x" || key === "y" || key === "z") return '<input class="blkInput blkAxis" type="number" step="1"' + common + ' value="' + esc(value) + '">';
+    if (key === "n") return '<input class="blkInput blkNum" type="number" step="0.1"' + common + ' value="' + esc(value) + '">';
+    return '<input class="blkInput blkText" type="text"' + common + ' value="' + esc(value) + '">';
+  }
+
+  function blockLabelHtml(def, block, palette) {
+    const parts = def.label.split(/\{(\w+)\}/g);
+    let html = "";
+    for (let i = 0; i < parts.length; i++) {
+      if (i % 2 === 0) { if (parts[i]) html += '<span class="blkText">' + esc(parts[i]) + "</span>"; }
+      else if (palette) html += '<span class="blkSlot">' + blockSlotPlaceholder(parts[i]) + "</span>";
+      else html += blockInputHtml(parts[i], block);
+    }
+    return html;
+  }
+
+  function renderScriptProps(box, node) {
+    const key = listKeyOf(node);
+    const parentName = key === "workspaceScripts" ? "Workspace" : key === "replicatedStorage" ? "ReplicatedStorage" : "StarterGUI";
+    const blocks = (node.blocks || []).length;
+    box.innerHTML =
+      '<div class="rsPropGroup">Data</div>'
+      + '<div class="rsPropRow"><span class="rsPropLabel">Name</span><input type="text" data-gp="Name" maxlength="40" value="' + esc(node.name) + '"></div>'
+      + '<div class="rsPropRow"><span class="rsPropLabel">Class</span><span class="rsPropVal">' + esc(node.class) + "</span></div>"
+      + '<div class="rsPropRow"><span class="rsPropLabel">Parent</span><span class="rsPropVal">' + esc(parentName) + "</span></div>"
+      + '<div class="rsPropGroup">Script</div>'
+      + '<div class="rsPropRow"><span class="rsPropLabel">Runs</span><span class="rsPropVal">' + (node.class === "Script" ? "Server · on start" : "Client · on start") + "</span></div>"
+      + '<div class="rsPropRow"><span class="rsPropLabel">Blocks</span><span class="rsPropVal">' + blocks + "</span></div>"
+      + '<div class="rsPropRow"><button type="button" class="rsBtn rsOpenScript" data-open-script="1">Open block editor</button></div>';
+  }
+
+  function openScriptEditor(node) {
+    if (!isScript(node) || playing) return;
+    endBlockDrag();
+    closeInsertMenu();
+    closeContextMenu();
+    closeMenus();
+    scriptEdit = node;
+    selectedBlock = null;
+    if (!Array.isArray(scriptEdit.blocks)) scriptEdit.blocks = [];
+    $("stScriptEditor").hidden = false;
+    $("stScriptName").value = node.name;
+    const badge = $("stScriptClass");
+    badge.textContent = node.class;
+    badge.className = "stScriptBadge " + (node.class === "Script" ? "isServer" : "isLocal");
+    renderPalette();
+    renderBlocks();
+    $("stScriptStack").focus();
+  }
+
+  function closeScriptEditor() {
+    const panel = $("stScriptEditor");
+    if (!panel || panel.hidden) return;
+    endBlockDrag();
+    panel.hidden = true;
+    scriptEdit = null;
+    selectedBlock = null;
+    renderTree();
+    renderProps();
+  }
+
+  function renderPalette() {
+    const box = $("stPalette");
     if (!box) return;
-    box.innerHTML = parts.map(p => `<button class="rsTreeRow rsChild${selected === p ? " on" : ""}" type="button" data-part="${p.key}">${TREE_ICON}${esc(p.name)}</button>`).join("");
+    let html = '<div class="blkPaletteHead">Blocks</div>';
+    for (const cat of Object.keys(BLOCK_CATS)) {
+      const rows = Object.entries(SCRIPT_BLOCKS).filter(([, def]) => def.cat === cat);
+      if (!rows.length) continue;
+      const color = BLOCK_COLORS[cat] || "#555";
+      html += '<div class="blkCat"><i class="blkCatDot" style="background:' + color + '"></i>' + BLOCK_CATS[cat] + "</div>";
+      for (const [type, def] of rows) {
+        html += '<div class="blk blkPaletteItem blk-' + cat + (def.hat ? " blkHat" : "") + '" draggable="true" data-palette="' + type + '" style="--blk-color:' + color + '">'
+          + '<div class="blkRow">' + blockLabelHtml(def, { args: {} }, true) + "</div></div>";
+      }
+    }
+    const vars = (game && game.map && game.map.vars) ? Object.keys(game.map.vars) : [];
+    html += '<div class="blkCat"><i class="blkCatDot" style="background:#9a5a2c"></i>My Variables</div>'
+      + '<div class="blkVars">' + (vars.length
+        ? vars.map(v => '<span class="blkVarChip">' + esc(v) + '<button type="button" data-del-var="' + esc(v) + '" aria-label="Delete ' + esc(v) + '">&times;</button></span>').join("")
+        : '<span class="blkVarsEmpty">No variables yet</span>') + "</div>"
+      + '<button type="button" class="blkAddVar" data-add-var="1">+ Make a Variable</button>'
+      + '<div class="blkTrash" data-trash="1"><b>Delete</b><span>Drop a block here to remove it</span></div>';
+    box.innerHTML = html;
+  }
+
+  function renderBlocks() {
+    const stack = $("stScriptStack");
+    if (!stack || !scriptEdit) return;
+    stack.innerHTML = "";
+    stack.classList.toggle("isBlank", !(scriptEdit.blocks || []).length);
+    stack.appendChild(renderStack(scriptEdit.blocks || [], "root", true));
+  }
+
+  function renderStack(list, ownerId, showIntro) {
+    const wrap = document.createElement("div");
+    wrap.className = "blkStack";
+    wrap.dataset.drop = ownerId;
+    if (showIntro && !list.length) {
+      const intro = document.createElement("div");
+      intro.className = "blkIntro";
+      intro.innerHTML = '<b>Build your script</b><span>Drag an event block from the left, then stack action blocks underneath it.</span>';
+      wrap.appendChild(intro);
+    }
+    let prevColor = "";
+    for (const block of list) {
+      if (!SCRIPT_BLOCKS[block.type]) continue;
+      const el = renderBlock(block);
+      if (prevColor) { el.style.setProperty("--prev-color", prevColor); el.classList.add("hasPrev"); }
+      prevColor = blockColor(block.type);
+      wrap.appendChild(el);
+    }
+    wireStackDrop(wrap);
+    return wrap;
+  }
+
+  function renderBlock(block) {
+    const def = SCRIPT_BLOCKS[block.type];
+    const el = document.createElement("div");
+    if (!def) return el;
+    el.className = "blk blk-" + def.cat + (def.hat ? " blkHat" : "") + (selectedBlock === block ? " isSel" : "");
+    el.dataset.block = block.id;
+    el.draggable = true;
+    el.style.setProperty("--blk-color", blockColor(block.type));
+    el.innerHTML = '<div class="blkRow">' + blockLabelHtml(def, block) + "</div>";
+    if (def.body) {
+      const body = renderStack(block.body || [], block.id);
+      body.classList.add("blkBody");
+      el.appendChild(body);
+    }
+    if (def.elseBody) {
+      const label = document.createElement("div");
+      label.className = "blkElseLabel";
+      label.textContent = "else";
+      el.appendChild(label);
+      const alt = renderStack(block.elseBody || [], block.id + ":else");
+      alt.classList.add("blkBody", "blkElseBody");
+      el.appendChild(alt);
+    }
+    for (const input of el.querySelectorAll("[data-arg]")) {
+      const set = () => { block.args[input.dataset.arg] = input.value; markDirty(); };
+      input.addEventListener("input", set);
+      input.addEventListener("change", set);
+      input.addEventListener("pointerdown", e => e.stopPropagation());
+      input.addEventListener("dragstart", e => e.preventDefault());
+    }
+    el.addEventListener("click", e => {
+      if (e.target.closest("input,select")) return;
+      selectedBlock = block;
+      renderBlocks();
+    });
+    el.addEventListener("dragstart", e => {
+      if (e.target.closest("input,select")) { e.preventDefault(); return; }
+      blkDrag = { from: "script", id: block.id };
+      document.body.classList.add("blkDragging");
+      el.classList.add("isDragging");
+      e.dataTransfer.setData("text/plain", JSON.stringify({ from: "script", id: block.id }));
+      e.dataTransfer.effectAllowed = "move";
+    });
+    el.addEventListener("dragend", endBlockDrag);
+    return el;
+  }
+
+  function blockById(blocks, id) {
+    for (const block of blocks || []) {
+      if (block.id === id) return block;
+      for (const list of [block.body, block.elseBody]) {
+        if (!list) continue;
+        const hit = blockById(list, id);
+        if (hit) return hit;
+      }
+    }
+    return null;
+  }
+
+  function findBlockEntry(blocks, id, list) {
+    const arr = list || blocks;
+    for (let i = 0; i < arr.length; i++) {
+      if (arr[i].id === id) return { block: arr[i], list: arr, index: i };
+      for (const sub of [arr[i].body, arr[i].elseBody]) {
+        if (!sub) continue;
+        const hit = findBlockEntry(sub, id, sub);
+        if (hit) return hit;
+      }
+    }
+    return null;
+  }
+
+  function blockContainsId(block, id) {
+    for (const kid of (block.body || []).concat(block.elseBody || [])) {
+      if (kid.id === id || blockContainsId(kid, id)) return true;
+    }
+    return false;
+  }
+
+  function dropIndex(stackEl, clientY) {
+    const kids = Array.from(stackEl.children).filter(child => child.dataset && child.dataset.block);
+    for (let i = 0; i < kids.length; i++) {
+      const r = kids[i].getBoundingClientRect();
+      if (clientY < r.top + r.height / 2) return i;
+    }
+    return kids.length;
+  }
+
+  function wireStackDrop(el) {
+    el.addEventListener("dragover", e => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = (blkDrag && blkDrag.from === "palette") ? "copy" : "move";
+      el.classList.add("dropOn");
+      dropLineAt(el, dropIndex(el, e.clientY));
+    });
+    el.addEventListener("dragleave", e => {
+      if (el.contains(e.relatedTarget)) return;
+      el.classList.remove("dropOn");
+      if (blkDropLine && blkDropLine.parentElement === el) blkDropLine.remove();
+    });
+    el.addEventListener("drop", e => {
+      e.preventDefault();
+      e.stopPropagation();
+      clearDropMarks();
+      if (!scriptEdit) return;
+      let payload = null;
+      try { payload = JSON.parse(e.dataTransfer.getData("text/plain") || "null"); } catch (_) {}
+      applyBlockDrop(payload, el.dataset.drop, dropIndex(el, e.clientY));
+    });
+  }
+
+  function applyBlockDrop(payload, ownerId, index) {
+    if (!payload || !scriptEdit) return;
+    const payloadDef = payload.from === "palette"
+      ? SCRIPT_BLOCKS[payload.type]
+      : (() => { const found = findBlockEntry(scriptEdit.blocks || [], payload.id); return found ? SCRIPT_BLOCKS[found.block.type] : null; })();
+    if (payloadDef && payloadDef.hat) {
+      if (ownerId !== "root") return;
+      if (payload.from === "palette") setHat(newBlock(payload.type));
+      else {
+        const entry = findBlockEntry(scriptEdit.blocks || [], payload.id);
+        if (entry) { entry.list.splice(entry.index, 1); setHat(entry.block); }
+      }
+      return;
+    }
+    const owner = ownerId === "root" ? null : blockById(scriptEdit.blocks || [], ownerId.replace(/:else$/, ""));
+    const targetList = ownerId === "root"
+      ? (scriptEdit.blocks || (scriptEdit.blocks = []))
+      : ownerId.slice(-5) === ":else"
+        ? (owner ? (owner.elseBody || (owner.elseBody = [])) : null)
+        : (owner && owner.body ? owner.body : null);
+    if (!targetList) return;
+    if (payload.from === "palette") {
+      const block = newBlock(payload.type);
+      if (!block) return;
+      targetList.splice(Math.max(0, Math.min(index, targetList.length)), 0, block);
+      selectedBlock = block;
+    } else {
+      const entry = findBlockEntry(scriptEdit.blocks || [], payload.id);
+      if (!entry) return;
+      if (payload.id === ownerId || blockContainsId(entry.block, ownerId)) return;
+      const sameList = entry.list === targetList;
+      entry.list.splice(entry.index, 1);
+      let at = index;
+      if (sameList && entry.index < index) at--;
+      targetList.splice(Math.max(0, Math.min(at, targetList.length)), 0, entry.block);
+      selectedBlock = entry.block;
+    }
+    markDirty();
+    renderBlocks();
+  }
+
+  function deleteSelectedBlock() {
+    if (!scriptEdit || !selectedBlock) return;
+    const entry = findBlockEntry(scriptEdit.blocks || [], selectedBlock.id);
+    if (entry) entry.list.splice(entry.index, 1);
+    selectedBlock = null;
+    markDirty();
+    renderBlocks();
+  }
+
+  function bindScriptEditor() {
+    const close = $("stScriptClose");
+    if (close) close.addEventListener("click", closeScriptEditor);
+    const name = $("stScriptName");
+    if (name) name.addEventListener("input", () => {
+      if (!scriptEdit) return;
+      scriptEdit.name = String(name.value || "").replace(/[\u0000-\u001f<>]/g, "").slice(0, 40) || scriptEdit.class;
+      renderTree();
+      markDirty();
+    });
+    const palette = $("stPalette");
+    if (palette) {
+      palette.addEventListener("click", e => {
+        const add = e.target.closest("[data-add-var]");
+        if (add) { promptVariable(); return; }
+        const del = e.target.closest("[data-del-var]");
+        if (del) { removeVariable(del.dataset.delVar); return; }
+        const item = e.target.closest("[data-palette]");
+        if (!item || !scriptEdit) return;
+        const block = newBlock(item.dataset.palette);
+        if (!block) return;
+        if (SCRIPT_BLOCKS[block.type].hat) { setHat(block); return; }
+        (scriptEdit.blocks || (scriptEdit.blocks = [])).push(block);
+        selectedBlock = block;
+        markDirty();
+        renderBlocks();
+      });
+      palette.addEventListener("dragstart", e => {
+        const item = e.target.closest("[data-palette]");
+        if (!item) return;
+        blkDrag = { from: "palette", type: item.dataset.palette };
+        document.body.classList.add("blkDragging");
+        item.classList.add("isDragging");
+        e.dataTransfer.setData("text/plain", JSON.stringify({ from: "palette", type: item.dataset.palette }));
+        e.dataTransfer.effectAllowed = "copy";
+      });
+      palette.addEventListener("dragend", endBlockDrag);
+      palette.addEventListener("dragover", e => {
+        if (!blkDrag || blkDrag.from !== "script") return;
+        e.preventDefault();
+        const overTrash = !!e.target.closest("[data-trash]");
+        const trash = document.querySelector(".blkTrash");
+        if (trash) trash.classList.toggle("on", overTrash);
+        palette.classList.toggle("dragOver", overTrash);
+      });
+      palette.addEventListener("dragleave", e => {
+        if (palette.contains(e.relatedTarget)) return;
+        palette.classList.remove("dragOver");
+        const trash = document.querySelector(".blkTrash"); if (trash) trash.classList.remove("on");
+      });
+      palette.addEventListener("drop", e => {
+        if (!blkDrag || blkDrag.from !== "script" || !scriptEdit) return;
+        palette.classList.remove("dragOver");
+        const trash = document.querySelector(".blkTrash"); if (trash) trash.classList.remove("on");
+        if (!e.target.closest("[data-trash]")) return;
+        e.preventDefault();
+        const entry = findBlockEntry(scriptEdit.blocks || [], blkDrag.id);
+        if (entry) {
+          entry.list.splice(entry.index, 1);
+          if (selectedBlock && selectedBlock.id === blkDrag.id) selectedBlock = null;
+          markDirty();
+          renderBlocks();
+        }
+        endBlockDrag();
+      });
+    }
+    const canvas = document.querySelector(".stScriptCanvas");
+    if (canvas) {
+      canvas.addEventListener("dragover", e => {
+        if (!blkDrag || e.target.closest(".blkStack")) return;
+        e.preventDefault();
+        const root = document.querySelector("#stScriptStack > .blkStack");
+        if (!root) return;
+        root.classList.add("dropOn");
+        dropLineAt(root, root.querySelectorAll(":scope > .blk").length);
+      });
+      canvas.addEventListener("dragleave", e => {
+        if (canvas.contains(e.relatedTarget)) return;
+        clearDropMarks();
+      });
+      canvas.addEventListener("drop", e => {
+        if (e.target.closest(".blkStack")) return;
+        e.preventDefault();
+        let payload = null;
+        try { payload = JSON.parse(e.dataTransfer.getData("text/plain") || "null"); } catch (_) {}
+        const root = document.querySelector("#stScriptStack > .blkStack");
+        const count = root ? root.querySelectorAll(":scope > .blk").length : 0;
+        clearDropMarks();
+        applyBlockDrop(payload, "root", count);
+      });
+    }
+    document.addEventListener("keydown", e => {
+      const panel = $("stScriptEditor");
+      if (!panel || panel.hidden) return;
+      const typing = e.target && (e.target.closest && e.target.closest("input,select,textarea"));
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeScriptEditor(); return; }
+      if (!typing && (e.key === "Delete" || e.key === "Backspace") && selectedBlock) {
+        e.preventDefault(); e.stopPropagation(); deleteSelectedBlock();
+      }
+    }, true);
   }
 
   /* =====================================================================
@@ -544,8 +1970,10 @@ const StudioEditor = (function () {
 
   function renderProps() {
     const box = $("stProps");
+    if (selGui) { renderGuiProps(box, selGui); return; }
+    if (selService) { renderServiceProps(box, selService); return; }
     if (!selected) {
-      box.innerHTML = '<div class="rsPropsEmpty">Select a part in the Explorer or click it in the viewport.</div>';
+      box.innerHTML = '<div class="rsPropsEmpty">Select an object in the Explorer or click it in the viewport.</div>';
       return;
     }
     const p = selected;
@@ -598,6 +2026,7 @@ const StudioEditor = (function () {
 
   function onPropInput(e) {
     const input = e.target;
+    if (input.dataset && (input.dataset.gp || input.dataset.gpvec || input.dataset.gpudim || input.dataset.gpanchor)) { onGuiProp(input); return; }
     const prop = input.dataset ? input.dataset.prop : null;
     if (!prop || !selected) return;
     const part = selected;
@@ -691,6 +2120,7 @@ const StudioEditor = (function () {
     buildGizmo();
     bindInput();
     bindUi();
+    bindScriptEditor();
     layout = loadLayout();
     resize();
     window.addEventListener("resize", resize);
@@ -751,6 +2181,7 @@ const StudioEditor = (function () {
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
+    renderGui();
   }
 
   /* =====================================================================
@@ -997,21 +2428,27 @@ const StudioEditor = (function () {
       const tag = (e.target && e.target.tagName || "").toLowerCase();
       const typing = tag === "input" || tag === "textarea" || tag === "select" || (e.target && e.target.isContentEditable);
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); save(); return; }
+      const scriptPanel = $("stScriptEditor");
+      if (scriptPanel && !scriptPanel.hidden) return;
       if (e.key === "Escape") {
         if (playing) { e.preventDefault(); stopPlay(); return; }
+        closeInsertMenu();
+        closeContextMenu();
         closeMenus(); return;
       }
       if (typing || playing) return;
+      if (e.key === "F2" && selGui) { e.preventDefault(); renameGui(selGui); return; }
       if (e.ctrlKey || e.metaKey) {                       // Edit menu shortcuts
         const k = e.key.toLowerCase();
         if (k === "z") { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
         if (k === "y") { e.preventDefault(); redo(); return; }
         if (k === "x") { e.preventDefault(); cutSelected(); return; }
         if (k === "c") { e.preventDefault(); copySelected(); return; }
-        if (k === "v") { e.preventDefault(); pasteClip(); return; }
+        if (k === "v") { e.preventDefault(); pasteClip(pasteTargetNode()); return; }
+        if (k === "d") { e.preventDefault(); duplicateSelected(); return; }
       }
       if (e.key === "F5") { e.preventDefault(); startPlay(e.shiftKey); return; }
-      if ((e.key === "Delete" || e.key === "Backspace") && selected) { e.preventDefault(); deleteSelected(); return; }
+      if ((e.key === "Delete" || e.key === "Backspace") && (selected || selGui)) { e.preventDefault(); deleteSelected(); return; }
       const k = e.key.toLowerCase();
       if (["w", "a", "s", "d", "q", "e", " ", "shift", "control"].includes(k)) e.preventDefault();
       keys.add(k);
@@ -1239,6 +2676,16 @@ const StudioEditor = (function () {
     for (const b of document.querySelectorAll("[data-rtab]")) b.classList.toggle("on", b.dataset.rtab === name);
     $("stRibbonHome").hidden = name !== "home";
     $("stRibbonSoon").hidden = name === "home";
+    if (name !== "home") {
+      const notes = {
+        model: "Model tools come in a later update. For now insert parts from the Workspace row with +.",
+        avatar: "Avatar tools come in a later update. Your real avatar skin is used when you press Play.",
+        ui: "Select StarterGUI in the Explorer and press + to add a ScreenGui. Inside a ScreenGui, Frame or Folder, + adds Frame, TextLabel, TextButton, ImageLabel and Folder. Right-click any object for Copy, Paste Into, Duplicate, Rename and Delete. Drag to move, handles to resize.",
+        script: "Scripts are block stacks. Start with a hat: when game starts, when <object> is clicked, or every N seconds. Use Variables for score/health, UI blocks to change labels, and Parts & Player blocks for colour, transparency, visibility, teleport and walk/jump speed.",
+        plugins: "Plugins come in a later update.",
+      };
+      $("stRibbonSoon").textContent = notes[name] || "These tools will be added in a later version of Studio.";
+    }
   }
   function closeMenus() {
     for (const d of document.querySelectorAll(".rsDrop")) d.hidden = true;
@@ -1265,7 +2712,7 @@ const StudioEditor = (function () {
     else if (act === "redo") redo();
     else if (act === "cut") cutSelected();
     else if (act === "copy") copySelected();
-    else if (act === "paste") pasteClip();
+    else if (act === "paste") pasteClip(pasteTargetNode());
     else if (act === "saveExit" || act === "exit") close();
     else if (act === "play") startPlay(false);
     else if (act === "playHere") startPlay(true);
@@ -1308,10 +2755,80 @@ const StudioEditor = (function () {
     if (stopBtn) stopBtn.addEventListener("click", () => stopPlay());
 
     $("stTree").addEventListener("click", e => {
-      const b = e.target.closest("[data-part]");
-      if (b) selectPart(b.dataset.part);
+      const twist = e.target.closest("[data-twist]");
+      if (twist) { const key = twist.dataset.twist; expanded[key] = expanded[key] === false; renderTree(); return; }
+      const ins = e.target.closest("[data-insert]");
+      if (ins) {
+        const kind = ins.dataset.insert;
+        let target = null;
+        if (kind === "service:workspace") target = { kind: "workspace" };
+        else if (kind === "service:replicatedStorage") target = { kind: "replicatedStorage" };
+        else if (kind === "service:starterGui") target = { kind: "starterGui" };
+        else if (kind.indexOf("gui:") === 0) {
+          const hit = guiFind(kind.slice(4), GUI_ROOTS());
+          if (hit) target = { kind: "gui", node: hit.node };
+        }
+        if (target) openInsertMenu(ins, target);
+        return;
+      }
+      const part = e.target.closest("[data-part]");
+      if (part) { selectPart(part.dataset.part); return; }
+      const gui = e.target.closest("[data-gui]");
+      if (gui) { selectGui(gui.dataset.gui); return; }
+      const svc = e.target.closest("[data-service]");
+      if (svc) { selectService(svc.dataset.service); return; }
     });
+    $("stInsertMenu").addEventListener("click", e => {
+      const b = e.target.closest("[data-cls]");
+      if (b) insertFromMenu(b);
+    });
+    $("stTree").addEventListener("contextmenu", e => {
+      const row = e.target.closest("[data-gui], [data-part], [data-service]");
+      if (!row) return;
+      e.preventDefault();
+      let target;
+      if (row.dataset.gui) {
+        selectGui(row.dataset.gui);
+        const hit = guiFind(row.dataset.gui, GUI_ROOTS());
+        if (!hit) return;
+        target = { kind: "gui", node: hit.node };
+      } else if (row.dataset.part) {
+        selectPart(row.dataset.part);
+        target = { kind: "part", part: selected };
+      } else {
+        selectService(row.dataset.service);
+        target = { kind: "service", key: row.dataset.service };
+      }
+      target.el = row;
+      openContextMenu(e.clientX, e.clientY, target);
+    });
+    $("stContextMenu").addEventListener("click", e => {
+      const b = e.target.closest("[data-cmd]");
+      if (!b || b.disabled) return;
+      const cmd = b.dataset.cmd, target = ctxTarget;
+      closeContextMenu();
+      runContextCommand(cmd, target);
+    });
+    $("stTree").addEventListener("dblclick", e => {
+      const row = e.target.closest("[data-gui]");
+      if (!row) return;
+      const hit = findNode(row.dataset.gui);
+      if (!hit) return;
+      if (isScript(hit.node)) openScriptEditor(hit.node);
+      else renameGui(hit.node);
+    });
+    document.addEventListener("pointerdown", e => {
+      const menu = $("stInsertMenu");
+      if (menu && !menu.hidden && !e.target.closest("#stInsertMenu") && !e.target.closest("[data-insert]")) closeInsertMenu();
+      const ctx = $("stContextMenu");
+      if (ctx && !ctx.hidden && !e.target.closest("#stContextMenu")) closeContextMenu();
+    });
+    bindGuiLayer();
     $("stProps").addEventListener("input", onPropInput);
+    $("stProps").addEventListener("click", e => {
+      const open = e.target.closest("[data-open-script]");
+      if (open && selGui && isScript(selGui)) openScriptEditor(selGui);
+    });
 
     $("stName").addEventListener("input", markDirty);
     $("stName").addEventListener("keydown", e => {
@@ -1373,6 +2890,7 @@ const StudioEditor = (function () {
       return;
     }
     $("stEditor").classList.add("isPlaying");
+    renderGui();
     paintPlayState();
     clock.getDelta();
   }
@@ -1393,6 +2911,7 @@ const StudioEditor = (function () {
     keys.clear();
     drag = null; down = null; gizmoDrag = null;
     paintPlayState();
+    renderGui();
     clock.getDelta();
     resize();
     paintStatus(dirty ? "dirty" : "saved");
@@ -1558,6 +3077,7 @@ const StudioEditor = (function () {
   function close(saveNow) {
     if (!running) return;
     if (playing) stopPlay();
+    closeScriptEditor();
     if (saveNow !== false) save(true);
     saveLayoutNow();
     running = false;

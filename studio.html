@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="icon" href="assets/img/app-icon.png">
-<link rel="stylesheet" href="css/studio.css">
+<link rel="stylesheet" href="css/studio.css?v=2">
 </head>
 <body class="stMenuBody">
 
@@ -135,6 +135,11 @@
             <span class="rsTThumb"><img src="assets/img/game-baseplate.png" alt=""><span class="rsTHover">Open</span></span>
             <b>Baseplate</b>
             <small>512 &times; 512 studs</small>
+          </button>
+          <button class="rsTemplate" type="button" data-template="showcase">
+            <span class="rsTThumb"><img src="assets/img/game-baseplate.png" alt=""><span class="rsTHover">Open</span></span>
+            <b>Relay Ascent</b>
+            <small>Showcase obby + puzzles</small>
           </button>
           <button class="rsTemplate isSoon" type="button" disabled>
             <span class="rsTThumb"><img src="assets/img/game-baseplate.png" alt=""><span class="rsSoon">Soon</span></span>
@@ -341,6 +346,9 @@
     <div class="rsWork">
       <div class="rsViewport" id="stViewport">
         <canvas id="stCanvas"></canvas>
+        <div class="stGuiLayer" id="stGuiLayer" hidden></div>
+        <div class="stInsertMenu" id="stInsertMenu" hidden></div>
+        <div class="stContextMenu" id="stContextMenu" hidden></div>
         <div class="rsAxis" title="World orientation">
           <canvas id="stAxisCanvas" width="108" height="108"></canvas>
         </div>
@@ -351,14 +359,8 @@
       <aside class="rsDock" id="stDock">
         <section class="rsPanel" id="stExplorerPanel">
           <div class="rsPanelHead">Explorer</div>
-          <div class="rsTree" id="stTree">
-            <div class="rsTreeRow rsRoot">
-              <svg class="rsTreeIco" viewBox="0 0 24 24"><path d="M3 6h7l2 2h9v11H3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
-              Workspace
-            </div>
-            <div id="stTreeChildren"></div>
-          </div>
-          <div class="rsPanelFoot">Filter workspace (Ctrl+Shift+F)</div>
+          <div class="rsTree" id="stTree"></div>
+          <div class="rsPanelFoot">Hover a row and press + to insert an object</div>
         </section>
 
         <div class="rsDockSplit" id="stDockSplit" title="Drag to resize Explorer and Properties"></div>
@@ -387,6 +389,22 @@
   </div>
 </div>
 
+<!-- ============================ BLOCK SCRIPT EDITOR ============================ -->
+<div id="stScriptEditor" class="stScriptEditor" hidden>
+  <header class="stScriptTop">
+    <span id="stScriptClass" class="stScriptBadge isServer">Script</span>
+    <input id="stScriptName" class="stScriptName" type="text" maxlength="40" spellcheck="false" aria-label="Script name">
+    <span class="stScriptHint">Drag blocks into the stack &middot; drop them on Delete to remove &middot; Del removes the selected block &middot; Esc closes</span>
+    <button type="button" class="rsBtn" id="stScriptClose">Close</button>
+  </header>
+  <div class="stScriptMain">
+    <aside class="stPalette" id="stPalette"></aside>
+    <div class="stScriptCanvas">
+      <div class="stScriptStackRoot" id="stScriptStack" tabindex="0"></div>
+    </div>
+  </div>
+</div>
+
 <!-- ============================ DIALOGS ============================ -->
 <div id="stDialog" class="rsModal" hidden>
   <div class="rsDialog">
@@ -406,8 +424,9 @@
 <script src="js/core/config.js"></script>
 <script src="js/studio/store.js"></script>
 <script src="js/studio/ui.js"></script>
+<script src="js/studio/showcase.js"></script>
 <script src="js/studio/play.js"></script>
-<script src="js/studio/editor.js"></script>
+<script src="js/studio/editor.js?v=2"></script>
 <script src="js/studio/menu.js"></script>
 <script src="js/studio/auth.js"></script>
 </body>

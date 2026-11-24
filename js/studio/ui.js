@@ -62,7 +62,20 @@ const StudioUI = (function () {
       </table>
       <div class="rsAbout" style="margin-top:12px">In play mode: <b>WASD</b> walk, <b>Space</b> jump (hold to keep hopping),
       <b>Shift</b> sprint, drag to look around, wheel to zoom, <b>R</b> go back to the spawn point. You can also use the
-      <b>Play</b> button in the Home ribbon or <b>Test &gt; Play game</b>.</div>`,
+      <b>Play</b> button in the Home ribbon or <b>Test &gt; Play game</b>.</div>
+      <div class="rsAbout" style="margin-top:12px"><b>UI editing:</b> select <b>StarterGUI</b> in the Explorer and press the
+      <b>+</b> on its row to insert a ScreenGui. Inside a ScreenGui, Frame or Folder, <b>+</b> inserts Frame, TextLabel,
+      TextButton, ImageLabel and Folder. Drag an object to move it, drag the white handles to resize it, and edit
+      Position/Size as <b>Scale X, Offset X, Scale Y, Offset Y</b> in Properties. Right-click an object for
+      <b>Copy</b>, <b>Cut</b>, <b>Paste Into</b>, <b>Duplicate</b> (<b>Ctrl+D</b>), <b>Rename</b> (<b>F2</b>) and <b>Delete</b>.</div>
+      <div class="rsAbout" style="margin-top:12px"><b>Block scripts:</b> insert a <b>Script</b> (server) or <b>LocalScript</b>
+      (client) from Workspace, ReplicatedStorage or StarterGUI, then double-click it to open the block editor.
+      Drag blocks from the left palette into the stack, fill the inputs, and use <b>repeat</b>/<b>if</b> bodies for nesting.
+      Start with a hat: <b>when game starts</b>, <b>when an object is clicked</b>, <b>when an object is hovered</b>,
+      <b>when the player touches a part</b>, or <b>every N seconds</b>. <b>Make a Variable</b> in the palette for
+      score/health; variables are shared by every script. <b>Parts &amp; Player</b> blocks recolour, hide/show or move parts
+      (collision follows), teleport the player and change walk/jump speed. Try
+      <b>Home &gt; Open a Template &gt; Relay Station</b> for a finished example.</div>`,
     });
   }
 
