@@ -383,6 +383,11 @@ button { cursor: pointer; }
 .rsTreeRow:hover .rsInsert, .rsInsert:focus-visible { opacity: 1; }
 .rsInsert:hover { background: #3f3f3f; color: #fff; border-color: #4d4d4d; }
 .rsServiceRow { font-weight: 500; }
+.rsTreeRow[draggable="true"] { cursor: grab; }
+.rsTreeRow.dragging { opacity: .4; }
+.rsTreeRow.dropInto { background: rgba(13,153,255,.18); box-shadow: inset 0 0 0 1px rgba(13,153,255,.7); color: #fff; }
+.rsTreeRow.dropInto .rsTreeClass { color: rgba(255,255,255,.75); }
+body.treeDragging { cursor: grabbing; }
 
 /* Insert Object popup */
 .stInsertMenu { position: fixed; z-index: 500; min-width: 180px; max-height: 60vh; overflow: auto; padding: 4px; border: 1px solid #3f3f3f; border-radius: 5px; background: #242424; box-shadow: 0 12px 34px rgba(0,0,0,.55); }

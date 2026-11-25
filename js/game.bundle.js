@@ -947,6 +947,18 @@ async function runScriptStack(blocks, map, ctl) {
       CFG.WALK_SPEED = Math.max(1, Math.min(200, guiNum(block.args.n)));
     } else if (block.type === "jumpPower") {
       CFG.JUMP_POWER = Math.max(0, Math.min(500, guiNum(block.args.n)));
+    } else if (block.type === "setHealth") {
+      setPlayerHealth(guiNum(block.args.n));
+    } else if (block.type === "setMaxHealth") {
+      setPlayerMaxHealth(guiNum(block.args.n));
+    } else if (block.type === "damage") {
+      damagePlayer(guiNum(block.args.n));
+    } else if (block.type === "heal") {
+      healPlayer(guiNum(block.args.n));
+    } else if (block.type === "kill") {
+      killPlayer();
+    } else if (block.type === "respawn") {
+      respawn();
     } else if (block.type === "print") {
       console.log("[Triancle script]", block.args.text);
     }
@@ -995,6 +1007,10 @@ function runScripts(map) {
       TOUCH_HANDLERS.push({ part: blocks[0].args && blocks[0].args.part, inside: false, fire });
       continue;
     }
+    if (hat === "onTouchSelf") {
+      if (script.parentPart) TOUCH_HANDLERS.push({ part: script.parentPart, inside: false, fire });
+      continue;
+    }
     if (hat === "every") {
       const ms = Math.max(100, guiNum(blocks[0].args && blocks[0].args.n) * 1000);
       if (!map.__timers) map.__timers = [];
@@ -1022,7 +1038,7 @@ function buildWorld(g) {
   buildRuntimeGui(g);
   const guiMap = (g && g.map) || {};
   setTimeout(() => runScripts(guiMap), 80);
-  player.pos.copy(SPAWN); player.prev.copy(SPAWN);
+  player.pos.copy(SPAWN); player.prev.copy(SPAWN); player.health = player.maxHealth || 100; paintVitals(); hideVitals();
 }
 
 ;
@@ -1706,6 +1722,7 @@ const player = {
   onGround: false,
   alive: true,
   respawnTimer: 0,
+  health: 100, maxHealth: 100,   // changed by scripts (set / damage / heal / kill)
   moveX: 0, moveZ: 0,        // last input direction (world), unit or zero
   ff: CFG.FF_TIME,           // spawn forcefield seconds left
   climb: null, climbReq: null, topExit: null, // ledge-climb state
@@ -2008,6 +2025,69 @@ function physicsStep(dt) {
   }
 }
 
+/* ---- player health (script blocks: set / damage / heal / kill) ---- */
+let vitalsHideTimer = 0;
+function paintVitals() {
+  const box = document.getElementById("vitals");
+  if (!box) return;
+  const max = Math.max(1, Number(player.maxHealth) || 100);
+  const hp = Math.max(0, Math.min(max, player.health == null ? max : Number(player.health) || 0));
+  box.classList.toggle("low", hp <= max * 0.3);
+  const fill = document.getElementById("vitFill");
+  const num = document.getElementById("vitNum");
+  if (fill) fill.style.width = (hp / max * 100).toFixed(1) + "%";
+  if (num) num.textContent = Math.round(hp);
+}
+function hideVitals() {
+  clearTimeout(vitalsHideTimer);
+  vitalsHideTimer = 0;
+  const box = document.getElementById("vitals");
+  if (box) box.classList.remove("show");
+}
+function showVitals() {
+  const box = document.getElementById("vitals");
+  if (!box) return;
+  clearTimeout(vitalsHideTimer);
+  box.classList.add("show");
+  vitalsHideTimer = setTimeout(() => {
+    vitalsHideTimer = 0;
+    box.classList.remove("show");
+  }, 2400);
+}
+function updateVitals() { paintVitals(); }
+function setPlayerHealth(value) {
+  const max = Math.max(1, Number(player.maxHealth) || 100);
+  const before = player.health == null ? max : Number(player.health) || 0;
+  player.health = Math.max(0, Math.min(max, Number(value) || 0));
+  paintVitals();
+  if (player.health !== before) showVitals();
+  if (player.health <= 0 && player.alive) killPlayer();
+}
+function setPlayerMaxHealth(value) {
+  const before = Number(player.maxHealth) || 100;
+  player.maxHealth = Math.max(1, Math.min(100000, Number(value) || 100));
+  player.health = Math.min(player.health == null ? player.maxHealth : player.health, player.maxHealth);
+  paintVitals();
+  if (player.maxHealth !== before) showVitals();
+}
+function damagePlayer(amount) {
+  if (!player.alive) return;
+  setPlayerHealth((player.health == null ? player.maxHealth : player.health) - Math.max(0, Number(amount) || 0));
+}
+function healPlayer(amount) {
+  if (!player.alive) return;
+  setPlayerHealth((player.health == null ? 0 : player.health) + Math.max(0, Number(amount) || 0));
+}
+function killPlayer() {
+  if (!player.alive) return;
+  player.health = 0;
+  player.alive = false;
+  player.respawnTimer = Math.max(0.5, CFG.RESPAWN_TIME);
+  player.vel.set(0, 0, 0);
+  paintVitals();
+  showVitals();
+}
+
 function respawn() {
   player.pos.copy(SPAWN);
   player.prev.copy(SPAWN);
@@ -2015,10 +2095,13 @@ function respawn() {
   player.onGround = false;
   player.climb = null; player.climbReq = null; player.topExit = null; player.lastStep = null; player.groundT = 0;
   player.alive = true;
+  player.health = player.maxHealth || 100;
   player.ff = CFG.FF_TIME;
   player.stepOff = 0;
   clearDebris("me");
   facing = Math.PI / 2;   // face -Z like Roblox spawns
+  paintVitals();
+  hideVitals();
 }
 
 ;
@@ -5713,6 +5796,11 @@ const NOTIF = { rows: [], fresh: new Set(), freshPatch: new Set(), timer: 0 };
 /* Patch notes: add a new entry at the TOP of this list for every patch / update / version.
    Each one shows up as its own numbered notification. sections: New / Changed / Fixed / Removed. */
 const PATCHES = [
+  { v: "1.9.0", date: "2026-11-25", title: "Studio blocks, scripts on parts and a new Games page", sections: [
+    ["New", ["A full Games page with a featured game, recently played, search and sorting", "Relay Ascent showcase template: obby, sequence puzzle, moving platform and trophy", "Scratch-style block editor: drag to insert, reorder and nest, drop on Delete to remove", "Attach Scripts and LocalScripts to parts - a killbrick is just \u201cwhen this part is touched \u2192 kill player\u201d", "Health blocks (max health, set, damage, heal, kill, respawn) with a health bar that fades in only when HP changes", "Drag scripts and UI objects between services, folders and parts in the Explorer"]],
+    ["Changed", ["Blocks and the script editor now use the dark Studio theme", "Walk speed, jump power and health can all be changed by script blocks"]],
+    ["Fixed", ["Delete confirmations in the Owner panel were invisible, so games could not be deleted", "UI buttons could stop responding when a ticking script rebuilt the GUI"]]
+  ] },
   { v: "1.0.7", date: "2026-11-22", title: "Name colors, new Catalog and mobile", sections: [
     ["New", ["Every username gets its own color in chat", "Name tags are colored by your most important badge", "The website now works on phones, with touch controls to play", "Catalog filters: author, min and max price, free only"]],
     ["Changed", ["A bigger, cleaner Catalog that fills the whole screen", "Home has no scroll bars; extra friends show as \u201c7+ Friends\u201d and open the Friends page"]]

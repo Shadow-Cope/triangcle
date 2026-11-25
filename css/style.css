@@ -18,7 +18,7 @@ canvas { display: block; width: 100%; height: 100%; }
   text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 0 0 5px rgba(0,0,0,.8);
 }
 #board {
-  position: fixed; right: 10px; top: 10px; width: 190px; border-radius: 6px; overflow: hidden;
+  position: fixed; right: 10px; top: 52px; width: 190px; border-radius: 6px; overflow: hidden;
   background: rgba(0,0,0,.4); color: #fff; font: 13px/1.4 system-ui, sans-serif; user-select: none;
 }
 #board .hd { display: flex; justify-content: space-between; padding: 5px 10px; background: rgba(0,0,0,.35); font-weight: 600; }
@@ -80,6 +80,15 @@ body.nohud #hud { display: none !important; }
 #bt input[type=number] { width: 44px; } #bt select { width: 90px; }
 #bt button { padding: 4px 8px; border: 0; border-radius: 4px; background: #fff; color: #000; font-weight: 600; cursor: pointer; }
 
+
+#vitals { position: fixed; top: 12px; right: 14px; z-index: 8; display: flex; align-items: center; gap: 8px; padding: 6px 11px; border-radius: 999px; background: rgba(27,23,16,.82); border: 1px solid rgba(255,255,255,.12); color: #f3ecd8; font: 600 12px system-ui, sans-serif; pointer-events: none; backdrop-filter: blur(4px);
+  opacity: 0; visibility: hidden; transform: translateY(-5px);
+  transition: opacity .3s ease, transform .3s ease, visibility .3s; }
+#vitals.show { opacity: 1; visibility: visible; transform: none; }
+#vitals .vitTrack { position: relative; display: block; width: 124px; height: 7px; border-radius: 4px; background: rgba(255,255,255,.14); overflow: hidden; }
+#vitals .vitTrack > i { display: block; height: 100%; width: 100%; border-radius: 4px; background: linear-gradient(90deg, #d9c9a3, #ffbf2f); transition: width .16s ease; }
+#vitals.low .vitTrack > i { background: #e5534b; }
+#vitals b { min-width: 24px; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /* ---- css/popups.css ---- */
 /* ---- in-game popups (login + body colours) ---- */

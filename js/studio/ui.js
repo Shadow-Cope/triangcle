@@ -69,13 +69,18 @@ const StudioUI = (function () {
       Position/Size as <b>Scale X, Offset X, Scale Y, Offset Y</b> in Properties. Right-click an object for
       <b>Copy</b>, <b>Cut</b>, <b>Paste Into</b>, <b>Duplicate</b> (<b>Ctrl+D</b>), <b>Rename</b> (<b>F2</b>) and <b>Delete</b>.</div>
       <div class="rsAbout" style="margin-top:12px"><b>Block scripts:</b> insert a <b>Script</b> (server) or <b>LocalScript</b>
-      (client) from Workspace, ReplicatedStorage or StarterGUI, then double-click it to open the block editor.
-      Drag blocks from the left palette into the stack, fill the inputs, and use <b>repeat</b>/<b>if</b> bodies for nesting.
-      Start with a hat: <b>when game starts</b>, <b>when an object is clicked</b>, <b>when an object is hovered</b>,
-      <b>when the player touches a part</b>, or <b>every N seconds</b>. <b>Make a Variable</b> in the palette for
-      score/health; variables are shared by every script. <b>Parts &amp; Player</b> blocks recolour, hide/show or move parts
-      (collision follows), teleport the player and change walk/jump speed. Try
-      <b>Home &gt; Open a Template &gt; Relay Station</b> for a finished example.</div>`,
+      (client) from Workspace, ReplicatedStorage or StarterGUI - or hover a part and press its <b>+</b> to attach a
+      script straight to it - then double-click it to open the block editor.
+      Drag blocks from the left palette into the stack: a blue line shows where they will land, so you can reorder,
+      nest into <b>repeat</b>/<b>if</b> bodies, or drop on the canvas to add at the end. Drop a block on <b>Delete</b>
+      (bottom of the palette) to remove it. Start with a hat: <b>when game starts</b>, <b>when an object is clicked</b>,
+      <b>when an object is hovered</b>, <b>when the player touches a part</b>, <b>when this part is touched</b>
+      (scripts on a part) or <b>every N seconds</b>. <b>Make a Variable</b> in the palette for score/health; variables
+      are shared by every script. <b>Parts &amp; Player</b> blocks recolour, hide/show or move parts (collision follows),
+      teleport the player, change walk speed / jump power and set <b>health</b> (max health, set, damage, heal, kill,
+      respawn) - <b>when this part is touched &rarr; kill player</b> makes a killbrick. You can also drag scripts and
+      UI objects in the Explorer to move them between services, folders and parts. Try
+      <b>Home &gt; Open a Template &gt; Relay Ascent</b> for a finished example.</div>`,
     });
   }
 

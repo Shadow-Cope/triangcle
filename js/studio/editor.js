@@ -645,7 +645,7 @@ const StudioEditor = (function () {
   }
 
   function canInsertInto(target) {
-    if (target.kind === "part") return false;
+    if (target.kind === "part") return true;
     if (target.kind === "service") return target.key === "workspace" || target.key === "starterGui" || target.key === "replicatedStorage";
     return !!target.node && !isScript(target.node) && (target.node.class === "ScreenGui" || target.node.class === "Frame" || target.node.class === "Folder");
   }
@@ -678,6 +678,10 @@ const StudioEditor = (function () {
   function runContextCommand(cmd, target) {
     if (!target) return;
     if (cmd === "insert") {
+      if (target.kind === "part") {
+        openInsertMenu(target.el || $("stTree"), { kind: "part", part: target.part });
+        return;
+      }
       const kind = target.kind === "service"
         ? (target.key === "workspace" ? "workspace" : target.key === "replicatedStorage" ? "replicatedStorage" : "starterGui")
         : "gui";
@@ -863,6 +867,101 @@ const StudioEditor = (function () {
     return [];
   }
 
+  /* ---- explorer drag & drop (scripts and UI between services, folders and parts) ---- */
+  let treeDrag = null;
+
+  function findAnyNode(id) {
+    ensureGui();
+    const guiHit = guiFind(id, game.map.gui);
+    if (guiHit) {
+      const list = guiHit.parent ? (guiHit.parent.children || []) : game.map.gui;
+      return { node: guiHit.node, parent: guiHit.parent, list, index: list.indexOf(guiHit.node) };
+    }
+    for (const key of ["workspaceScripts", "replicatedStorage"]) {
+      const list = game.map[key] || [];
+      const index = list.findIndex(node => node.id === id);
+      if (index >= 0) return { node: list[index], parent: null, list, index, key };
+    }
+    return null;
+  }
+
+  function treeDropTarget(row) {
+    if (!row) return null;
+    if (row.dataset.part) {
+      const part = parts.find(p => p.key === row.dataset.part);
+      return part ? { kind: "part", part, el: row } : null;
+    }
+    if (row.dataset.gui) {
+      const hit = findAnyNode(row.dataset.gui);
+      return hit ? { kind: "gui", node: hit.node, el: row } : null;
+    }
+    if (row.dataset.service) return { kind: "service", key: row.dataset.service, el: row };
+    return null;
+  }
+
+  function canTreeDrop(node, target) {
+    if (!node || !target) return false;
+    const script = isScript(node);
+    if (target.kind === "part") return script;
+    if (target.kind === "service") {
+      if (target.key === "workspace" || target.key === "replicatedStorage") return script;
+      if (target.key === "starterGui") return true;
+      return false;
+    }
+    if (target.kind === "gui") {
+      const p = target.node;
+      if (!p || isScript(p)) return false;
+      if (p.class !== "ScreenGui" && p.class !== "Frame" && p.class !== "Folder") return false;
+      if (p === node) return false;
+      if (guiFind(node.id, [p])) return false;
+      return true;
+    }
+    return false;
+  }
+
+  function moveTreeNode(hit, target) {
+    const node = hit.node;
+    if (!node || hit.index < 0) return;
+    const script = isScript(node);
+    if (target.kind === "part") {
+      if (!script) return;
+      hit.list.splice(hit.index, 1);
+      if (!game.map.workspaceScripts.includes(node)) game.map.workspaceScripts.push(node);
+      node.parentPart = target.part.name;
+    } else if (target.kind === "service") {
+      if (target.key === "workspace" || target.key === "replicatedStorage") {
+        if (!script) return;
+        hit.list.splice(hit.index, 1);
+        const list = target.key === "workspace" ? game.map.workspaceScripts : game.map.replicatedStorage;
+        if (!list.includes(node)) list.push(node);
+        delete node.parentPart;
+      } else if (target.key === "starterGui") {
+        hit.list.splice(hit.index, 1);
+        delete node.parentPart;
+        game.map.gui.push(node);
+      } else return;
+    } else if (target.kind === "gui") {
+      const parent = target.node;
+      if (!parent || parent === node) return;
+      if (!script && guiFind(node.id, [parent])) return;
+      hit.list.splice(hit.index, 1);
+      delete node.parentPart;
+      if (!parent.children) parent.children = [];
+      parent.children.push(node);
+      expanded[parent.id] = true;
+    } else return;
+    renderTree();
+    renderProps();
+    selectGui(node.id);
+    markDirty();
+  }
+
+  function endTreeDrag() {
+    treeDrag = null;
+    document.body.classList.remove("treeDragging");
+    for (const el of document.querySelectorAll("#stTree .dragging, #stTree .dropInto")) el.classList.remove("dragging", "dropInto");
+  }
+
   /* ---- GUI rendering (2D overlay over the viewport) ---- */
   function toPx(udim, total) { return (Number(udim[0]) || 0) * total + (Number(udim[1]) || 0); }
 
@@ -1037,10 +1136,18 @@ const StudioEditor = (function () {
       const isOpen = expanded[svc.key] !== false;
       const rows = [];
       if (svc.key === "workspace") {
+        const partNames = new Set(parts.map(p => p.name));
         for (const p of parts) {
-          rows.push('<div class="rsTreeRow rsChild' + (selected === p ? " on" : "") + '" data-part="' + p.key + '">' + PART_ICON + '<span class="rsTreeName">' + esc(p.name) + "</span></div>");
+          const kids = (game.map.workspaceScripts || []).filter(s => s.parentPart === p.name);
+          rows.push('<div class="rsTreeRow rsChild' + (selected === p ? " on" : "") + '" data-part="' + p.key + '">' + PART_ICON + '<span class="rsTreeName">' + esc(p.name) + "</span>"
+            + (kids.length ? '<span class="rsTreeClass">' + kids.length + ' script' + (kids.length === 1 ? "" : "s") + "</span>" : "")
+            + insertBtn("part:" + p.key, "", "Insert a script into " + p.name) + "</div>");
+          for (const node of kids) rows.push(guiRowHtml(node, 2));
         }
-        for (const node of game.map.workspaceScripts) rows.push(guiRowHtml(node, 1));
+        for (const node of game.map.workspaceScripts) {
+          if (node.parentPart && partNames.has(node.parentPart)) continue;
+          rows.push(guiRowHtml(node, 1));
+        }
       } else if (svc.key === "starterGui") {
         for (const node of game.map.gui) rows.push(guiRowHtml(node, 1));
       } else if (svc.key === "replicatedStorage") {
@@ -1062,12 +1169,12 @@ const StudioEditor = (function () {
   function guiRowHtml(node, depth) {
     const kids = guiChildren(node);
     const isOpen = expanded[node.id] !== false;
-    let html = '<div class="rsTreeRow rsChild' + (selGui === node ? " on" : "") + '" data-gui="' + esc(node.id) + '" style="padding-left:' + (6 + depth * 12) + 'px">'
+    let html = '<div class="rsTreeRow rsChild' + (selGui === node ? " on" : "") + '" data-gui="' + esc(node.id) + '" draggable="true" style="padding-left:' + (6 + depth * 12) + 'px">'
       + twisty(node.id, kids.length > 0)
       + (GUI_ICON[node.class] || FOLDER_ICON)
       + '<span class="rsTreeName">' + esc(node.name) + "</span>"
       + '<span class="rsTreeClass">' + esc(node.class) + "</span>"
-      + insertBtn("gui:" + node.id, "", "Insert object into " + node.name)
+      + (isScript(node) ? "" : insertBtn("gui:" + node.id, "", "Insert object into " + node.name))
       + "</div>";
     if (isOpen && kids.length) html += '<div class="rsTreeKids">' + kids.map(kid => guiRowHtml(kid, depth + 1)).join("") + "</div>";
     return html;
@@ -1079,6 +1186,9 @@ const StudioEditor = (function () {
     if (target.kind === "workspace") {
       return SHAPES.map((name, shape) => ({ label: name, shape }))
         .concat([{ label: "Script", cls: "Script" }, { label: "LocalScript", cls: "LocalScript" }]);
+    }
+    if (target.kind === "part") {
+      return [{ label: "Script", cls: "Script" }, { label: "LocalScript", cls: "LocalScript" }];
     }
     if (target.kind === "replicatedStorage") {
       return [{ label: "Script", cls: "Script" }, { label: "LocalScript", cls: "LocalScript" }];
@@ -1140,6 +1250,15 @@ const StudioEditor = (function () {
       if (cls) { insertNodeInto(game.map.workspaceScripts, cls); return; }
       const shape = btn.dataset.shape === "" ? 1 : +btn.dataset.shape;
       addPart(shape);
+      return;
+    }
+    if (target.kind === "part") {
+      if (cls) {
+        const node = insertNodeInto(game.map.workspaceScripts, cls);
+        node.parentPart = target.part.name;
+        renderTree();
+        selectGui(node.id);
+      }
       return;
     }
     if (target.kind === "replicatedStorage") {
@@ -1406,6 +1525,7 @@ const StudioEditor = (function () {
     onClick: { cat: "event", label: "when {target} is clicked", args: { target: "" }, hat: true },
     onHover: { cat: "event", label: "when {target} is hovered", args: { target: "" }, hat: true },
     onTouch: { cat: "event", label: "when player touches {part}", args: { part: "" }, hat: true },
+    onTouchSelf: { cat: "event", label: "when this part is touched", args: {}, hat: true },
     every:   { cat: "event", label: "every {n} seconds", args: { n: "1" }, hat: true },
 
     wait:    { cat: "flow", label: "wait {n} seconds", args: { n: "1" } },
@@ -1432,6 +1552,12 @@ const StudioEditor = (function () {
     teleport:   { cat: "world", label: "teleport player to {x} {y} {z}", args: { x: "0", y: "3", z: "0" } },
     walkSpeed:  { cat: "world", label: "set walk speed to {n}", args: { n: "16" } },
     jumpPower:  { cat: "world", label: "set jump power to {n}", args: { n: "50" } },
+    setMaxHealth: { cat: "world", label: "set max health to {n}", args: { n: "100" } },
+    setHealth:  { cat: "world", label: "set health to {n}", args: { n: "100" } },
+    damage:     { cat: "world", label: "damage player by {n}", args: { n: "10" } },
+    heal:       { cat: "world", label: "heal player by {n}", args: { n: "10" } },
+    kill:       { cat: "world", label: "kill player", args: {} },
+    respawn:    { cat: "world", label: "respawn player", args: {} },
 
     print:   { cat: "debug", label: "log {text}", args: { text: "hello" } },
   };
@@ -1594,7 +1720,7 @@ const StudioEditor = (function () {
 
   function renderScriptProps(box, node) {
     const key = listKeyOf(node);
-    const parentName = key === "workspaceScripts" ? "Workspace" : key === "replicatedStorage" ? "ReplicatedStorage" : "StarterGUI";
+    const parentName = node.parentPart || (key === "workspaceScripts" ? "Workspace" : key === "replicatedStorage" ? "ReplicatedStorage" : "StarterGUI");
     const blocks = (node.blocks || []).length;
     box.innerHTML =
       '<div class="rsPropGroup">Data</div>'
@@ -2768,6 +2894,10 @@ const StudioEditor = (function () {
           const hit = guiFind(kind.slice(4), GUI_ROOTS());
           if (hit) target = { kind: "gui", node: hit.node };
         }
+        else if (kind.indexOf("part:") === 0) {
+          const part = parts.find(p => p.key === kind.slice(5));
+          if (part) target = { kind: "part", part };
+        }
         if (target) openInsertMenu(ins, target);
         return;
       }
@@ -2777,6 +2907,46 @@ const StudioEditor = (function () {
       if (gui) { selectGui(gui.dataset.gui); return; }
       const svc = e.target.closest("[data-service]");
       if (svc) { selectService(svc.dataset.service); return; }
+    });
+    const treeBox = $("stTree");
+    treeBox.addEventListener("dragstart", e => {
+      const row = e.target.closest("[data-gui]");
+      if (!row) return;
+      const hit = findAnyNode(row.dataset.gui);
+      if (!hit) return;
+      treeDrag = { id: hit.node.id };
+      try { e.dataTransfer.setData("text/plain", JSON.stringify({ tree: 1, id: hit.node.id })); } catch (_) {}
+      e.dataTransfer.effectAllowed = "move";
+      row.classList.add("dragging");
+      document.body.classList.add("treeDragging");
+    });
+    treeBox.addEventListener("dragend", endTreeDrag);
+    treeBox.addEventListener("dragover", e => {
+      if (!treeDrag) return;
+      const row = e.target.closest("[data-gui], [data-part], [data-service]");
+      if (!row) return;
+      const hit = findAnyNode(treeDrag.id);
+      const target = treeDropTarget(row);
+      if (!hit || !canTreeDrop(hit.node, target)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      for (const el of treeBox.querySelectorAll(".dropInto")) el.classList.remove("dropInto");
+      row.classList.add("dropInto");
+    });
+    treeBox.addEventListener("dragleave", e => {
+      if (treeBox.contains(e.relatedTarget)) return;
+      for (const el of treeBox.querySelectorAll(".dropInto")) el.classList.remove("dropInto");
+    });
+    treeBox.addEventListener("drop", e => {
+      if (!treeDrag) return;
+      const row = e.target.closest("[data-gui], [data-part], [data-service]");
+      const hit = findAnyNode(treeDrag.id);
+      const target = treeDropTarget(row);
+      if (hit && target && canTreeDrop(hit.node, target)) {
+        e.preventDefault();
+        moveTreeNode(hit, target);
+      }
+      endTreeDrag();
     });
     $("stInsertMenu").addEventListener("click", e => {
       const b = e.target.closest("[data-cls]");
@@ -2794,7 +2964,7 @@ const StudioEditor = (function () {
         target = { kind: "gui", node: hit.node };
       } else if (row.dataset.part) {
         selectPart(row.dataset.part);
-        target = { kind: "part", part: selected };
+        target = { kind: "part", part: selected, el: row };
       } else {
         selectService(row.dataset.service);
         target = { kind: "service", key: row.dataset.service };
