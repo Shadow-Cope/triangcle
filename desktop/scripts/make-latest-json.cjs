@@ -48,6 +48,14 @@ function assetFor(file) {
   if (clean !== base) fs.renameSync(file, path.join(dir, clean));
   const cleanSig = clean + ".sig";
   if (cleanSig !== base + ".sig") fs.renameSync(sig, path.join(dir, cleanSig));
+  // The release workflow uploads artifacts/* (top level only). Copy each updater
+  // bundle next to the manifests so the asset URL in latest.json really exists.
+  const src = path.join(dir, clean);
+  const dst = path.join(root, clean);
+  if (path.resolve(src) !== path.resolve(dst)) {
+    fs.copyFileSync(src, dst);
+    fs.copyFileSync(path.join(dir, cleanSig), dst + ".sig");
+  }
   return {
     asset: clean,
     signature: fs.readFileSync(path.join(dir, cleanSig), "utf8").trim(),
@@ -77,6 +85,16 @@ function manifest(wantStudio) {
 
 const game = manifest(false);
 const studio = manifest(true);
+for (const m of [game, studio]) {
+  if (!m) continue;
+  for (const entry of Object.values(m.platforms)) {
+    const name = decodeURIComponent(entry.url.split("/").pop());
+    if (!fs.existsSync(path.join(root, name))) {
+      console.error("release asset missing from the upload folder:", name);
+      process.exit(1);
+    }
+  }
+}
 if (game) fs.writeFileSync(path.join(root, "latest.json"), JSON.stringify(game, null, 2));
 if (studio) fs.writeFileSync(path.join(root, "latest-studio.json"), JSON.stringify(studio, null, 2));
 
