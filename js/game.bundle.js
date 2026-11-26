@@ -6174,9 +6174,6 @@ const NOTIF = { rows: [], fresh: new Set(), freshPatch: new Set(), timer: 0 };
 /* Patch notes: add a new entry at the TOP of this list for every patch / update / version.
    Each one shows up as its own numbered notification. sections: New / Changed / Fixed / Removed. */
 const PATCHES = [
-  { v: "1.9.1", date: "2026-11-26", title: "Owner-only item editing and chosen staff", sections: [
-    ["Changed", ["Only Owners (Owen's account or the Owner badge) get the Owner panel and staff tools", "A chosen staff badge with \u201cCan edit and delete Catalog items\u201d gets the Catalog item editor, labelled Staff tools", "The Admin badge no longer gets Catalog item editing automatically", "Run supabase_owner_only.sql once so the server enforces the same rule"]]
-  ] },
   { v: "1.9.0", date: "2026-11-25", title: "Studio blocks, scripts on parts and a new Games page", sections: [
     ["New", ["A full Games page with a featured game, recently played, search and sorting", "Relay Ascent showcase template: obby, sequence puzzle, moving platform and trophy", "Scratch-style block editor: drag to insert, reorder and nest, drop on Delete to remove", "Attach Scripts and LocalScripts to parts - a killbrick is just \u201cwhen this part is touched \u2192 kill player\u201d", "Health blocks (max health, set, damage, heal, kill, respawn) with a health bar that fades in only when HP changes", "Drag scripts and UI objects between services, folders and parts in the Explorer"]],
     ["Changed", ["Blocks and the script editor now use the dark Studio theme", "Walk speed, jump power and health can all be changed by script blocks"]],
