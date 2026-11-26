@@ -70,15 +70,19 @@ available as a temporary fallback; it is no longer the default.
 ## Clothing UGC (Shirts / Pants)
 
 UGC creators can make clothes as well as 3D accessories. In the UGC tab pick **Type: Shirt or Pants**, download a template
-(**Template** = the branded one, **Transparent** = just thin cell outlines on a clear background, **Labeled guide** = every
-face marked U/D/F/B/L/R), paint in the cells, and upload the PNG (512 x 512, or any square from 256 to 2048; max 2 MB).
+(**Template** = branded canvas with faint cell outlines, **Transparent** = a clear 512 × 512 canvas, **Labeled guide** = every
+face marked and shaded), paint in the cells, and upload the PNG (512 x 512, or any square from 256 to 2048; max 2 MB).
 Transparent pixels show the body colour.
 
 - Templates live in `assets/templates/` (`shirt-*.png`, `pants-*.png`). The cell rectangles used by the game are `CLOTH_CELLS`
-  in `js/game/character.js` - if you redraw the templates, update those numbers to match.
+  in `js/game/character.js` (and the bundled `js/game.bundle.js`) - if you redraw the templates, update those numbers to match.
+  `assets/templates/make-templates.ps1` regenerates all six PNGs from the current cell table.
+- The layout matches the actual rig proportions: the torso front/back are square, its sides are half as wide and its top/bottom
+  half as tall; arm and leg cells follow the 0.95 x 2.1 x 1 / 1 x 2 x 1 limbs.
 - Layout: the torso is the cross at the top; the bottom-left cross is the avatar's **right** arm / leg (R F L B) and the bottom-right
   cross is the **left** arm / leg (B R F L). F = front, B = back, R / L = the avatar's own right / left side, U = top, D = bottom.
-- Shirt = torso + both arms. Pants = both legs + the bottom strip of the torso. Shirt draws over pants.
+- Shirt = torso + both arms. Pants = both legs + the bottom strip of the torso (marked with the darker band on the pants guide).
+  Shirt draws over pants.
 - You can wear one shirt and one pants at a time (wearing a new one takes the old one off); accessories still stack up to 6.
 - Stored like any item: `ugc_items.attach` is `Shirt` / `Pants` and `file_path` is a `.png` in the `ugc` bucket, so buying, selling,
   the Shop, inventory and the item page all work unchanged. Run `supabase_clothing.sql` once.
@@ -129,8 +133,10 @@ The first version has:
     and z-index; **Parts &amp; Player** blocks recolour, hide/show or **move** parts (collision moves too, and standing
     players ride along), teleport the player, change walk speed / jump power, and set **health** (max health, set,
     damage, heal, kill, respawn) - a part with **when this part is touched &rarr; kill player** is a working killbrick.
-    Parts can also toggle **CanCollide**, be **unanchored** (they fall under gravity) and **tween** smoothly to a new
-    position over time.
+    Parts can also toggle **CanCollide**, be **unanchored** (they fall under gravity), **resize/rotate/destroy**, and
+    **tween** smoothly to a new position over time. More complex games get **when key is pressed**, **when a variable
+    crosses a value**, **repeat forever**, **wait until**, random/maths/clamp variable blocks, gravity and forcefield
+    controls, teleport-to-part, and **tween a UI element** to a new screen position.
     In the Explorer you can **drag scripts and UI objects** between Workspace, ReplicatedStorage, StarterGUI, folders
     and parts. Scripts run in the playtest and in published games - server scripts first, then local ones.
     **Home &gt; Open a Template &gt; Relay Ascent** is a finished showcase using all of it (obby, sequence puzzle,

@@ -1526,15 +1526,23 @@ const StudioEditor = (function () {
     onHover: { cat: "event", label: "when {target} is hovered", args: { target: "" }, hat: true },
     onTouch: { cat: "event", label: "when player touches {part}", args: { part: "" }, hat: true },
     onTouchSelf: { cat: "event", label: "when this part is touched", args: {}, hat: true },
+    onKey:   { cat: "event", label: "when key {key} is pressed", args: { key: "space" }, hat: true },
+    onVariable: { cat: "event", label: "when {var} {op} {value}", args: { var: "", op: "=", value: "0" }, hat: true },
     every:   { cat: "event", label: "every {n} seconds", args: { n: "1" }, hat: true },
 
     wait:    { cat: "flow", label: "wait {n} seconds", args: { n: "1" } },
+    waitUntil: { cat: "flow", label: "wait until {var} {op} {value}", args: { var: "", op: "=", value: "0" } },
     repeat:  { cat: "flow", label: "repeat {n} times", args: { n: "3" }, body: true },
+    repeatForever: { cat: "flow", label: "repeat forever (yields 0.03s)", args: {}, body: true },
     if:      { cat: "flow", label: "if {target} · {prop} {op} {value}", args: { target: "", prop: "Text", op: "=", value: "" }, body: true },
     stop:    { cat: "flow", label: "stop this script", args: {} },
 
     setVar:    { cat: "var", label: "set {var} to {value}", args: { var: "", value: "0" } },
     changeVar: { cat: "var", label: "change {var} by {n}", args: { var: "", n: "1" } },
+    setVarRandom: { cat: "var", label: "set {var} to random {min} to {max}", args: { var: "", min: "1", max: "10" } },
+    changeVarRandom: { cat: "var", label: "change {var} by random {min} to {max}", args: { var: "", min: "1", max: "10" } },
+    setVarOp:  { cat: "var", label: "set {var} to {var2} {mop} {n}", args: { var: "", var2: "", mop: "+", n: "1" } },
+    clampVar:  { cat: "var", label: "limit {var} between {min} and {max}", args: { var: "", min: "0", max: "100" } },
     ifVar:     { cat: "var", label: "if {var} {op} {value}", args: { var: "", op: "=", value: "0" }, body: true, elseBody: true },
 
     setText:   { cat: "ui", label: "set text of {target} to {text}", args: { target: "", text: "Hello" } },
@@ -1543,16 +1551,25 @@ const StudioEditor = (function () {
     setPropVar:{ cat: "ui", label: "set {prop} of {target} to variable {var}", args: { target: "", prop: "Text", var: "" } },
     show:      { cat: "ui", label: "show {target}", args: { target: "" } },
     hide:      { cat: "ui", label: "hide {target}", args: { target: "" } },
+    tweenGui:  { cat: "ui", label: "tween {target} to x {x} y {y} in {n} seconds", args: { target: "", x: "0.5", y: "0.5", n: "1" } },
 
-    partColor:  { cat: "world", label: "set colour of part {part} to {color}", args: { part: "", color: "#ff4444" } },
-    partTrans:  { cat: "world", label: "set transparency of part {part} to {n}", args: { part: "", n: "0.5" } },
-    partShow:   { cat: "world", label: "show part {part}", args: { part: "" } },
-    partHide:   { cat: "world", label: "hide part {part}", args: { part: "" } },
-    setCollide: { cat: "world", label: "set {part} can collide {on}", args: { part: "", on: "true" } },
-    setAnchored:{ cat: "world", label: "set {part} anchored {on}", args: { part: "", on: "true" } },
-    tweenPart:  { cat: "world", label: "tween part {part} to {x} {y} {z} in {n} seconds", args: { part: "", x: "0", y: "3", z: "0", n: "1" } },
-    movePart:   { cat: "world", label: "move part {part} by {x} {y} {z}", args: { part: "", x: "0", y: "1", z: "0" } },
+    partColor:  { cat: "part", label: "set colour of part {part} to {color}", args: { part: "", color: "#ff4444" } },
+    partTrans:  { cat: "part", label: "set transparency of part {part} to {n}", args: { part: "", n: "0.5" } },
+    partShow:   { cat: "part", label: "show part {part}", args: { part: "" } },
+    partHide:   { cat: "part", label: "hide part {part}", args: { part: "" } },
+    setCollide: { cat: "part", label: "set {part} can collide {on}", args: { part: "", on: "true" } },
+    setAnchored:{ cat: "part", label: "set {part} anchored {on}", args: { part: "", on: "true" } },
+    movePart:   { cat: "part", label: "move part {part} by {x} {y} {z}", args: { part: "", x: "0", y: "1", z: "0" } },
+    setPartPos: { cat: "part", label: "set part {part} position to {x} {y} {z}", args: { part: "", x: "0", y: "0", z: "0" } },
+    setPartSize:{ cat: "part", label: "set part {part} size to {x} {y} {z}", args: { part: "", x: "4", y: "1", z: "4" } },
+    rotatePart: { cat: "part", label: "rotate part {part} by {x} {y} {z} degrees", args: { part: "", x: "0", y: "90", z: "0" } },
+    tweenPart:  { cat: "part", label: "tween part {part} to {x} {y} {z} in {n} seconds", args: { part: "", x: "0", y: "3", z: "0", n: "1" } },
+    destroyPart:{ cat: "part", label: "destroy part {part}", args: { part: "" } },
+
     teleport:   { cat: "world", label: "teleport player to {x} {y} {z}", args: { x: "0", y: "3", z: "0" } },
+    teleportPart:{ cat: "world", label: "teleport player to part {part}", args: { part: "" } },
+    setGravity: { cat: "world", label: "set gravity to {n}", args: { n: "196.2" } },
+    forcefield: { cat: "world", label: "give player forcefield for {n} seconds", args: { n: "3" } },
     walkSpeed:  { cat: "world", label: "set walk speed to {n}", args: { n: "16" } },
     jumpPower:  { cat: "world", label: "set jump power to {n}", args: { n: "50" } },
     setMaxHealth: { cat: "world", label: "set max health to {n}", args: { n: "100" } },
@@ -1563,9 +1580,10 @@ const StudioEditor = (function () {
     respawn:    { cat: "world", label: "respawn player", args: {} },
 
     print:   { cat: "debug", label: "log {text}", args: { text: "hello" } },
+    printVar:{ cat: "debug", label: "log variable {var}", args: { var: "" } },
   };
-  const BLOCK_CATS = { event: "Events", flow: "Flow", var: "Variables", ui: "UI", world: "Parts & Player", debug: "Debug" };
-  const BLOCK_COLORS = { event: "#8a6a2f", flow: "#7c5a2d", var: "#9a5a2c", ui: "#2f5d8a", world: "#35664a", debug: "#5a4a7a" };
+  const BLOCK_CATS = { event: "Events", flow: "Flow", var: "Variables", ui: "UI", part: "Parts", world: "Player", debug: "Debug" };
+  const BLOCK_COLORS = { event: "#8a6a2f", flow: "#7c5a2d", var: "#9a5a2c", ui: "#2f5d8a", part: "#35664a", world: "#4a5568", debug: "#5a4a7a" };
   const BLOCK_PROPS = ["Text", "TextColor3", "TextSize", "TextTransparency", "BackgroundColor3", "BackgroundTransparency", "BorderSizePixel", "Visible", "ZIndex", "Position", "Size", "Rotation", "Image", "ImageTransparency"];
   const BLOCK_OPS = ["=", "≠", "<", ">"];
 
@@ -1796,7 +1814,7 @@ const StudioEditor = (function () {
   }
 
   function blockSlotPlaceholder(key) {
-    return ({ target: "object", prop: "property", op: "=", n: "number", text: "text", value: "value", on: "yes / no" })[key] || key;
+    return ({ target: "object", prop: "property", op: "=", n: "number", text: "text", value: "value", on: "yes / no", key: "key", var2: "variable", mop: "+", min: "number", max: "number" })[key] || key;
   }
 
   function blockInputHtml(key, block) {
@@ -1822,6 +1840,20 @@ const StudioEditor = (function () {
     }
     if (key === "prop") return '<select class="blkInput"' + common + ">" + optionList(BLOCK_PROPS, value || "Text") + "</select>";
     if (key === "op") return '<select class="blkInput"' + common + ">" + optionList(BLOCK_OPS, value || "=") + "</select>";
+    if (key === "key") {
+      const list = [["space", "Space"], ["w", "W"], ["a", "A"], ["s", "S"], ["d", "D"], ["shift", "Shift"], ["e", "E"], ["q", "Q"], ["r", "R"], ["f", "F"], ["g", "G"], ["enter", "Enter"], ["arrowup", "Up"], ["arrowdown", "Down"], ["arrowleft", "Left"], ["arrowright", "Right"]];
+      return '<select class="blkInput"' + common + ">" + list.map(([v, label]) => '<option value="' + v + '"' + (v === value ? " selected" : "") + ">" + label + "</option>").join("") + "</select>";
+    }
+    if (key === "var2") {
+      const vars = (game && game.map && game.map.vars) ? Object.keys(game.map.vars) : [];
+      return '<select class="blkInput"' + common + '><option value="">— variable —</option>'
+        + vars.map(n => '<option value="' + esc(n) + '"' + (n === value ? " selected" : "") + ">" + esc(n) + "</option>").join("")
+        + "</select>";
+    }
+    if (key === "mop") {
+      return '<select class="blkInput"' + common + ">" + optionList(["+", "-", "×", "÷"], value || "+") + "</select>";
+    }
+    if (key === "min" || key === "max") return '<input class="blkInput blkNum" type="number" step="0.1"' + common + ' value="' + esc(value) + '">';
     if (key === "on") {
       const on = value !== "false";
       return '<select class="blkInput"' + common + '><option value="true"' + (on ? " selected" : "") + ">yes</option><option value=\"false\"" + (on ? "" : " selected") + ">no</option></select>";

@@ -448,6 +448,8 @@ function addWedgeCollision(sx, sy, sz, x, y, z, R, corner) {
 const PART_MESHES = new Map();   // part name -> mesh, for block scripts
 const PART_SOLIDS = new Map();   // part name -> collision boxes, so moved parts still collide
 const PART_TOUCH = new Map();    // part name -> boxes for Touched, even when CanCollide is off
+const PART_INFO = new Map();     // part name -> { size, base, scale0, shape }
+const PART_COLLIDE = new Set();  // part names whose collision is currently on
 function buildMapWorld(map) {
   SPAWN.set(map.spawn[0], map.spawn[1], map.spawn[2]);
   let half = 0;                                                         // camera stays above the ground only where there is a big ground part
@@ -456,6 +458,8 @@ function buildMapWorld(map) {
   PART_MESHES.clear();
   PART_SOLIDS.clear();
   PART_TOUCH.clear();
+  PART_INFO.clear();
+  PART_COLLIDE.clear();
   const texC = new Map(), matC = new Map(), geoC = new Map();
   const presetOf = name => MAT_PRESETS[name] || MAT_PRESETS.Plastic;
   const opacityOf = (preset, tr) => Math.max(0.02, Math.min(1, (preset.glass ? 0.55 : 1) * (1 - (tr || 0))));
@@ -519,6 +523,10 @@ function buildMapWorld(map) {
     scene.add(m);
     const partName = typeof row[13] === "string" && row[13] ? row[13] : "";
     if (partName) PART_MESHES.set(partName, m);
+    if (partName) {
+      PART_INFO.set(partName, { size: [sx, sy, sz], base: [sx, sy, sz], scale0: [m.scale.x, m.scale.y, m.scale.z], shape });
+      if (col) PART_COLLIDE.add(partName);
+    }
     // Build boxes for scripts even when the part is a trigger (CanCollide off).
     if (!col && !partName) continue;
     const solidFrom = solids.length;
@@ -683,6 +691,27 @@ function paintRuntimeNode(node) {
   const pw = Math.max(1, parent ? parent.clientWidth : window.innerWidth);
   const ph = Math.max(1, parent ? parent.clientHeight : window.innerHeight);
   styleGuiElement(el, node, pw, ph);
+}
+
+/* ---- smooth GUI position tweens (script block) ---- */
+const GUI_TWEENS = new Map();       // node -> { from, to, t, dur }
+function tweenRuntimeGui(target, x, y, seconds) {
+  const node = findRuntimeNode(guiLayerMap || {}, target);
+  if (!node) return;
+  const from = Array.isArray(node.props.Position) ? node.props.Position.slice() : [0, 0, 0, 0];
+  const tx = Math.max(0, Math.min(1, guiNum(x)));
+  const ty = Math.max(0, Math.min(1, guiNum(y)));
+  GUI_TWEENS.set(node, { from, to: [tx, 0, ty, 0], t: 0, dur: Math.max(0.05, Math.min(60, guiNum(seconds) || 1)) });
+}
+function updateGuiTweens(dt) {
+  for (const [node, tw] of GUI_TWEENS) {
+    tw.t += dt;
+    const k = Math.min(1, tw.t / tw.dur);
+    const e = k * k * (3 - 2 * k);
+    node.props.Position = [0, 1, 2, 3].map(i => tw.from[i] + (tw.to[i] - tw.from[i]) * e);
+    paintRuntimeNode(node);
+    if (k >= 1) GUI_TWEENS.delete(node);
+  }
 }
 
 function buildRuntimeGui(g) {
@@ -872,6 +901,7 @@ function setPartCollide(name, on) {
     if (on && i < 0) solids.push(box);
     else if (!on && i >= 0) solids.splice(i, 1);
   }
+  if (on) PART_COLLIDE.add(name); else PART_COLLIDE.delete(name);
 }
 
 function setPartAnchored(name, on) {
@@ -938,8 +968,106 @@ function updateTweens(dt) {
   }
 }
 
+/* ---- resize / rotate / destroy parts ---- */
+function quatRowMajor(q) {
+  const e = new THREE.Matrix4().makeRotationFromQuaternion(q).elements;
+  return [e[0], e[1], e[2], e[4], e[5], e[6], e[8], e[9], e[10]];
+}
+
+function rebuildPartBoxes(name) {
+  const info = PART_INFO.get(name), mesh = PART_MESHES.get(name);
+  if (!info || !mesh) return;
+  for (const map of [PART_SOLIDS, PART_TOUCH]) {
+    for (const b of map.get(name) || []) {
+      const i = solids.indexOf(b);
+      if (i >= 0) solids.splice(i, 1);
+    }
+    map.delete(name);
+  }
+  const [sx, sy, sz] = info.size;
+  const x = mesh.position.x, y = mesh.position.y, z = mesh.position.z;
+  const before = solids.length;
+  const R = quatRowMajor(mesh.quaternion);
+  if (info.shape === 0 && Math.min(sx, sy, sz) > Math.max(sx, sy, sz) * 0.95) {
+    solids.push({ minX: x - sx / 2, maxX: x + sx / 2, minY: y - sy / 2, maxY: y + sy / 2, minZ: z - sz / 2, maxZ: z + sz / 2, ball: { cx: x, cy: y, cz: z, r: Math.min(sx, sy, sz) / 2 } });
+  } else if (info.shape === 3 || info.shape === 4) addWedgeCollision(sx, sy, sz, x, y, z, R, info.shape === 4);
+  else addRotatedCollision(sx, sy, sz, x, y, z, R);
+  const boxes = solids.slice(before);
+  const collide = PART_COLLIDE.has(name);
+  if (!collide) solids.length = before;
+  PART_TOUCH.set(name, boxes);
+  if (collide) PART_SOLIDS.set(name, boxes);
+}
+
+function setPartPosition(name, x, y, z) {
+  const mesh = runtimePart(name);
+  if (!mesh) return;
+  moveRuntimePart(name, guiNum(x) - mesh.position.x, guiNum(y) - mesh.position.y, guiNum(z) - mesh.position.z);
+}
+
+function setPartSize(name, x, y, z) {
+  const info = PART_INFO.get(name), mesh = runtimePart(name);
+  if (!info || !mesh) return;
+  const nx = Math.max(0.05, Math.min(512, guiNum(x)));
+  const ny = Math.max(0.05, Math.min(512, guiNum(y)));
+  const nz = Math.max(0.05, Math.min(512, guiNum(z)));
+  const b = info.base, s0 = info.scale0;
+  mesh.scale.set(s0[0] * nx / b[0], s0[1] * ny / b[1], s0[2] * nz / b[2]);
+  info.size = [nx, ny, nz];
+  rebuildPartBoxes(name);
+}
+
+function rotateRuntimePart(name, rx, ry, rz) {
+  const mesh = runtimePart(name);
+  if (!mesh) return;
+  const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(guiNum(rx) * Math.PI / 180, guiNum(ry) * Math.PI / 180, guiNum(rz) * Math.PI / 180));
+  mesh.quaternion.multiply(q).normalize();
+  rebuildPartBoxes(name);
+}
+
+function destroyRuntimePart(name) {
+  const mesh = PART_MESHES.get(name);
+  if (mesh && mesh.parent) mesh.parent.remove(mesh);
+  for (const map of [PART_SOLIDS, PART_TOUCH]) {
+    for (const b of map.get(name) || []) {
+      const i = solids.indexOf(b);
+      if (i >= 0) solids.splice(i, 1);
+    }
+    map.delete(name);
+  }
+  PART_MESHES.delete(name);
+  PART_INFO.delete(name);
+  PART_COLLIDE.delete(name);
+  PART_TWEENS.delete(name);
+  PART_DYNAMICS.delete(name);
+}
+
+function teleportPlayerToPart(name) {
+  const mesh = runtimePart(name);
+  if (!mesh) return;
+  const boxes = partRuntimeBoxes(name);
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity, maxY = -Infinity;
+  for (const b of boxes) {
+    minX = Math.min(minX, b.minX); maxX = Math.max(maxX, b.maxX);
+    minZ = Math.min(minZ, b.minZ); maxZ = Math.max(maxZ, b.maxZ);
+    maxY = Math.max(maxY, b.maxY);
+  }
+  if (!boxes.length) { minX = maxX = mesh.position.x; minZ = maxZ = mesh.position.z; maxY = mesh.position.y; }
+  teleportPlayer((minX + maxX) / 2, maxY + 0.1, (minZ + maxZ) / 2);
+}
+
+function setGameGravity(n) {
+  CFG.GRAVITY = Math.max(0, Math.min(1000, guiNum(n)));
+}
+
+function giveForcefield(seconds) {
+  player.ff = Math.max(player.ff || 0, Math.max(0, Math.min(60, guiNum(seconds))));
+}
+
 const HOVER_HANDLERS = [];
 const TOUCH_HANDLERS = [];
+const KEY_HANDLERS = [];
+const VAR_WATCHERS = [];
 
 function scriptVar(map, name) {
   return map && map.vars && Object.prototype.hasOwnProperty.call(map.vars, name) ? map.vars[name] : "";
@@ -997,6 +1125,34 @@ function checkTouchScripts() {
   }
 }
 
+/* "when key is pressed" scripts */
+function scriptKeyName(value) { return String(value || "").toLowerCase() === "space" ? " " : String(value || "").toLowerCase(); }
+function inputTyping() {
+  const el = document.activeElement;
+  return !!(el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+}
+window.addEventListener("keydown", e => {
+  if (e.repeat || !KEY_HANDLERS.length || inputTyping()) return;
+  const key = e.key.toLowerCase();
+  for (const h of KEY_HANDLERS) if (!h.down && h.key === key) { h.down = true; h.fire(); }
+});
+window.addEventListener("keyup", e => {
+  if (!KEY_HANDLERS.length) return;
+  const key = e.key.toLowerCase();
+  for (const h of KEY_HANDLERS) if (h.key === key) h.down = false;
+});
+window.addEventListener("blur", () => { for (const h of KEY_HANDLERS) h.down = false; });
+
+/* "when variable ... " scripts: fire once when the condition becomes true */
+function checkVariableWatchers() {
+  if (!VAR_WATCHERS.length) return;
+  for (const w of VAR_WATCHERS) {
+    const ok = compareValues(scriptVar(guiLayerMap, w.var), w.value, w.op);
+    if (ok && !w.on) { w.on = true; w.fire(); }
+    else if (!ok) w.on = false;
+  }
+}
+
 async function runScriptStack(blocks, map, ctl) {
   for (const block of blocks || []) {
     if (ctl && ctl.stop) return;
@@ -1007,6 +1163,18 @@ async function runScriptStack(blocks, map, ctl) {
     } else if (block.type === "repeat") {
       const times = Math.max(0, Math.min(100, Math.round(guiNum(block.args.n))));
       for (let i = 0; i < times; i++) await runScriptStack(block.body, map, ctl);
+    } else if (block.type === "repeatForever") {
+      while (!(ctl && ctl.stop)) {
+        await runScriptStack(block.body, map, ctl);
+        if (ctl && ctl.stop) break;
+        await new Promise(resolve => setTimeout(resolve, 30));
+      }
+    } else if (block.type === "waitUntil") {
+      const deadline = performance.now() + 30000;
+      while (!(ctl && ctl.stop) && performance.now() < deadline &&
+             !compareValues(scriptVar(map, block.args.var), block.args.value, block.args.op)) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
     } else if (block.type === "if") {
       if (testScriptCondition(map, block.args || {})) await runScriptStack(block.body, map, ctl);
     } else if (block.type === "ifVar") {
@@ -1016,6 +1184,29 @@ async function runScriptStack(blocks, map, ctl) {
       setScriptVar(map, block.args.var, block.args.value);
     } else if (block.type === "changeVar") {
       setScriptVar(map, block.args.var, String(guiNum(scriptVar(map, block.args.var)) + guiNum(block.args.n)));
+    } else if (block.type === "setVarRandom") {
+      const a = guiNum(block.args.min), b = guiNum(block.args.max);
+      const lo = Math.min(a, b), hi = Math.max(a, b);
+      setScriptVar(map, block.args.var, String(Math.round((lo + Math.random() * (hi - lo)) * 1000) / 1000));
+    } else if (block.type === "changeVarRandom") {
+      const a = guiNum(block.args.min), b = guiNum(block.args.max);
+      const lo = Math.min(a, b), hi = Math.max(a, b);
+      const v = guiNum(scriptVar(map, block.args.var)) + lo + Math.random() * (hi - lo);
+      setScriptVar(map, block.args.var, String(Math.round(v * 1000) / 1000));
+    } else if (block.type === "setVarOp") {
+      let v = guiNum(scriptVar(map, block.args.var2));
+      const n = guiNum(block.args.n), mop = block.args.mop;
+      if (mop === "-") v -= n;
+      else if (mop === "×" || mop === "*") v *= n;
+      else if (mop === "÷" || mop === "/") v = n === 0 ? 0 : v / n;
+      else v += n;
+      setScriptVar(map, block.args.var, String(Math.round(v * 1000) / 1000));
+    } else if (block.type === "clampVar") {
+      const lo = Math.min(guiNum(block.args.min), guiNum(block.args.max));
+      const hi = Math.max(guiNum(block.args.min), guiNum(block.args.max));
+      setScriptVar(map, block.args.var, String(Math.max(lo, Math.min(hi, guiNum(scriptVar(map, block.args.var))))));
+    } else if (block.type === "printVar") {
+      console.log("[Triancle script]", block.args.var, "=", scriptVar(map, block.args.var));
     } else if (block.type === "stop") {
       if (ctl) ctl.stop = true;
       return;
@@ -1045,6 +1236,22 @@ async function runScriptStack(blocks, map, ctl) {
       setPartAnchored(block.args.part, block.args.on !== "false");
     } else if (block.type === "tweenPart") {
       tweenRuntimePart(block.args.part, block.args.x, block.args.y, block.args.z, block.args.n);
+    } else if (block.type === "setPartPos") {
+      setPartPosition(block.args.part, block.args.x, block.args.y, block.args.z);
+    } else if (block.type === "setPartSize") {
+      setPartSize(block.args.part, block.args.x, block.args.y, block.args.z);
+    } else if (block.type === "rotatePart") {
+      rotateRuntimePart(block.args.part, block.args.x, block.args.y, block.args.z);
+    } else if (block.type === "destroyPart") {
+      destroyRuntimePart(block.args.part);
+    } else if (block.type === "teleportPart") {
+      teleportPlayerToPart(block.args.part);
+    } else if (block.type === "setGravity") {
+      setGameGravity(block.args.n);
+    } else if (block.type === "forcefield") {
+      giveForcefield(block.args.n);
+    } else if (block.type === "tweenGui") {
+      tweenRuntimeGui(block.args.target, block.args.x, block.args.y, block.args.n);
     } else if (block.type === "movePart") {
       moveRuntimePart(block.args.part, block.args.x, block.args.y, block.args.z);
     } else if (block.type === "teleport") {
@@ -1078,6 +1285,8 @@ function runScripts(map) {
   map.__hovers = [];
   HOVER_HANDLERS.length = 0;
   TOUCH_HANDLERS.length = 0;
+  KEY_HANDLERS.length = 0;
+  VAR_WATCHERS.length = 0;
   if (!map.vars || typeof map.vars !== "object" || Array.isArray(map.vars)) map.vars = {};
   const scripts = [];
   (function walk(list) {
@@ -1107,6 +1316,19 @@ function runScripts(map) {
     }
     if (hat === "onHover") {
       map.__hovers.push({ target: blocks[0].args && blocks[0].args.target, fire });
+      continue;
+    }
+    if (hat === "onKey") {
+      KEY_HANDLERS.push({ key: scriptKeyName(blocks[0].args && blocks[0].args.key), down: false, fire });
+      continue;
+    }
+    if (hat === "onVariable") {
+      VAR_WATCHERS.push({
+        var: blocks[0].args && blocks[0].args.var,
+        op: (blocks[0].args && blocks[0].args.op) || "=",
+        value: blocks[0].args && blocks[0].args.value,
+        on: false, fire,
+      });
       continue;
     }
     if (hat === "onTouch") {
@@ -1169,9 +1391,9 @@ const GEO_CACHE = {};
    Torso: T.  Right arm / right leg: A.  Left arm / left leg: C. */
 const CLOTH_W = 512, CLOTH_H = 512;
 const CLOTH_CELLS = {
-  T: { U: [167, 79, 86, 54], R: [102, 135, 54, 106], F: [158, 135, 104, 106], L: [264, 135, 54, 106], B: [320, 135, 104, 106], D: [158, 243, 104, 54] },
-  A: { U: [66, 261, 54, 54], R: [10, 317, 54, 106], F: [66, 317, 54, 106], L: [122, 317, 54, 106], B: [178, 317, 54, 106], D: [66, 425, 54, 54] },
-  C: { U: [390, 261, 54, 54], B: [278, 317, 54, 106], R: [334, 317, 54, 106], F: [390, 317, 54, 106], L: [446, 317, 54, 106], D: [390, 425, 54, 54] },
+  T: { U: [158, 83, 104, 52], R: [104, 135, 52, 104], F: [158, 135, 104, 104], L: [264, 135, 52, 104], B: [320, 135, 104, 104], D: [158, 239, 104, 52] },
+  A: { U: [62, 263, 50, 52], R: [8, 317, 52, 106], F: [62, 317, 50, 106], L: [114, 317, 52, 106], B: [168, 317, 50, 106], D: [62, 425, 50, 52] },
+  C: { U: [378, 263, 50, 52], B: [270, 317, 52, 106], R: [324, 317, 52, 106], F: [378, 317, 50, 106], L: [430, 317, 52, 106], D: [378, 425, 50, 52] },
 };
 const CLOTH_SET = { Torso: "T", FemaleTorso: "T", RightArm: "A", RightLeg: "A", LeftArm: "C", LeftLeg: "C" };
 function clothUV(d, set) {
@@ -2007,6 +2229,8 @@ function physicsStep(dt) {
   if (userParts.length) stepUserParts(dt);
   if (PART_TWEENS.size) updateTweens(dt);
   if (PART_DYNAMICS.size) updatePartDynamics(dt);
+  if (GUI_TWEENS.size) updateGuiTweens(dt);
+  if (VAR_WATCHERS.length) checkVariableWatchers();
   if (!player.alive) {
     player.respawnTimer -= dt;
     if (player.respawnTimer <= 0) respawn();
@@ -5117,7 +5341,7 @@ function ugSet(d, v) { v = ugClamp(+v || 0, d[3], d[4]); if (d[0] === "scale") U
   });
   $("ugTpl").addEventListener("click", e => {                        // template downloads: normal / transparent / labelled guide
     const b = e.target.closest("[data-tpl]"); if (!b || !isCloth(UG.attach)) return;
-    const a = document.createElement("a"); a.href = "assets/templates/" + UG.attach.toLowerCase() + "-" + b.dataset.tpl + ".png";
+    const a = document.createElement("a"); a.href = "assets/templates/" + UG.attach.toLowerCase() + "-" + b.dataset.tpl + ".png?v=1.9.0d";
     a.download = UG.attach.toLowerCase() + "-" + b.dataset.tpl + ".png"; document.body.appendChild(a); a.click(); a.remove();
   });
   const sel = $("ugAttach");

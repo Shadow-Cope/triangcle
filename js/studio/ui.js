@@ -79,7 +79,10 @@ const StudioUI = (function () {
       are shared by every script. <b>Parts &amp; Player</b> blocks recolour, hide/show or move parts (collision follows),
       teleport the player, change walk speed / jump power, toggle <b>CanCollide</b>, <b>anchor</b> parts (unanchored
       parts fall), <b>tween</b> a part to a position over time, and set <b>health</b> (max health, set, damage, heal, kill,
-      respawn) - <b>when this part is touched &rarr; kill player</b> makes a killbrick. You can also drag scripts and
+      respawn) - <b>when this part is touched &rarr; kill player</b> makes a killbrick. More advanced blocks: <b>when key
+      is pressed</b>, <b>when a variable crosses a value</b>, <b>repeat forever</b>, <b>wait until</b>, random/maths/clamp
+      variables, part <b>size / rotation / destroy / position</b>, <b>gravity</b> and <b>forcefield</b>,
+      teleport-to-part, and <b>tween a UI element</b> to a new screen position. You can also drag scripts and
       UI objects in the Explorer to move them between services, folders and parts. Try
       <b>Home &gt; Open a Template &gt; Relay Ascent</b> for a finished example.</div>`,
     });
