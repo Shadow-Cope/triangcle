@@ -1,107 +1,129 @@
 Add-Type -AssemblyName System.Drawing
 
+# Rebuilds shirt-guide.png / pants-guide.png in the original Triancle style:
+#   - the blank branded template is used as the base (tan art + logo + title)
+#   - the labelled guide adds the two-tone tan cells, single letters and the footer legend
+# The cell rectangles come from CLOTH_CELLS (js/game/character.js). The torso cells were
+# wrong in the first guide (the top face was 86 x 54 and offset); they are now 104 x 52 and
+# line up with the front, which is what the rig actually is (2 wide x 2 tall x 1 deep).
+#
+# Run:  powershell -ExecutionPolicy Bypass -File assets\templates\make-templates.ps1
+
 $root = $PSScriptRoot
+$S = 1   # canvas is 512 x 512; CLOTH_CELLS are already in 512px space
+
+# CLOTH_CELLS (keep in step with js/game/character.js)
 $cells = @{
   T = @(
-    @{ face='U'; r=@(158,83,104,52) }, @{ face='R'; r=@(104,135,52,104) }, @{ face='F'; r=@(158,135,104,104) },
-    @{ face='L'; r=@(264,135,52,104) }, @{ face='B'; r=@(320,135,104,104) }, @{ face='D'; r=@(158,239,104,52) }
+    @{ face='U'; r=@(156,83,104,52) },
+    @{ face='R'; r=@(104,135,52,104) },
+    @{ face='F'; r=@(156,135,104,104) },
+    @{ face='L'; r=@(260,135,52,104) },
+    @{ face='B'; r=@(312,135,104,104) },
+    @{ face='D'; r=@(156,239,104,52) }
   )
   A = @(
-    @{ face='U'; r=@(62,263,50,52) }, @{ face='R'; r=@(8,317,52,106) }, @{ face='F'; r=@(62,317,50,106) },
-    @{ face='L'; r=@(114,317,52,106) }, @{ face='B'; r=@(168,317,50,106) }, @{ face='D'; r=@(62,425,50,52) }
+    @{ face='U'; r=@(62,263,50,52) },
+    @{ face='R'; r=@(8,317,52,106) },
+    @{ face='F'; r=@(62,317,50,106) },
+    @{ face='L'; r=@(114,317,52,106) },
+    @{ face='B'; r=@(168,317,50,106) },
+    @{ face='D'; r=@(62,425,50,52) }
   )
   C = @(
-    @{ face='U'; r=@(378,263,50,52) }, @{ face='B'; r=@(270,317,52,106) }, @{ face='R'; r=@(324,317,52,106) },
-    @{ face='F'; r=@(378,317,50,106) }, @{ face='L'; r=@(430,317,52,106) }, @{ face='D'; r=@(378,425,50,52) }
+    @{ face='U'; r=@(378,263,50,52) },
+    @{ face='B'; r=@(270,317,52,106) },
+    @{ face='R'; r=@(324,317,52,106) },
+    @{ face='F'; r=@(378,317,50,106) },
+    @{ face='L'; r=@(430,317,52,106) },
+    @{ face='D'; r=@(378,425,50,52) }
   )
 }
 
-function Load-Base([string]$path) {
-  $src = [System.Drawing.Image]::FromFile($path)
-  $copy = New-Object System.Drawing.Bitmap $src.Width, $src.Height
-  $g = [System.Drawing.Graphics]::FromImage($copy)
-  $g.DrawImage($src, 0, 0, $src.Width, $src.Height)
-  $g.Dispose(); $src.Dispose()
-  return $copy
+# Original two-tone cell colours and the quadrant pattern each face had.
+$DARK  = [System.Drawing.Color]::FromArgb(255, 148, 104, 9)    # #946809
+$LIGHT = [System.Drawing.Color]::FromArgb(255, 203, 143, 12)   # #CB8F0C
+$INK   = [System.Drawing.Color]::FromArgb(255, 0, 0, 0)
+$NOTE  = [System.Drawing.Color]::FromArgb(255, 74, 55, 8)
+$pat = @{
+  U = 'DLLD'   # TL TR BL BR
+  R = 'DDLL'
+  F = 'DLLD'
+  L = 'LLDD'
+  B = 'LDDL'
+  D = 'LDLD'
+}
+# The limb cells use the same per-letter pattern as the torso.
+
+function Paint-Cell($g, [int]$x, [int]$y, [int]$w, [int]$h, [string]$face, [string]$pattern, $darkBrush, $lightBrush, $inkBrush, $font) {
+  $mx = [int][Math]::Floor($x + $w / 2.0)
+  $my = [int][Math]::Floor($y + $h / 2.0)
+  $quads = @(
+    @{ x=$x;  y=$y;  w=($mx - $x);          h=($my - $y) },
+    @{ x=$mx; y=$y;  w=($x + $w - $mx);     h=($my - $y) },
+    @{ x=$x;  y=$my; w=($mx - $x);          h=($y + $h - $my) },
+    @{ x=$mx; y=$my; w=($x + $w - $mx);     h=($y + $h - $my) }
+  )
+  for ($i = 0; $i -lt 4; $i++) {
+    $q = $quads[$i]
+    if ($q.w -le 0 -or $q.h -le 0) { continue }
+    $b = if ($pattern[$i] -eq 'D') { $darkBrush } else { $lightBrush }
+    $g.FillRectangle($b, $q.x, $q.y, $q.w, $q.h)
+  }
+  $fmt = [System.Drawing.StringFormat]::new()
+  $fmt.Alignment = [System.Drawing.StringAlignment]::Center
+  $fmt.LineAlignment = [System.Drawing.StringAlignment]::Center
+  $rect = [System.Drawing.RectangleF]::new([float]$x, [float]$y, [float]$w, [float]$h)
+  $g.DrawString($face, $font, $inkBrush, $rect, $fmt)
+  $fmt.Dispose()
 }
 
-function Make-Atlas([string]$kind, [string]$mode) {
-  $basePath = Join-Path $root "$kind-template.png"
-  $bmp = Load-Base $basePath
+function Make-Guide([string]$kind) {
+  $srcPath = Join-Path $root "$kind-template.png"
+  $bmp = [System.Drawing.Bitmap]::new($srcPath)
   $g = [System.Drawing.Graphics]::FromImage($bmp)
   $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
   $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::AntiAliasGridFit
 
-  $bg = $bmp.GetPixel(5, 300)
-  $bgBrush = New-Object System.Drawing.SolidBrush $bg
-  $g.FillRectangle($bgBrush, 0, 72, 512, 440)
-  $bgBrush.Dispose()
+  $darkBrush  = [System.Drawing.SolidBrush]::new($DARK)
+  $lightBrush = [System.Drawing.SolidBrush]::new($LIGHT)
+  $inkBrush   = [System.Drawing.SolidBrush]::new($INK)
+  $font       = [System.Drawing.Font]::new('Segoe UI', [float]34, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
 
-  $guide = ($mode -eq 'guide')
-  $fillAlpha = if ($guide) { 92 } else { 26 }
-  $lineAlpha = if ($guide) { 210 } else { 90 }
-  $textAlpha = if ($guide) { 245 } else { 110 }
-  $fill = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb($fillAlpha, 118, 96, 28))
-  $line = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb($lineAlpha, 74, 58, 16)), 1.5
-  $textCol = [System.Drawing.Color]::FromArgb($textAlpha, 58, 44, 10)
-  $labelFont = New-Object System.Drawing.Font("Arial", 15, [System.Drawing.FontStyle]::Bold)
-  $smallFont = New-Object System.Drawing.Font("Arial", 7.5)
-  $headFont = New-Object System.Drawing.Font("Arial", 9, [System.Drawing.FontStyle]::Bold)
-  $format = New-Object System.Drawing.StringFormat
-  $format.Alignment = [System.Drawing.StringAlignment]::Center
-  $format.LineAlignment = [System.Drawing.StringAlignment]::Center
+  # erase the old torso cells first, so the corrected cells never sit on top of leftovers
+  $bgBrush = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::FromArgb(255, 255, 209, 135))
+  $old = @(
+    @(165, 77, 92, 60), @(100, 133, 60, 112), @(156, 133, 110, 112),
+    @(262, 133, 60, 112), @(318, 133, 110, 112), @(156, 241, 110, 60)
+  )
+  foreach ($r in $old) { $g.FillRectangle($bgBrush, $r[0], $r[1], $r[2], $r[3]) }
 
   foreach ($set in @('T','A','C')) {
     foreach ($cell in $cells[$set]) {
       $r = $cell.r
-      $rect = New-Object System.Drawing.RectangleF $r[0], $r[1], $r[2], $r[3]
-      $g.FillRectangle($fill, $rect)
-      $g.DrawRectangle($line, $r[0], $r[1], $r[2], $r[3])
-      $g.DrawString("$set$($cell.face)", $labelFont, (New-Object System.Drawing.SolidBrush $textCol), $rect, $format)
+      Paint-Cell $g $r[0] $r[1] $r[2] $r[3] $cell.face $pat[$cell.face] $darkBrush $lightBrush $inkBrush $font
     }
   }
 
-  # pants band: the bottom 25% of the torso (local y 2..2.5 of a 2-high torso)
-  if ($kind -eq 'pants') {
-    $bandAlpha = if ($guide) { 90 } else { 30 }
-    $band = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb($bandAlpha, 70, 52, 22))
-    foreach ($face in @('F','B','R','L','D')) {
-      $r = ($cells['T'] | Where-Object { $_.face -eq $face }).r
-      $bandH = if ($face -eq 'D') { $r[3] } else { 26 }
-      $bandY = if ($face -eq 'D') { $r[1] } else { $r[1] + $r[3] - 26 }
-      $g.FillRectangle($band, $r[0], $bandY, $r[2], $bandH)
-      $g.DrawLine($line, $r[0], $bandY, $r[0] + $r[2], $bandY)
-    }
-    $band.Dispose()
-  }
+  # group labels + footer, same placement as the original guide
+  $noteFont = [System.Drawing.Font]::new('Segoe UI', [float]11, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Pixel)
+  $noteBrush = [System.Drawing.SolidBrush]::new($NOTE)
+  $g.DrawString('R ARM / LEG', $noteFont, $noteBrush, 42, 244)
+  $g.DrawString('L ARM / LEG', $noteFont, $noteBrush, 348, 244)
 
-  # headers
-  $hcol = [System.Drawing.Color]::FromArgb($textAlpha, 62, 46, 12)
-  $hbrush = New-Object System.Drawing.SolidBrush $hcol
-  $g.DrawString('TORSO', $headFont, $hbrush, (New-Object System.Drawing.RectangleF 158, 68, 104, 14), $format)
-  $g.DrawString('R ARM / LEG', $headFont, $hbrush, (New-Object System.Drawing.RectangleF 8, 246, 146, 14), $format)
-  $g.DrawString('L ARM / LEG', $headFont, $hbrush, (New-Object System.Drawing.RectangleF 270, 246, 212, 14), $format)
+  $footFont = [System.Drawing.Font]::new('Segoe UI', [float]11, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Pixel)
+  $footFmt = [System.Drawing.StringFormat]::new()
+  $footFmt.Alignment = [System.Drawing.StringAlignment]::Center
+  $g.DrawString('U/D top+bottom      F/B front+back      R/L right+left', $footFont, $noteBrush, [System.Drawing.RectangleF]::new(0, 496, 512, 14), $footFmt)
+  $footFmt.Dispose()
 
-  if ($guide) {
-    $legend = 'U/D top+bottom    F/B front+back    R/L right+left' + $(if ($kind -eq 'pants') { '    band = pants on the bottom of the torso' } else { '' })
-    $g.DrawString($legend, $smallFont, $hbrush, (New-Object System.Drawing.RectangleF 6, 490, 500, 16), $format)
-  }
-
-  $out = Join-Path $root "$kind-$mode.png"
-  $bmp.Save($out, [System.Drawing.Imaging.ImageFormat]::Png)
-  $labelFont.Dispose(); $smallFont.Dispose(); $headFont.Dispose(); $fill.Dispose(); $line.Dispose(); $hbrush.Dispose(); $textColBrush = $null
-  $format.Dispose(); $g.Dispose(); $bmp.Dispose()
-  Write-Host "wrote $out"
-}
-
-foreach ($kind in @('shirt','pants')) {
-  Make-Atlas $kind 'template'
-  Make-Atlas $kind 'guide'
-  $blank = New-Object System.Drawing.Bitmap 512, 512, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
-  $g = [System.Drawing.Graphics]::FromImage($blank)
-  $g.Clear([System.Drawing.Color]::Transparent)
   $g.Dispose()
-  $blank.Save((Join-Path $root "$kind-transparent.png"), [System.Drawing.Imaging.ImageFormat]::Png)
-  $blank.Dispose()
-  Write-Host "wrote $kind-transparent.png"
+  $bmp.Save((Join-Path $root "$kind-guide.png"), [System.Drawing.Imaging.ImageFormat]::Png)
+
+  $bgBrush.Dispose(); $darkBrush.Dispose(); $lightBrush.Dispose(); $inkBrush.Dispose()
+  $noteBrush.Dispose(); $font.Dispose(); $noteFont.Dispose(); $footFont.Dispose(); $bmp.Dispose()
+  Write-Host "wrote $kind-guide.png"
 }
+
+Make-Guide 'shirt'
+Make-Guide 'pants'

@@ -37,6 +37,14 @@ They are plain scripts, not ES modules: all files share one global scope, exactl
   level, first frame). It loads last so every other file already exists.
 - New file? Create it under `js/...` and add a `<script src>` line to `index.html` in the right place.
 
+## Pages and links
+
+Every page has its own URL hash: `#/home`, `#/games`, `#/shop`, `#/avatar`, `#/friends`, `#/players`,
+`#/settings`, `#/transactions`, `#/ugc`, `#/owner`, plus `#/profile/<id>`, `#/item/<id>` and
+`#/game/<id>`. Clicking a tab updates the link and pushes a history entry, so a refresh keeps you on the
+same page and Back / Forward work. The routing lives in the tabs section of `js/game.bundle.js`
+(`showTab` calls `routeSet`; `routeStart` applies the link after login).
+
 ## Config
 
 `js/core/config.js` holds `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `ROOM`, physics numbers, etc. The anon key is
@@ -70,18 +78,19 @@ available as a temporary fallback; it is no longer the default.
 ## Clothing UGC (Shirts / Pants)
 
 UGC creators can make clothes as well as 3D accessories. In the UGC tab pick **Type: Shirt or Pants**, download a template
-(**Template** = branded canvas with faint cell outlines, **Transparent** = a clear 512 × 512 canvas, **Labeled guide** = every
-face marked and shaded), paint in the cells, and upload the PNG (512 x 512, or any square from 256 to 2048; max 2 MB).
-Transparent pixels show the body colour.
+(**Template** = the branded 512 × 512 canvas, **Transparent** = a clear 512 × 512 canvas, **Labeled guide** = the same canvas
+with the cell table), paint in the cells, and upload the PNG (any square from 256 to 2048; max 2 MB). Transparent pixels show
+the body colour.
 
 - Templates live in `assets/templates/` (`shirt-*.png`, `pants-*.png`). The cell rectangles used by the game are `CLOTH_CELLS`
   in `js/game/character.js` (and the bundled `js/game.bundle.js`) - if you redraw the templates, update those numbers to match.
-  `assets/templates/make-templates.ps1` regenerates all six PNGs from the current cell table.
+  `assets/templates/make-templates.ps1` redraws both labelled guides from the current cell table and the branded template.
 - The layout matches the actual rig proportions: the torso front/back are square, its sides are half as wide and its top/bottom
-  half as tall; arm and leg cells follow the 0.95 x 2.1 x 1 / 1 x 2 x 1 limbs.
+  half as tall; arm and leg cells follow the 0.95 x 2.1 x 1 / 1 x 2 x 1 limbs. The torso cells are contiguous and the
+  top/bottom line up with the front.
 - Layout: the torso is the cross at the top; the bottom-left cross is the avatar's **right** arm / leg (R F L B) and the bottom-right
   cross is the **left** arm / leg (B R F L). F = front, B = back, R / L = the avatar's own right / left side, U = top, D = bottom.
-- Shirt = torso + both arms. Pants = both legs + the bottom strip of the torso (marked with the darker band on the pants guide).
+- Shirt = torso + both arms. Pants = both legs + the bottom strip of the torso.
   Shirt draws over pants.
 - You can wear one shirt and one pants at a time (wearing a new one takes the old one off); accessories still stack up to 6.
 - Stored like any item: `ugc_items.attach` is `Shirt` / `Pants` and `file_path` is a `.png` in the `ugc` bucket, so buying, selling,
@@ -141,6 +150,9 @@ The first version has:
     and parts. Scripts run in the playtest and in published games - server scripts first, then local ones.
     **Home &gt; Open a Template &gt; Relay Ascent** is a finished showcase using all of it (obby, sequence puzzle,
     moving platform, pads, charge pips, timer, lifting door, help/reset buttons, trophy).
+  - **UI objects**: insert Frame, TextLabel, TextButton, ImageLabel, ImageButton and Folder from a ScreenGui or Frame.
+    Any visual object can also hold **UICorner**, **UIStroke**, **UIGradient**, **UIPadding**, **UIListLayout**,
+    **UIGridLayout**, **UIAspectRatioConstraint** and **UIScale** (use the row's **+** or right-click > Insert Object).
   - **Camera**: `WASD` move, right-drag look, middle-drag pan, `Q`/`E` down/up, wheel zoom, `Shift` faster.
     `Ctrl+S` / File > Save stores the game and refreshes its card thumbnail; Help > Camera controls lists them all.
   - **Play testing**: **Play** (Home ribbon, Test > Play game, or `F5`) runs the real game on the map you built:

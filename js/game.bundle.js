@@ -264,6 +264,12 @@ const IMG_STUD = new Image(), IMG_INLET = new Image(), IMG_FACE = new Image();
 IMG_STUD.src = "assets/textures/stud.png";
 IMG_INLET.src = "assets/textures/inlet.png";
 IMG_FACE.src = "assets/faces/classic.png";
+const STUD_TEXTURE_CACHE = [];
+function refreshStudTextures() {
+  for (const entry of STUD_TEXTURE_CACHE) { entry.draw(); entry.t.needsUpdate = true; }
+}
+IMG_STUD.addEventListener("load", refreshStudTextures);
+IMG_INLET.addEventListener("load", refreshStudTextures);
 function studTexture(base, repeat, img) {
   const S = 128, cv = document.createElement("canvas");
   cv.width = cv.height = S;
@@ -283,6 +289,7 @@ function studTexture(base, repeat, img) {
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.repeat.set(repeat[0] || repeat, repeat[1] || repeat);
   t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  STUD_TEXTURE_CACHE.push({ draw, t, img });
   if (!img.naturalWidth) img.addEventListener("load", () => { draw(); t.needsUpdate = true; });
   return t;
 }
@@ -577,6 +584,67 @@ function setGuiText(el, text) {
   else el.insertBefore(document.createTextNode(text), el.firstChild);
 }
 
+/* UI modifier objects (UIPadding, UICorner, ...) live as children in the tree
+   and style their parent; they never become elements themselves. */
+const UI_MODIFIERS = ["UICorner", "UIStroke", "UIGradient", "UIAspectRatioConstraint", "UIScale", "UIPadding", "UIListLayout", "UIGridLayout"];
+const isUIModifierNode = node => !!node && UI_MODIFIERS.includes(node.class);
+const guiModifier = (node, cls) => ((node && node.children) || []).find(child => child.class === cls);
+
+function guiModifierStyles(el, node) {
+  const corner = guiModifier(node, "UICorner");
+  if (corner) el.style.borderRadius = Math.max(0, guiNum(corner.props.CornerRadius)) + "px";
+  const gradient = guiModifier(node, "UIGradient");
+  if (gradient) {
+    const gt = Math.min(1, guiNum(node.props.BackgroundTransparency) + guiNum(gradient.props.Transparency));
+    el.style.background = "linear-gradient(" + guiNum(gradient.props.Rotation) + "deg, " +
+      guiRgba(gradient.props.Color1, gt) + ", " +
+      guiRgba(gradient.props.Color2, gt) + ")";
+  }
+  const stroke = guiModifier(node, "UIStroke");
+  if (stroke && guiNum(stroke.props.Thickness) > 0) {
+    el.style.boxShadow = "inset 0 0 0 " + guiNum(stroke.props.Thickness) + "px " + guiRgba(stroke.props.Color, stroke.props.Transparency);
+    if (node.class === "TextLabel" || node.class === "TextButton") {
+      el.style.webkitTextStroke = Math.max(1, guiNum(stroke.props.Thickness) / 2) + "px " + guiRgba(stroke.props.Color, stroke.props.Transparency);
+    }
+  }
+  const scale = guiModifier(node, "UIScale");
+  return scale ? Math.max(0.05, guiNum(scale.props.Scale, 1)) : 1;
+}
+
+function layoutRuntimeGui(host, width, height, list, grid) {
+  const items = Array.from(host.children).filter(el => el.classList && el.classList.contains("ggObj"));
+  const wOf = el => parseFloat(el.style.width) || 1;
+  const hOf = el => parseFloat(el.style.height) || 1;
+  if (list) {
+    const vertical = list.props.FillDirection !== "Horizontal";
+    const gap = Math.max(0, guiNum(list.props.Padding));
+    let cursor = 0;
+    for (const el of items) {
+      const w = wOf(el), h = hOf(el);
+      if (vertical) {
+        const x = list.props.HorizontalAlignment === "Center" ? (width - w) / 2 : list.props.HorizontalAlignment === "Right" ? width - w : 0;
+        el.style.left = Math.max(0, x) + "px"; el.style.top = cursor + "px"; cursor += h + gap;
+      } else {
+        const y = list.props.VerticalAlignment === "Center" ? (height - h) / 2 : list.props.VerticalAlignment === "Bottom" ? height - h : 0;
+        el.style.left = cursor + "px"; el.style.top = Math.max(0, y) + "px"; cursor += w + gap;
+      }
+    }
+    return;
+  }
+  const cw = Math.max(1, guiNum(grid.props.CellSizeX, 64)), ch = Math.max(1, guiNum(grid.props.CellSizeY, 64));
+  const gx = Math.max(0, guiNum(grid.props.PaddingX)), gy = Math.max(0, guiNum(grid.props.PaddingY));
+  const cols = Math.max(1, Math.floor((width + gx) / (cw + gx)));
+  const rows = Math.max(1, Math.floor((height + gy) / (ch + gy)));
+  items.forEach((el, i) => {
+    let col, row;
+    if (grid.props.FillDirection === "Vertical") { row = i % rows; col = Math.floor(i / rows); }
+    else { col = i % cols; row = Math.floor(i / cols); }
+    el.style.width = cw + "px"; el.style.height = ch + "px";
+    el.style.left = (col * (cw + gx)) + "px";
+    el.style.top = (row * (ch + gy)) + "px";
+  });
+}
+
 /* Applies every visual property to an existing element (no children touched),
    so text/colour updates never replace the nodes the player is clicking. */
 function styleGuiElement(el, node, parentW, parentH) {
@@ -586,8 +654,14 @@ function styleGuiElement(el, node, parentW, parentH) {
     return { width: parentW, height: Math.max(1, parentH - (node.props.IgnoreGuiInset ? 0 : 36)) };
   }
   const p = node.props;
-  const width = Math.max(1, guiPx(p.Size, parentW));
-  const height = Math.max(1, guiPx(p.Size.slice(2), parentH));
+  let width = Math.max(1, guiPx(p.Size, parentW));
+  let height = Math.max(1, guiPx(p.Size.slice(2), parentH));
+  const aspect = guiModifier(node, "UIAspectRatioConstraint");
+  if (aspect) {
+    const ar = Math.max(0.05, guiNum(aspect.props.AspectRatio, 1));
+    if (aspect.props.DominantAxis === "Height") width = Math.max(1, height * ar);
+    else height = Math.max(1, width / ar);
+  }
   el.style.left = guiPx(p.Position, parentW) + "px";
   el.style.top = guiPx(p.Position.slice(2), parentH) + "px";
   el.style.width = width + "px";
@@ -595,13 +669,16 @@ function styleGuiElement(el, node, parentW, parentH) {
   el.style.background = guiRgba(p.BackgroundColor3, p.BackgroundTransparency);
   const borderSize = guiNum(p.BorderSizePixel);
   el.style.border = borderSize > 0 ? borderSize + "px solid " + String(p.BorderColor3 || "#1b2a35") : "0";
+  const modScale = guiModifierStyles(el, node);
   el.style.visibility = p.Visible === false ? "hidden" : "";
   el.style.zIndex = String(guiNum(p.ZIndex, 1));
   el.style.overflow = p.ClipsDescendants ? "hidden" : "visible";
   const ax = Number(p.AnchorPoint && p.AnchorPoint[0]) || 0;
   const ay = Number(p.AnchorPoint && p.AnchorPoint[1]) || 0;
   el.style.transformOrigin = (ax * 100) + "% " + (ay * 100) + "%";
-  el.style.transform = "translate(" + (-ax * 100) + "%," + (-ay * 100) + "%)" + (guiNum(p.Rotation) ? " rotate(" + guiNum(p.Rotation) + "deg)" : "");
+  el.style.transform = "translate(" + (-ax * 100) + "%," + (-ay * 100) + "%)" +
+    (guiNum(p.Rotation) ? " rotate(" + guiNum(p.Rotation) + "deg)" : "") +
+    (modScale !== 1 ? " scale(" + modScale + ")" : "");
 
   if (node.class === "TextLabel" || node.class === "TextButton") {
     const text = String(p.Text == null ? "" : p.Text);
@@ -647,7 +724,7 @@ function styleGuiElement(el, node, parentW, parentH) {
 
 function buildGuiElement(node, parentW, parentH) {
   if (!node || !node.props) return null;
-  if (node.class === "Script" || node.class === "LocalScript") return null;
+  if (node.class === "Script" || node.class === "LocalScript" || isUIModifierNode(node)) return null;
   if (node.class === "Folder") {
     const frag = document.createDocumentFragment();
     for (const kid of node.children || []) {
@@ -664,6 +741,7 @@ function buildGuiElement(node, parentW, parentH) {
     screen.dataset.gid = node.id;
     const size = styleGuiElement(screen, node, parentW, parentH);
     for (const kid of node.children || []) {
+      if (isUIModifierNode(kid)) continue;
       const el = buildGuiElement(kid, parentW, size.height);
       if (el) screen.appendChild(el);
     }
@@ -675,10 +753,26 @@ function buildGuiElement(node, parentW, parentH) {
   el.dataset.name = node.name || "";
   el.dataset.gid = node.id;
   const size = styleGuiElement(el, node, parentW, parentH);
-  for (const kid of node.children || []) {
-    const child = buildGuiElement(kid, size.width, size.height);
-    if (child) el.appendChild(child);
+  const pad = guiModifier(node, "UIPadding");
+  let host = el, childW = size.width, childH = size.height;
+  if (pad) {
+    const pt = Math.max(0, guiNum(pad.props.PaddingTop)), pb = Math.max(0, guiNum(pad.props.PaddingBottom));
+    const pl = Math.max(0, guiNum(pad.props.PaddingLeft)), pr = Math.max(0, guiNum(pad.props.PaddingRight));
+    if (node.class === "TextLabel" || node.class === "TextButton") el.style.padding = pt + "px " + pr + "px " + pb + "px " + pl + "px";
+    host = document.createElement("div");
+    host.className = "ggContent";
+    host.style.cssText = "position:absolute;left:" + pl + "px;top:" + pt + "px;right:" + pr + "px;bottom:" + pb + "px;pointer-events:none;";
+    el.appendChild(host);
+    childW = Math.max(1, size.width - pl - pr);
+    childH = Math.max(1, size.height - pt - pb);
   }
+  for (const kid of node.children || []) {
+    if (isUIModifierNode(kid)) continue;
+    const child = buildGuiElement(kid, childW, childH);
+    if (child) host.appendChild(child);
+  }
+  const list = guiModifier(node, "UIListLayout"), grid = guiModifier(node, "UIGridLayout");
+  if (list || grid) layoutRuntimeGui(host, childW, childH, list, grid);
   return el;
 }
 
@@ -1391,7 +1485,7 @@ const GEO_CACHE = {};
    Torso: T.  Right arm / right leg: A.  Left arm / left leg: C. */
 const CLOTH_W = 512, CLOTH_H = 512;
 const CLOTH_CELLS = {
-  T: { U: [158, 83, 104, 52], R: [104, 135, 52, 104], F: [158, 135, 104, 104], L: [264, 135, 52, 104], B: [320, 135, 104, 104], D: [158, 239, 104, 52] },
+  T: { U: [156, 83, 104, 52], R: [104, 135, 52, 104], F: [156, 135, 104, 104], L: [260, 135, 52, 104], B: [312, 135, 104, 104], D: [156, 239, 104, 52] },
   A: { U: [62, 263, 50, 52], R: [8, 317, 52, 106], F: [62, 317, 50, 106], L: [114, 317, 52, 106], B: [168, 317, 50, 106], D: [62, 425, 50, 52] },
   C: { U: [378, 263, 50, 52], B: [270, 317, 52, 106], R: [324, 317, 52, 106], F: [378, 317, 50, 106], L: [430, 317, 52, 106], D: [378, 425, 50, 52] },
 };
@@ -3303,7 +3397,7 @@ async function submitAuth() {
     if (!user || !session) { authMsg("Account made, but Supabase wants email confirmation. Turn off Confirm email in Authentication settings.", true); return; }
     authPass.value = "";
     await onSignedIn(user);
-    closeAuth(); showTab("home"); appRunPendingJoin();
+    closeAuth(); routeStart(); appRunPendingJoin();
   } catch (_) { authMsg("Couldn't reach the server. Try again.", true); }
   finally { acct.busy = false; authGo.disabled = false; }
 }
@@ -3367,6 +3461,7 @@ function openGamePage(id) {
   prevOn = false;
   for (const s of document.querySelectorAll(".tabsec")) s.hidden = true; $("pageItem").hidden = true; $("pageGame").hidden = false;
   playIn($("pageGame"));
+  routeSet("game", id);
 }
 /* ---- games: Home cards, game page, and Owner editing of names / owners / thumbnails / icons ---- */
 const gesc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -3997,8 +4092,73 @@ function showTab(name) {
   if (name === "transactions") { TX.page = 0; renderTransactions(); }
   if (name === "profile") renderProfile(SOC.viewId || (acct.user && acct.user.id));
   if (name !== "profile") SOC.viewId = null;
+  routeSet(name, name === "profile" ? (SOC.viewId || "") : "");
 }
 for (const b of document.querySelectorAll("#hTabs button")) b.addEventListener("click", () => showTab(b.dataset.tab));
+
+/* ---- URL routes ----
+   Every page has its own link, so reloading stays where you were:
+     #/home  #/games  #/shop  #/avatar  #/friends  #/players  #/profile/<id>
+     #/settings  #/transactions  #/ugc  #/owner  #/item/<id>  #/game/<id>
+   Tab clicks push a new history entry, so Back / Forward work too. */
+const ROUTE_TABS = new Set(["home", "games", "shop", "avatar", "friends", "players", "profile", "settings", "transactions", "ugc", "owner", "item", "game"]);
+let routeLock = false, routeCurrent = "#/home";
+const routeHash = (tab, id) => "#/" + tab + (id ? "/" + encodeURIComponent(id) : "");
+function routeSet(tab, id) {
+  const want = routeHash(tab, id || "");
+  routeCurrent = want;
+  if (routeLock) return;                                             // routeApply already owns the URL
+  if (location.hash === want) return;
+  try { history.pushState({ route: want }, "", want); }
+  catch (_) { try { location.hash = want.slice(1); } catch (__) {} }
+}
+function routeParse() {
+  let raw = String(location.hash || "").replace(/^#\/?/, "");
+  const i = raw.indexOf("/");
+  const tab = (i < 0 ? raw : raw.slice(0, i)) || "home";
+  let id = i < 0 ? "" : raw.slice(i + 1);
+  try { id = decodeURIComponent(id); } catch (_) {}
+  return { tab, id };
+}
+function routeSyncUrl() {
+  if (!acct.user || location.hash === routeCurrent) return;          // while signed out keep the link you arrived with
+  try { history.replaceState({ route: routeCurrent }, "", routeCurrent); } catch (_) {}
+}
+async function routeApply(r) {
+  routeLock = true;
+  try {
+    if (r.tab === "item") {
+      if (!acct.user) { openAuth("login"); return; }
+      if (!SHOP.rows.length) await renderShop();
+      if (!ITM.rows.get(r.id) && !SHOP.rows.find(x => x.id === r.id)) { showTab("shop"); return; }
+      await openItem(r.id);
+    } else if (r.tab === "game") {
+      await loadAllGames();
+      if (!GAMES.some(g => g.id === r.id)) { showTab("home"); return; }
+      openGamePage(r.id);
+    } else if (r.tab === "profile") {
+      SOC.viewId = r.id || (acct.user && acct.user.id) || null;
+      if (!SOC.viewId) { showTab("home"); return; }
+      showTab("profile");
+    } else showTab(r.tab);
+  } finally { routeLock = false; routeSyncUrl(); }
+}
+async function routeStart() {
+  const r = routeParse();
+  if (!ROUTE_TABS.has(r.tab)) r.tab = "home";
+  if (r.tab === "profile" && !r.id && acct.user) r.id = acct.user.id;
+  await routeApply(r);
+}
+function routeOnPop() {
+  if (routeLock) return;
+  const r = routeParse();
+  if (!ROUTE_TABS.has(r.tab)) r.tab = "home";
+  if (r.tab === "profile" && !r.id && acct.user) r.id = acct.user.id;
+  if (routeHash(r.tab, r.id) === routeCurrent) return;               // already showing this page
+  routeApply(r);
+}
+window.addEventListener("popstate", routeOnPop);
+window.addEventListener("hashchange", routeOnPop);
 
 ;
 
@@ -5219,7 +5379,7 @@ $("oiList").addEventListener("click", async e => {
   for (const t of ["keydown", "keyup", "wheel", "mousemove", "mousedown", "pointerdown", "contextmenu"])        // nothing reaches the game while a box is up
     window.addEventListener(t, e => { if (reason && !box.contains(e.target)) { e.stopImmediatePropagation(); if (t !== "mousemove" && t !== "wheel") e.preventDefault(); } }, true);
 
-  /* ---------- 1. one tab / window per browser ---------- */
+  /* ---------- 1. one tab / window per browser (not inside a Studio playtest) ---------- */
   const KEY = "triancle_open_tab", since = Date.now();
   const readTab = () => { try { const v = JSON.parse(localStorage.getItem(KEY) || "null"); return v && Date.now() - v.t < 3500 ? v : null; } catch (_) { return null; } };
   const writeTab = () => { try { localStorage.setItem(KEY, JSON.stringify({ id: TAB_ID, since, t: Date.now() })); } catch (_) {} };
@@ -5230,9 +5390,11 @@ $("oiList").addEventListener("click", async e => {
       block("tab", "Triancle is already open", "Triancle is open in another tab or window. Close that one, or close this one, to keep playing.");
     } else writeTab();
   }
-  tabBeat(); setInterval(tabBeat, 1000);
-  window.addEventListener("storage", e => { if (e.key === KEY) tabBeat(); });
-  window.addEventListener("pagehide", () => { const v = readTab(); if (v && v.id === TAB_ID) { try { localStorage.removeItem(KEY); } catch (_) {} } });
+  if (!window.__PLAYTEST__) {
+    tabBeat(); setInterval(tabBeat, 1000);
+    window.addEventListener("storage", e => { if (e.key === KEY) tabBeat(); });
+    window.addEventListener("pagehide", () => { const v = readTab(); if (v && v.id === TAB_ID) { try { localStorage.removeItem(KEY); } catch (_) {} } });
+  }
 
   /* ---------- 2. one place per account ---------- */
   let sessionOff = false, lastUser = null;
@@ -5252,8 +5414,10 @@ $("oiList").addEventListener("click", async e => {
       else unblock("acct");
     } catch (_) {}
   }
-  setInterval(sessionBeat, 4000); setTimeout(sessionBeat, 1200);
-  window.addEventListener("pagehide", () => { const sb = typeof getSB === "function" ? getSB() : null; if (sb && lastUser) { try { sb.rpc("release_play_session", { p_sid: TAB_ID }); } catch (_) {} } });
+  if (!window.__PLAYTEST__) {
+    setInterval(sessionBeat, 4000); setTimeout(sessionBeat, 1200);
+    window.addEventListener("pagehide", () => { const sb = typeof getSB === "function" ? getSB() : null; if (sb && lastUser) { try { sb.rpc("release_play_session", { p_sid: TAB_ID }); } catch (_) {} } });
+  }
 
   /* ---------- 3. updates ---------- */
   const FILES = ["index.html", "js/game.bundle.js", "css/style.css"];
@@ -5341,7 +5505,7 @@ function ugSet(d, v) { v = ugClamp(+v || 0, d[3], d[4]); if (d[0] === "scale") U
   });
   $("ugTpl").addEventListener("click", e => {                        // template downloads: normal / transparent / labelled guide
     const b = e.target.closest("[data-tpl]"); if (!b || !isCloth(UG.attach)) return;
-    const a = document.createElement("a"); a.href = "assets/templates/" + UG.attach.toLowerCase() + "-" + b.dataset.tpl + ".png?v=1.9.0d";
+    const a = document.createElement("a"); a.href = "assets/templates/" + UG.attach.toLowerCase() + "-" + b.dataset.tpl + ".png?v=1.9.5t2";
     a.download = UG.attach.toLowerCase() + "-" + b.dataset.tpl + ".png"; document.body.appendChild(a); a.click(); a.remove();
   });
   const sel = $("ugAttach");
@@ -5411,7 +5575,7 @@ async function ugPickCloth(f) {
     if (!UG.name.trim()) { UG.name = f.name.replace(/\.png$/i, "").slice(0, 40); $("ugName").value = UG.name; }
     $("ugInfo").textContent = f.name; ugMsg(""); ugApply(); ugSync();
   } catch (e) {
-    ugMsg(e && e.message === "shape" ? "That image isn't the right shape. Download a template and keep its size (512 × 512)." : "Couldn't read that PNG.", true);
+    ugMsg(e && e.message === "shape" ? "That image isn't the right shape. Keep it square - the template is 512 × 512." : "Couldn't read that PNG.", true);
   }
 }
 function ugClothApply() {
@@ -6099,6 +6263,7 @@ async function openItem(id) {
   const it = ITM.rows.get(id) || SHOP.rows.find(x => x.id === id); if (!it) return;
   ITM.rows.set(id, Object.assign({}, ITM.rows.get(id) || {}, it));
   IP.id = id; const tok = ++IP.tok;
+  routeSet("item", id);
   IP.desc = ""; IP.created = it.published_at || ""; IP.tryOn = false; IP.lock = false; IP.yaw = 0.6; IP.pitch = 0.12;
   prevOn = false; document.body.classList.remove("avWide");
   for (const x of document.querySelectorAll("#hTabs button")) x.classList.toggle("on", x.dataset.tab === "shop");
@@ -6174,6 +6339,11 @@ const NOTIF = { rows: [], fresh: new Set(), freshPatch: new Set(), timer: 0 };
 /* Patch notes: add a new entry at the TOP of this list for every patch / update / version.
    Each one shows up as its own numbered notification. sections: New / Changed / Fixed / Removed. */
 const PATCHES = [
+  { v: "1.9.5", date: "2026-11-26", title: "More UI objects, more scripting and accurate clothing templates", sections: [
+    ["New", ["UI objects: UICorner, UIStroke, UIGradient, UIPadding, UIListLayout, UIGridLayout, UIAspectRatioConstraint, UIScale and ImageButton", "Every page has its own link (#/games, #/shop, #/profile/...), so a refresh stays on the page and Back / Forward work", "More blocks: when key is pressed, when a variable crosses a value, repeat forever, wait until, random/maths/clamp variables, part position/size/rotation/destroy, teleport-to-part, gravity, forcefield and UI position tweening", "Change your password from Settings (current, new, confirm)", "Restored the original tan shirt and pants templates and fixed the torso cells (the top and bottom now line up with the front)"]],
+    ["Changed", ["The block palette is split into Parts and Player", "Walk speed, jump power and health can all be changed by script blocks", "Only Owners and chosen staff badges can edit Catalog items now; the Admin badge no longer gets that automatically (run supabase_owner_only.sql)"]],
+    ["Fixed", ["Part textures now appear on the first Studio playtest instead of waiting for a restart", "Studio camera is E/Q only; Ctrl and Space no longer move it", "Trigger parts (CanCollide off) now fire Touched events", "Delete confirmations in the Owner panel were invisible, so games could not be deleted", "UI buttons could stop responding when a ticking script rebuilt the GUI"]]
+  ] },
   { v: "1.9.0", date: "2026-11-25", title: "Studio blocks, scripts on parts and a new Games page", sections: [
     ["New", ["A full Games page with a featured game, recently played, search and sorting", "Relay Ascent showcase template: obby, sequence puzzle, moving platform and trophy", "Scratch-style block editor: drag to insert, reorder and nest, drop on Delete to remove", "Attach Scripts and LocalScripts to parts - a killbrick is just \u201cwhen this part is touched \u2192 kill player\u201d", "Health blocks (max health, set, damage, heal, kill, respawn) with a health bar that fades in only when HP changes", "Drag scripts and UI objects between services, folders and parts in the Explorer"]],
     ["Changed", ["Blocks and the script editor now use the dark Studio theme", "Walk speed, jump power and health can all be changed by script blocks"]],
@@ -6574,7 +6744,7 @@ acctUI();
     if (sb) { const { data } = await sb.auth.getUser(); if (data && data.user) await onSignedIn(data.user); }
   } catch (_) {}
   document.body.classList.remove("boot");
-  if (acct.user) { loadAllGames(); showTab("home"); appRunPendingJoin(); } else openAuth("login");
+  if (acct.user) { loadAllGames(); routeStart(); appRunPendingJoin(); } else openAuth("login");
 })();
 
 loadAllGames();

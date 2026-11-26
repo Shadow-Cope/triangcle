@@ -4708,7 +4708,7 @@ dependencies = [
 
 [[package]]
 name = "triancle-desktop"
-version = "1.9.1"
+version = "1.9.5"
 dependencies = [
  "open",
  "serde",

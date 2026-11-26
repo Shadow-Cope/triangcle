@@ -23,7 +23,7 @@
   }
 
   /* Runs instead of js/core/main.js when ?playtest=1 is set. */
-  window.__playtestBoot = function () {
+  window.__playtestBoot = async function () {
     let data = null;
     try { data = JSON.parse(sessionStorage.getItem(KEY) || "null"); } catch (_) {}
     const body = document.body;
@@ -36,6 +36,10 @@
       tell("error");
       return;
     }
+
+    // Studio opens the playtest as soon as Play is pressed; wait for the stud/inlet
+    // images so the first frame already has the part textures.
+    try { await Promise.all([IMG_STUD.decode(), IMG_INLET.decode()]); } catch (_) {}
 
     const map = data.map;
     if (data.spawnHere && Array.isArray(data.spawn) && data.spawn.length === 3) map.spawn = data.spawn;

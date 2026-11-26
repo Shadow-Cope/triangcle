@@ -647,7 +647,7 @@ const StudioEditor = (function () {
   function canInsertInto(target) {
     if (target.kind === "part") return true;
     if (target.kind === "service") return target.key === "workspace" || target.key === "starterGui" || target.key === "replicatedStorage";
-    return !!target.node && !isScript(target.node) && (target.node.class === "ScreenGui" || target.node.class === "Frame" || target.node.class === "Folder");
+    return !!target.node && !isScript(target.node) && !isUIModifier(target.node);
   }
 
   function openContextMenu(x, y, target) {
@@ -725,6 +725,15 @@ const StudioEditor = (function () {
     TextLabel: '<svg class="rsTreeIco" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M7 10.5h10M7 13.5h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
     TextButton: '<svg class="rsTreeIco" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M8 12h8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
     ImageLabel: '<svg class="rsTreeIco" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="8.5" cy="9.5" r="1.6" fill="currentColor"/><path d="M4 17l5-5 4 4 3-3 4 4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
+    ImageButton: '<svg class="rsTreeIco" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="8.5" cy="9.5" r="1.4" fill="currentColor"/><path d="M4 17l5-5 4 4 3-3 4 4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
+    UICorner: '<svg class="rsTreeIco" viewBox="0 0 24 24"><path d="M4 20V10a6 6 0 0 1 6-6h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+    UIStroke: '<svg class="rsTreeIco" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="2.4"/></svg>',
+    UIGradient: '<svg class="rsTreeIco" viewBox="0 0 24 24"><defs><linearGradient id="ggi" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="currentColor"/><stop offset="1" stop-color="currentColor" stop-opacity=".15"/></linearGradient></defs><rect x="4" y="4" width="16" height="16" rx="2" fill="url(#ggi)"/></svg>',
+    UIAspectRatioConstraint: '<svg class="rsTreeIco" viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M8 10h8M8 14h8" stroke="currentColor" stroke-width="1.4"/></svg>',
+    UIScale: '<svg class="rsTreeIco" viewBox="0 0 24 24"><path d="M9 4H4v5M15 20h5v-5M4 9l6-6M20 15l-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    UIPadding: '<svg class="rsTreeIco" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="3 2"/><rect x="7" y="7" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>',
+    UIListLayout: '<svg class="rsTreeIco" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+    UIGridLayout: '<svg class="rsTreeIco" viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>',
     Folder: '<svg class="rsTreeIco" viewBox="0 0 24 24"><path d="M3 6h7l2 2h9v11H3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
     Script: '<svg class="rsTreeIco" viewBox="0 0 24 24"><path d="M6 4h9l4 4v12H6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 12l2 2-2 2M13 16h3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
     LocalScript: '<svg class="rsTreeIco" viewBox="0 0 24 24"><path d="M6 4h9l4 4v12H6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 11l-2 2 2 2M13 15l2-2-2-2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
@@ -754,6 +763,9 @@ const StudioEditor = (function () {
 
   const SCRIPT_CLASSES = ["Script", "LocalScript"];
   const isScript = node => !!node && SCRIPT_CLASSES.includes(node.class);
+  const UI_MODIFIERS = ["UICorner", "UIStroke", "UIGradient", "UIAspectRatioConstraint", "UIScale", "UIPadding", "UIListLayout", "UIGridLayout"];
+  const isUIModifier = node => !!node && UI_MODIFIERS.includes(node.class);
+  const uiMod = (node, cls) => ((node && node.children) || []).find(child => child.class === cls);
 
   function guiDefaults(cls) {
     if (SCRIPT_CLASSES.includes(cls)) return {};
@@ -769,6 +781,16 @@ const StudioEditor = (function () {
     if (cls === "Folder") {
       return { Enabled: true };
     }
+    if (UI_MODIFIERS.includes(cls)) {
+      if (cls === "UICorner") return { CornerRadius: 8 };
+      if (cls === "UIStroke") return { Color: "#1b2a35", Thickness: 2, Transparency: 0 };
+      if (cls === "UIGradient") return { Color1: "#ffbf2f", Color2: "#e5534b", Rotation: 90, Transparency: 0 };
+      if (cls === "UIAspectRatioConstraint") return { AspectRatio: 1.5, DominantAxis: "Width" };
+      if (cls === "UIScale") return { Scale: 1 };
+      if (cls === "UIPadding") return { PaddingTop: 8, PaddingBottom: 8, PaddingLeft: 8, PaddingRight: 8 };
+      if (cls === "UIListLayout") return { FillDirection: "Vertical", Padding: 8, HorizontalAlignment: "Left", VerticalAlignment: "Top" };
+      if (cls === "UIGridLayout") return { CellSizeX: 64, CellSizeY: 64, PaddingX: 8, PaddingY: 8, FillDirection: "Horizontal" };
+    }
     if (cls === "TextLabel" || cls === "TextButton") {
       return Object.assign(base, {
         Size: [0, 200, 0, 50],
@@ -779,7 +801,7 @@ const StudioEditor = (function () {
         TextStrokeTransparency: 1, TextStrokeColor3: "#000000",
       });
     }
-    if (cls === "ImageLabel") {
+    if (cls === "ImageLabel" || cls === "ImageButton") {
       return Object.assign(base, {
         Size: [0, 200, 0, 200], BackgroundTransparency: 1,
         Image: "", ImageColor3: "#ffffff", ImageTransparency: 0, ScaleType: "Stretch",
@@ -863,8 +885,8 @@ const StudioEditor = (function () {
   function GUI_ROOTS() { ensureGui(); return game.map.gui; }
 
   function guiChildren(node) {
-    if (node.class === "ScreenGui" || node.class === "Frame" || node.class === "Folder") return node.children || [];
-    return [];
+    if (isUIModifier(node)) return [];
+    return node.children || [];
   }
 
   /* ---- explorer drag & drop (scripts and UI between services, folders and parts) ---- */
@@ -984,7 +1006,7 @@ const StudioEditor = (function () {
   }
 
   function buildGuiNode(node, parentW, parentH) {
-    if (isScript(node)) return document.createDocumentFragment();
+    if (isScript(node) || isUIModifier(node)) return document.createDocumentFragment();
     if (node.class === "Folder") {
       const frag = document.createDocumentFragment();
       for (const child of node.children || []) frag.appendChild(buildGuiNode(child, parentW, parentH));
@@ -998,28 +1020,50 @@ const StudioEditor = (function () {
       screen.style.zIndex = String(300 + (Number(node.props.DisplayOrder) || 0));
       screen.style.top = node.props.IgnoreGuiInset ? "0px" : "36px";
       if (selGui === node) screen.appendChild(guiTag(node));
-      for (const child of node.children || []) screen.appendChild(buildGuiNode(child, parentW, Math.max(1, parentH - (node.props.IgnoreGuiInset ? 0 : 36))));
+      for (const child of node.children || []) if (!isUIModifier(child)) screen.appendChild(buildGuiNode(child, parentW, Math.max(1, parentH - (node.props.IgnoreGuiInset ? 0 : 36))));
       return screen;
     }
     const el = document.createElement("div");
     el.className = "stGui stGui-" + node.class + (selGui === node ? " isSel" : "");
     el.dataset.gui = node.id;
     const p = node.props;
-    const width = Math.max(1, toPx(p.Size, parentW));
-    const height = Math.max(1, toPx(p.Size.slice(2), parentH));
+    let width = Math.max(1, toPx(p.Size, parentW));
+    let height = Math.max(1, toPx(p.Size.slice(2), parentH));
+    const aspect = uiMod(node, "UIAspectRatioConstraint");
+    if (aspect) {
+      const ar = Math.max(0.05, Number(aspect.props.AspectRatio) || 1);
+      if (aspect.props.DominantAxis === "Height") width = Math.max(1, height * ar);
+      else height = Math.max(1, width / ar);
+    }
     const left = toPx(p.Position, parentW);
     const top = toPx(p.Position.slice(2), parentH);
     el.style.left = left + "px";
     el.style.top = top + "px";
     el.style.width = width + "px";
     el.style.height = height + "px";
-    el.style.background = hexToRgba(p.BackgroundColor3, p.BackgroundTransparency);
+    const gradient = uiMod(node, "UIGradient");
+    if (gradient) {
+      const gt = Math.min(1, (Number(p.BackgroundTransparency) || 0) + (Number(gradient.props.Transparency) || 0));
+      el.style.background = "linear-gradient(" + (Number(gradient.props.Rotation) || 0) + "deg, " +
+        hexToRgba(gradient.props.Color1, gt) + ", " +
+        hexToRgba(gradient.props.Color2, gt) + ")";
+    } else {
+      el.style.background = hexToRgba(p.BackgroundColor3, p.BackgroundTransparency);
+    }
+    const corner = uiMod(node, "UICorner");
+    if (corner) el.style.borderRadius = Math.max(0, Number(corner.props.CornerRadius) || 0) + "px";
+    const stroke = uiMod(node, "UIStroke");
+    const strokeColor = stroke ? hexToRgba(stroke.props.Color, stroke.props.Transparency) : "";
     el.style.border = (Number(p.BorderSizePixel) || 0) + "px solid " + (Number(p.BorderSizePixel) ? String(p.BorderColor3 || "#1b2a35") : "transparent");
+    if (stroke && Number(stroke.props.Thickness) > 0) el.style.boxShadow = "inset 0 0 0 " + Number(stroke.props.Thickness) + "px " + strokeColor;
     el.style.visibility = p.Visible === false ? "hidden" : "";
     el.style.zIndex = String(Number(p.ZIndex) || 0);
     el.style.overflow = p.ClipsDescendants ? "hidden" : "visible";
+    const scale = uiMod(node, "UIScale");
+    const scaleVal = scale ? Math.max(0.05, Number(scale.props.Scale) || 1) : 1;
     el.style.transformOrigin = ((Number(p.AnchorPoint[0]) || 0) * 100) + "% " + ((Number(p.AnchorPoint[1]) || 0) * 100) + "%";
-    el.style.transform = "translate(" + (-(Number(p.AnchorPoint[0]) || 0) * 100) + "%," + (-(Number(p.AnchorPoint[1]) || 0) * 100) + "%)" + (Number(p.Rotation) ? " rotate(" + Number(p.Rotation) + "deg)" : "");
+    el.style.transform = "translate(" + (-(Number(p.AnchorPoint[0]) || 0) * 100) + "%," + (-(Number(p.AnchorPoint[1]) || 0) * 100) + "%)" +
+      (Number(p.Rotation) ? " rotate(" + Number(p.Rotation) + "deg)" : "") + (scaleVal !== 1 ? " scale(" + scaleVal + ")" : "");
     if (node.class === "TextLabel" || node.class === "TextButton") {
       const text = String(p.Text == null ? "" : p.Text);
       el.textContent = text;
@@ -1040,8 +1084,11 @@ const StudioEditor = (function () {
       if (Number(p.TextStrokeTransparency) < 1) {
         el.style.webkitTextStroke = "1px " + hexToRgba(p.TextStrokeColor3, p.TextStrokeTransparency);
       }
+      if (stroke && Number(stroke.props.Thickness) > 0) {
+        el.style.webkitTextStroke = Math.max(1, Number(stroke.props.Thickness) / 2) + "px " + strokeColor;
+      }
     }
-    if (node.class === "ImageLabel") {
+    if (node.class === "ImageLabel" || node.class === "ImageButton") {
       const src = guiImageUrl(p.Image);
       if (src) {
         const img = document.createElement("img");
@@ -1053,7 +1100,25 @@ const StudioEditor = (function () {
         el.appendChild(img);
       }
     }
-    for (const child of node.children || []) el.appendChild(buildGuiNode(child, width, height));
+    const padM = uiMod(node, "UIPadding");
+    let host = el, childW = width, childH = height;
+    if (padM) {
+      const pt = Math.max(0, Number(padM.props.PaddingTop) || 0), pb = Math.max(0, Number(padM.props.PaddingBottom) || 0);
+      const pl = Math.max(0, Number(padM.props.PaddingLeft) || 0), pr = Math.max(0, Number(padM.props.PaddingRight) || 0);
+      if (node.class === "TextLabel" || node.class === "TextButton") el.style.padding = pt + "px " + pr + "px " + pb + "px " + pl + "px";
+      host = document.createElement("div");
+      host.className = "stGuiContent";
+      host.style.cssText = "position:absolute;left:" + pl + "px;top:" + pt + "px;right:" + pr + "px;bottom:" + pb + "px;";
+      el.appendChild(host);
+      childW = Math.max(1, width - pl - pr);
+      childH = Math.max(1, height - pt - pb);
+    }
+    for (const child of node.children || []) {
+      if (isUIModifier(child)) continue;
+      host.appendChild(buildGuiNode(child, childW, childH));
+    }
+    const list = uiMod(node, "UIListLayout"), grid = uiMod(node, "UIGridLayout");
+    if (list || grid) layoutGuiChildren(host, childW, childH, list, grid);
     if (selGui === node) {
       el.appendChild(guiTag(node));
       for (const dir of ["nw", "n", "ne", "e", "se", "s", "sw", "w"]) {
@@ -1064,6 +1129,40 @@ const StudioEditor = (function () {
       }
     }
     return el;
+  }
+
+  function layoutGuiChildren(host, width, height, list, grid) {
+    const items = Array.from(host.children).filter(el => el.classList && el.classList.contains("stGui"));
+    const px = el => parseFloat(el.style.width) || 1;
+    const py = el => parseFloat(el.style.height) || 1;
+    if (list) {
+      const vertical = list.props.FillDirection !== "Horizontal";
+      const gap = Math.max(0, Number(list.props.Padding) || 0);
+      let cursor = 0;
+      for (const el of items) {
+        const w = px(el), h = py(el);
+        if (vertical) {
+          const x = list.props.HorizontalAlignment === "Center" ? (width - w) / 2 : list.props.HorizontalAlignment === "Right" ? width - w : 0;
+          el.style.left = Math.max(0, x) + "px"; el.style.top = cursor + "px"; cursor += h + gap;
+        } else {
+          const y = list.props.VerticalAlignment === "Center" ? (height - h) / 2 : list.props.VerticalAlignment === "Bottom" ? height - h : 0;
+          el.style.left = cursor + "px"; el.style.top = Math.max(0, y) + "px"; cursor += w + gap;
+        }
+      }
+      return;
+    }
+    const cw = Math.max(1, Number(grid.props.CellSizeX) || 64), ch = Math.max(1, Number(grid.props.CellSizeY) || 64);
+    const gx = Math.max(0, Number(grid.props.PaddingX) || 0), gy = Math.max(0, Number(grid.props.PaddingY) || 0);
+    const cols = Math.max(1, Math.floor((width + gx) / (cw + gx)));
+    const rows = Math.max(1, Math.floor((height + gy) / (ch + gy)));
+    items.forEach((el, i) => {
+      let col, row;
+      if (grid.props.FillDirection === "Vertical") { row = i % rows; col = Math.floor(i / rows); }
+      else { col = i % cols; row = Math.floor(i / cols); }
+      el.style.width = cw + "px"; el.style.height = ch + "px";
+      el.style.left = (col * (cw + gx)) + "px";
+      el.style.top = (row * (ch + gy)) + "px";
+    });
   }
 
   function guiTag(node) {
@@ -1174,7 +1273,7 @@ const StudioEditor = (function () {
       + (GUI_ICON[node.class] || FOLDER_ICON)
       + '<span class="rsTreeName">' + esc(node.name) + "</span>"
       + '<span class="rsTreeClass">' + esc(node.class) + "</span>"
-      + (isScript(node) ? "" : insertBtn("gui:" + node.id, "", "Insert object into " + node.name))
+      + (isScript(node) || isUIModifier(node) ? "" : insertBtn("gui:" + node.id, "", "Insert object into " + node.name))
       + "</div>";
     if (isOpen && kids.length) html += '<div class="rsTreeKids">' + kids.map(kid => guiRowHtml(kid, depth + 1)).join("") + "</div>";
     return html;
@@ -1203,15 +1302,39 @@ const StudioEditor = (function () {
     }
     if (target.kind === "gui" && target.node) {
       const c = target.node.class;
-      if (c === "ScreenGui" || c === "Frame" || c === "Folder") {
+      if (isUIModifier(target.node)) return [];
+      const mods = UI_MODIFIERS.map(cls => ({ label: cls, cls }));
+      if (c === "ScreenGui") {
         return [
           { label: "Frame", cls: "Frame" },
           { label: "TextLabel", cls: "TextLabel" },
           { label: "TextButton", cls: "TextButton" },
           { label: "ImageLabel", cls: "ImageLabel" },
+          { label: "ImageButton", cls: "ImageButton" },
           { label: "Folder", cls: "Folder" },
         ];
       }
+      if (c === "Frame") {
+        return [
+          { label: "Frame", cls: "Frame" },
+          { label: "TextLabel", cls: "TextLabel" },
+          { label: "TextButton", cls: "TextButton" },
+          { label: "ImageLabel", cls: "ImageLabel" },
+          { label: "ImageButton", cls: "ImageButton" },
+          { label: "Folder", cls: "Folder" },
+        ].concat(mods);
+      }
+      if (c === "Folder") {
+        return [
+          { label: "Frame", cls: "Frame" },
+          { label: "TextLabel", cls: "TextLabel" },
+          { label: "TextButton", cls: "TextButton" },
+          { label: "ImageLabel", cls: "ImageLabel" },
+          { label: "ImageButton", cls: "ImageButton" },
+          { label: "Folder", cls: "Folder" },
+        ];
+      }
+      if (c === "TextLabel" || c === "TextButton" || c === "ImageLabel" || c === "ImageButton") return mods;
     }
     return [];
   }
@@ -1329,6 +1452,35 @@ const StudioEditor = (function () {
       + (min == null ? "" : ' min="' + min + '"') + (max == null ? "" : ' max="' + max + '"') + ' value="' + round(+value || 0, 1000) + '"></div>';
   }
 
+  function uiModifierRows(node) {
+    const p = node.props;
+    if (node.class === "UICorner") return guiNumberRow("CornerRadius", "CornerRadius", p.CornerRadius, 1, 0, 256);
+    if (node.class === "UIStroke") return guiColorRow("Color", "Color", p.Color)
+      + guiNumberRow("Thickness", "Thickness", p.Thickness, 1, 0, 40)
+      + guiNumberRow("Transparency", "Transparency", p.Transparency, 0.05, 0, 1);
+    if (node.class === "UIGradient") return guiColorRow("Color1", "Color1", p.Color1)
+      + guiColorRow("Color2", "Color2", p.Color2)
+      + guiNumberRow("Rotation", "Rotation", p.Rotation, 1, -360, 360)
+      + guiNumberRow("Transparency", "Transparency", p.Transparency, 0.05, 0, 1);
+    if (node.class === "UIAspectRatioConstraint") return guiNumberRow("AspectRatio", "AspectRatio", p.AspectRatio, 0.05, 0.05, 100)
+      + guiSelectRow("DominantAxis", "DominantAxis", ["Width", "Height"], p.DominantAxis);
+    if (node.class === "UIScale") return guiNumberRow("Scale", "Scale", p.Scale, 0.05, 0.05, 20);
+    if (node.class === "UIPadding") return guiNumberRow("PaddingTop", "PaddingTop", p.PaddingTop, 1, 0, 512)
+      + guiNumberRow("PaddingBottom", "PaddingBottom", p.PaddingBottom, 1, 0, 512)
+      + guiNumberRow("PaddingLeft", "PaddingLeft", p.PaddingLeft, 1, 0, 512)
+      + guiNumberRow("PaddingRight", "PaddingRight", p.PaddingRight, 1, 0, 512);
+    if (node.class === "UIListLayout") return guiSelectRow("FillDirection", "FillDirection", ["Vertical", "Horizontal"], p.FillDirection)
+      + guiNumberRow("Padding", "Padding", p.Padding, 1, 0, 256)
+      + guiSelectRow("HorizontalAlignment", "HorizontalAlignment", ["Left", "Center", "Right"], p.HorizontalAlignment)
+      + guiSelectRow("VerticalAlignment", "VerticalAlignment", ["Top", "Center", "Bottom"], p.VerticalAlignment);
+    if (node.class === "UIGridLayout") return guiNumberRow("CellSizeX", "CellSizeX", p.CellSizeX, 1, 4, 512)
+      + guiNumberRow("CellSizeY", "CellSizeY", p.CellSizeY, 1, 4, 512)
+      + guiNumberRow("PaddingX", "PaddingX", p.PaddingX, 1, 0, 256)
+      + guiNumberRow("PaddingY", "PaddingY", p.PaddingY, 1, 0, 256)
+      + guiSelectRow("FillDirection", "FillDirection", ["Horizontal", "Vertical"], p.FillDirection);
+    return "";
+  }
+
   function renderGuiProps(box, node) {
     if (isScript(node)) { renderScriptProps(box, node); return; }
     const p = node.props;
@@ -1336,6 +1488,12 @@ const StudioEditor = (function () {
       + '<div class="rsPropRow"><span class="rsPropLabel">Name</span><input type="text" data-gp="Name" maxlength="40" value="' + esc(node.name) + '"></div>'
       + '<div class="rsPropRow"><span class="rsPropLabel">Class</span><span class="rsPropVal">' + esc(node.class) + "</span></div>"
       + '<div class="rsPropRow"><span class="rsPropLabel">Parent</span><span class="rsPropVal">' + (guiFind(node.id, GUI_ROOTS()) && guiFind(node.id, GUI_ROOTS()).parent ? esc(guiFind(node.id, GUI_ROOTS()).parent.name) : "StarterGUI") + "</span></div>";
+
+    if (isUIModifier(node)) {
+      html += '<div class="rsPropGroup">' + esc(node.class) + "</div>" + uiModifierRows(node);
+      box.innerHTML = html;
+      return;
+    }
 
     if (node.class === "ScreenGui") {
       html += '<div class="rsPropGroup">ScreenGui</div>'
@@ -1375,7 +1533,7 @@ const StudioEditor = (function () {
           + guiColorRow("TextStrokeColor3", "TextStrokeColor3", p.TextStrokeColor3)
           + guiBoolRow("RichText", "RichText", p.RichText);
       }
-      if (node.class === "ImageLabel") {
+      if (node.class === "ImageLabel" || node.class === "ImageButton") {
         html += '<div class="rsPropGroup">Image</div>'
           + '<div class="rsPropRow"><span class="rsPropLabel">Image</span><input type="text" data-gp="Image" spellcheck="false" placeholder="https://…" value="' + esc(p.Image || "") + '"></div>'
           + guiColorRow("ImageColor3", "ImageColor3", p.ImageColor3)

@@ -43,7 +43,7 @@ function ugSet(d, v) { v = ugClamp(+v || 0, d[3], d[4]); if (d[0] === "scale") U
   ks.addEventListener("change", () => { if (ks.value !== (isCloth(UG.attach) ? UG.attach : "model")) ugClear(ks.value); });
   $("ugTpl").addEventListener("click", e => {                        // template downloads: normal / transparent / labelled guide
     const b = e.target.closest("[data-tpl]"); if (!b || !isCloth(UG.attach)) return;
-    const a = document.createElement("a"); a.href = "assets/templates/" + UG.attach.toLowerCase() + "-" + b.dataset.tpl + ".png";
+    const a = document.createElement("a"); a.href = "assets/templates/" + UG.attach.toLowerCase() + "-" + b.dataset.tpl + ".png?v=1.9.5t2";
     a.download = UG.attach.toLowerCase() + "-" + b.dataset.tpl + ".png"; document.body.appendChild(a); a.click(); a.remove();
   });
   const sel = $("ugAttach");
@@ -112,7 +112,7 @@ async function ugPickCloth(f) {
     if (!UG.name.trim()) { UG.name = f.name.replace(/\.png$/i, "").slice(0, 40); $("ugName").value = UG.name; }
     $("ugInfo").textContent = f.name; ugMsg(""); ugApply(); ugSync();
   } catch (e) {
-    ugMsg(e && e.message === "shape" ? "That image isn't the right shape. Download a template and keep its size (512 × 512)." : "Couldn't read that PNG.", true);
+    ugMsg(e && e.message === "shape" ? "That image isn't the right shape. Keep it square - the template is 512 × 512." : "Couldn't read that PNG.", true);
   }
 }
 function ugClothApply() {
