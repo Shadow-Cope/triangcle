@@ -463,10 +463,14 @@ body.stGuiDragging { user-select: none; }
 .blkCat { display: flex; align-items: center; gap: 7px; margin: 16px 0 8px; color: #8f8f8f; font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
 .blkCat:first-of-type { margin-top: 2px; }
 .blkCatDot { width: 7px; height: 7px; flex: none; border-radius: 2px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.18); }
-.blkPaletteItem { width: 100%; margin-bottom: 8px; cursor: grab; transition: filter .12s, transform .12s; }
+.blkPaletteItem { width: 100%; margin-bottom: 8px; cursor: grab; transition: filter .12s, transform .12s; touch-action: none; }
 .blkPaletteItem:hover { filter: brightness(1.18) saturate(1.06); transform: translateX(1px); }
 .blkPaletteItem:active { cursor: grabbing; }
 .blkPaletteItem.isDragging { opacity: .4; }
+.blkPaletteItem:focus-visible { outline: 2px solid #ffd98a; outline-offset: 1px; }
+.blk:not(.blkPaletteItem) > .blkRow { cursor: grab; touch-action: none; }
+body.blkDragging .blk > .blkRow { cursor: grabbing; }
+.blkGhost { position: fixed; left: 0; top: 0; z-index: 99999; pointer-events: none; opacity: .94; transform: translate(-9999px, -9999px); box-shadow: 0 14px 34px rgba(0,0,0,.45); }
 
 /* ---- blocks ---- */
 .blk {

@@ -77,7 +77,8 @@ const StudioUI = (function () {
       <b>when an object is hovered</b>, <b>when the player touches a part</b>, <b>when this part is touched</b>
       (scripts on a part) or <b>every N seconds</b>. <b>Make a Variable</b> in the palette for score/health; variables
       are shared by every script. <b>Parts &amp; Player</b> blocks recolour, hide/show or move parts (collision follows),
-      teleport the player, change walk speed / jump power and set <b>health</b> (max health, set, damage, heal, kill,
+      teleport the player, change walk speed / jump power, toggle <b>CanCollide</b>, <b>anchor</b> parts (unanchored
+      parts fall), <b>tween</b> a part to a position over time, and set <b>health</b> (max health, set, damage, heal, kill,
       respawn) - <b>when this part is touched &rarr; kill player</b> makes a killbrick. You can also drag scripts and
       UI objects in the Explorer to move them between services, folders and parts. Try
       <b>Home &gt; Open a Template &gt; Relay Ascent</b> for a finished example.</div>`,

@@ -129,6 +129,8 @@ The first version has:
     and z-index; **Parts &amp; Player** blocks recolour, hide/show or **move** parts (collision moves too, and standing
     players ride along), teleport the player, change walk speed / jump power, and set **health** (max health, set,
     damage, heal, kill, respawn) - a part with **when this part is touched &rarr; kill player** is a working killbrick.
+    Parts can also toggle **CanCollide**, be **unanchored** (they fall under gravity) and **tween** smoothly to a new
+    position over time.
     In the Explorer you can **drag scripts and UI objects** between Workspace, ReplicatedStorage, StarterGUI, folders
     and parts. Scripts run in the playtest and in published games - server scripts first, then local ones.
     **Home &gt; Open a Template &gt; Relay Ascent** is a finished showcase using all of it (obby, sequence puzzle,
@@ -225,7 +227,7 @@ Faces are Catalog items (`ugc_items.attach = 'Face'`) with a number in `face_met
 
 Run `supabase_account.sql` once in the Supabase SQL editor (check the wallet table names at the top first).
 
-- **Settings tab**: change your display name (free) or your username (150 Shapes each time, charged inside Supabase by `change_username()`). Old usernames are kept in `username_history` and shown on the player's profile. Nobody can take an old username, and you log in with your current one (`login_email_for()`).
+- **Settings tab**: change your display name (free), your username (150 Shapes each time, charged inside Supabase by `change_username()`) or your **password** (enter the current password, then the new one twice; the app re-authenticates with Supabase first). Old usernames are kept in `username_history` and shown on the player's profile. Nobody can take an old username, and you log in with your current one (`login_email_for()`).
 - **Building tools per game**: Owner tab > each game > *Building tools*: Everyone / Admins & Owner only / Off. Stored in `game_settings.btools`; checked in `js/game/btools.js` (`canBuild()`).
 
 

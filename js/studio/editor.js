@@ -1548,6 +1548,9 @@ const StudioEditor = (function () {
     partTrans:  { cat: "world", label: "set transparency of part {part} to {n}", args: { part: "", n: "0.5" } },
     partShow:   { cat: "world", label: "show part {part}", args: { part: "" } },
     partHide:   { cat: "world", label: "hide part {part}", args: { part: "" } },
+    setCollide: { cat: "world", label: "set {part} can collide {on}", args: { part: "", on: "true" } },
+    setAnchored:{ cat: "world", label: "set {part} anchored {on}", args: { part: "", on: "true" } },
+    tweenPart:  { cat: "world", label: "tween part {part} to {x} {y} {z} in {n} seconds", args: { part: "", x: "0", y: "3", z: "0", n: "1" } },
     movePart:   { cat: "world", label: "move part {part} by {x} {y} {z}", args: { part: "", x: "0", y: "1", z: "0" } },
     teleport:   { cat: "world", label: "teleport player to {x} {y} {z}", args: { x: "0", y: "3", z: "0" } },
     walkSpeed:  { cat: "world", label: "set walk speed to {n}", args: { n: "16" } },
@@ -1567,7 +1570,7 @@ const StudioEditor = (function () {
   const BLOCK_OPS = ["=", "≠", "<", ">"];
 
   let scriptEdit = null, selectedBlock = null, blockSeq = 0;
-  let blkDrag = null, blkDropLine = null;
+  let blkDrag = null, blkDropLine = null, blkClickSuppress = 0;
 
   function blockColor(type) {
     const def = SCRIPT_BLOCKS[type];
@@ -1584,6 +1587,7 @@ const StudioEditor = (function () {
   }
 
   function endBlockDrag() {
+    if (blkDrag && blkDrag.ghost) blkDrag.ghost.remove();
     blkDrag = null;
     clearDropMarks();
     document.body.classList.remove("blkDragging");
@@ -1597,6 +1601,123 @@ const StudioEditor = (function () {
     if (blkDropLine.parentElement !== stack || blkDropLine.nextSibling !== before) {
       stack.insertBefore(blkDropLine, before);
     }
+  }
+
+  /* ---- pointer dragging for blocks (palette and stack) ---- */
+  function beginBlockPointerDrag(e, source) {
+    if (e.button !== 0 || !scriptEdit) return;
+    if (e.target.closest("input,select,button,a")) return;
+    const row = e.target.closest(".blkRow");
+    if (!row) return;
+    let srcEl = source === "palette" ? row.closest("[data-palette]") : row.closest("[data-block]");
+    if (!srcEl) return;
+    if (source !== "palette" && !srcEl.closest("#stScriptStack")) return;
+    const payload = source === "palette"
+      ? { from: "palette", type: srcEl.dataset.palette }
+      : { from: "script", id: srcEl.dataset.block };
+    if (!payload.type && !payload.id) return;
+    blkDrag = { payload, srcEl, x: e.clientX, y: e.clientY, started: false, ghost: null };
+  }
+
+  function startBlockGhost() {
+    const drag = blkDrag;
+    if (!drag || drag.ghost) return;
+    const row = drag.srcEl.querySelector(":scope > .blkRow");
+    const ghost = document.createElement("div");
+    ghost.className = "blk blkGhost" + (drag.srcEl.classList.contains("blkHat") ? " blkHat" : "");
+    ghost.style.setProperty("--blk-color", getComputedStyle(drag.srcEl).backgroundColor);
+    ghost.style.width = Math.round(drag.srcEl.getBoundingClientRect().width) + "px";
+    ghost.innerHTML = row ? row.outerHTML : "";
+    document.body.appendChild(ghost);
+    drag.ghost = ghost;
+    drag.started = true;
+    drag.srcEl.classList.add("isDragging");
+    document.body.classList.add("blkDragging");
+  }
+
+  function moveBlockPointerDrag(e) {
+    const drag = blkDrag;
+    if (!drag) return;
+    if (!drag.started) {
+      if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 6) return;
+      startBlockGhost();
+    }
+    e.preventDefault();
+    drag.ghost.style.transform = "translate(" + (e.clientX + 12) + "px, " + (e.clientY + 10) + "px)";
+    drag.target = blockDropTargetAt(e.clientX, e.clientY);
+  }
+
+  function blockDropTargetAt(x, y) {
+    clearDropMarks();
+    const el = document.elementFromPoint(x, y);
+    if (!el) return null;
+    const trash = el.closest(".blkTrash");
+    if (trash) { trash.classList.add("on"); return { kind: "trash" }; }
+    const stack = el.closest(".blkStack");
+    if (stack) {
+      const ownerId = stack.dataset.drop;
+      const payload = blkDrag && blkDrag.payload;
+      let def = null;
+      if (payload) {
+        if (payload.from === "palette") def = SCRIPT_BLOCKS[payload.type];
+        else { const hit = findBlockEntry(scriptEdit.blocks || [], payload.id); def = hit && SCRIPT_BLOCKS[hit.block.type]; }
+      }
+      if (def && def.hat && ownerId !== "root") return null;
+      stack.classList.add("dropOn");
+      const index = dropIndex(stack, y);
+      dropLineAt(stack, index);
+      return { kind: "stack", ownerId, index };
+    }
+    if (el.closest(".stScriptCanvas")) {
+      const root = document.querySelector("#stScriptStack > .blkStack");
+      if (!root) return null;
+      root.classList.add("dropOn");
+      const count = root.querySelectorAll(":scope > .blk").length;
+      dropLineAt(root, count);
+      return { kind: "root", count };
+    }
+    return null;
+  }
+
+  function endBlockPointerDrag(e) {
+    const drag = blkDrag;
+    if (!drag) return;
+    let target = null;
+    if (drag.started) {
+      target = blockDropTargetAt(e.clientX, e.clientY);
+      blkClickSuppress = Date.now() + 250;
+      if (e.cancelable) e.preventDefault();
+    }
+    blkDrag = null;
+    if (drag.started && target) {
+      if (target.kind === "trash" && drag.payload.from === "script") {
+        const entry = findBlockEntry(scriptEdit.blocks || [], drag.payload.id);
+        if (entry) {
+          entry.list.splice(entry.index, 1);
+          if (selectedBlock && selectedBlock.id === drag.payload.id) selectedBlock = null;
+          markDirty();
+          renderBlocks();
+        }
+      } else if (target.kind === "stack") {
+        applyBlockDrop(drag.payload, target.ownerId, target.index);
+      } else if (target.kind === "root") {
+        applyBlockDrop(drag.payload, "root", target.count);
+      }
+    }
+    if (drag.ghost) drag.ghost.remove();
+    clearDropMarks();
+    document.body.classList.remove("blkDragging");
+    for (const el of document.querySelectorAll(".isDragging")) el.classList.remove("isDragging");
+  }
+
+  function cancelBlockPointerDrag() {
+    const drag = blkDrag;
+    if (!drag) return;
+    if (drag.ghost) drag.ghost.remove();
+    blkDrag = null;
+    clearDropMarks();
+    document.body.classList.remove("blkDragging");
+    for (const el of document.querySelectorAll(".isDragging")) el.classList.remove("isDragging");
   }
 
   function newBlock(type) {
@@ -1675,7 +1796,7 @@ const StudioEditor = (function () {
   }
 
   function blockSlotPlaceholder(key) {
-    return ({ target: "object", prop: "property", op: "=", n: "number", text: "text", value: "value" })[key] || key;
+    return ({ target: "object", prop: "property", op: "=", n: "number", text: "text", value: "value", on: "yes / no" })[key] || key;
   }
 
   function blockInputHtml(key, block) {
@@ -1701,6 +1822,10 @@ const StudioEditor = (function () {
     }
     if (key === "prop") return '<select class="blkInput"' + common + ">" + optionList(BLOCK_PROPS, value || "Text") + "</select>";
     if (key === "op") return '<select class="blkInput"' + common + ">" + optionList(BLOCK_OPS, value || "=") + "</select>";
+    if (key === "on") {
+      const on = value !== "false";
+      return '<select class="blkInput"' + common + '><option value="true"' + (on ? " selected" : "") + ">yes</option><option value=\"false\"" + (on ? "" : " selected") + ">no</option></select>";
+    }
     if (key === "color") return '<input class="blkInput blkColor" type="color"' + common + ' value="' + esc(value || "#ff4444") + '">';
     if (key === "x" || key === "y" || key === "z") return '<input class="blkInput blkAxis" type="number" step="1"' + common + ' value="' + esc(value) + '">';
     if (key === "n") return '<input class="blkInput blkNum" type="number" step="0.1"' + common + ' value="' + esc(value) + '">';
@@ -1773,7 +1898,7 @@ const StudioEditor = (function () {
       const color = BLOCK_COLORS[cat] || "#555";
       html += '<div class="blkCat"><i class="blkCatDot" style="background:' + color + '"></i>' + BLOCK_CATS[cat] + "</div>";
       for (const [type, def] of rows) {
-        html += '<div class="blk blkPaletteItem blk-' + cat + (def.hat ? " blkHat" : "") + '" draggable="true" data-palette="' + type + '" style="--blk-color:' + color + '">'
+        html += '<div class="blk blkPaletteItem blk-' + cat + (def.hat ? " blkHat" : "") + '" role="button" tabindex="0" data-palette="' + type + '" style="--blk-color:' + color + '">'
           + '<div class="blkRow">' + blockLabelHtml(def, { args: {} }, true) + "</div></div>";
       }
     }
@@ -1783,7 +1908,7 @@ const StudioEditor = (function () {
         ? vars.map(v => '<span class="blkVarChip">' + esc(v) + '<button type="button" data-del-var="' + esc(v) + '" aria-label="Delete ' + esc(v) + '">&times;</button></span>').join("")
         : '<span class="blkVarsEmpty">No variables yet</span>') + "</div>"
       + '<button type="button" class="blkAddVar" data-add-var="1">+ Make a Variable</button>'
-      + '<div class="blkTrash" data-trash="1"><b>Delete</b><span>Drop a block here to remove it</span></div>';
+      + '<div class="blkTrash" data-trash="1" tabindex="0" aria-label="Delete blocks"><b>Delete</b><span>Drop a block here to remove it</span></div>';
     box.innerHTML = html;
   }
 
@@ -1799,6 +1924,7 @@ const StudioEditor = (function () {
     const wrap = document.createElement("div");
     wrap.className = "blkStack";
     wrap.dataset.drop = ownerId;
+    if (ownerId === "root") { wrap.tabIndex = 0; wrap.setAttribute("aria-label", "Script stack"); }
     if (showIntro && !list.length) {
       const intro = document.createElement("div");
       intro.className = "blkIntro";
@@ -1823,7 +1949,7 @@ const StudioEditor = (function () {
     if (!def) return el;
     el.className = "blk blk-" + def.cat + (def.hat ? " blkHat" : "") + (selectedBlock === block ? " isSel" : "");
     el.dataset.block = block.id;
-    el.draggable = true;
+    el.tabIndex = 0;
     el.style.setProperty("--blk-color", blockColor(block.type));
     el.innerHTML = '<div class="blkRow">' + blockLabelHtml(def, block) + "</div>";
     if (def.body) {
@@ -1848,19 +1974,11 @@ const StudioEditor = (function () {
       input.addEventListener("dragstart", e => e.preventDefault());
     }
     el.addEventListener("click", e => {
+      if (Date.now() < blkClickSuppress) return;
       if (e.target.closest("input,select")) return;
       selectedBlock = block;
       renderBlocks();
     });
-    el.addEventListener("dragstart", e => {
-      if (e.target.closest("input,select")) { e.preventDefault(); return; }
-      blkDrag = { from: "script", id: block.id };
-      document.body.classList.add("blkDragging");
-      el.classList.add("isDragging");
-      e.dataTransfer.setData("text/plain", JSON.stringify({ from: "script", id: block.id }));
-      e.dataTransfer.effectAllowed = "move";
-    });
-    el.addEventListener("dragend", endBlockDrag);
     return el;
   }
 
@@ -1998,6 +2116,7 @@ const StudioEditor = (function () {
         if (del) { removeVariable(del.dataset.delVar); return; }
         const item = e.target.closest("[data-palette]");
         if (!item || !scriptEdit) return;
+        if (Date.now() < blkClickSuppress) return;
         const block = newBlock(item.dataset.palette);
         if (!block) return;
         if (SCRIPT_BLOCKS[block.type].hat) { setHat(block); return; }
@@ -2006,70 +2125,13 @@ const StudioEditor = (function () {
         markDirty();
         renderBlocks();
       });
-      palette.addEventListener("dragstart", e => {
-        const item = e.target.closest("[data-palette]");
-        if (!item) return;
-        blkDrag = { from: "palette", type: item.dataset.palette };
-        document.body.classList.add("blkDragging");
-        item.classList.add("isDragging");
-        e.dataTransfer.setData("text/plain", JSON.stringify({ from: "palette", type: item.dataset.palette }));
-        e.dataTransfer.effectAllowed = "copy";
-      });
-      palette.addEventListener("dragend", endBlockDrag);
-      palette.addEventListener("dragover", e => {
-        if (!blkDrag || blkDrag.from !== "script") return;
-        e.preventDefault();
-        const overTrash = !!e.target.closest("[data-trash]");
-        const trash = document.querySelector(".blkTrash");
-        if (trash) trash.classList.toggle("on", overTrash);
-        palette.classList.toggle("dragOver", overTrash);
-      });
-      palette.addEventListener("dragleave", e => {
-        if (palette.contains(e.relatedTarget)) return;
-        palette.classList.remove("dragOver");
-        const trash = document.querySelector(".blkTrash"); if (trash) trash.classList.remove("on");
-      });
-      palette.addEventListener("drop", e => {
-        if (!blkDrag || blkDrag.from !== "script" || !scriptEdit) return;
-        palette.classList.remove("dragOver");
-        const trash = document.querySelector(".blkTrash"); if (trash) trash.classList.remove("on");
-        if (!e.target.closest("[data-trash]")) return;
-        e.preventDefault();
-        const entry = findBlockEntry(scriptEdit.blocks || [], blkDrag.id);
-        if (entry) {
-          entry.list.splice(entry.index, 1);
-          if (selectedBlock && selectedBlock.id === blkDrag.id) selectedBlock = null;
-          markDirty();
-          renderBlocks();
-        }
-        endBlockDrag();
-      });
+      palette.addEventListener("pointerdown", e => beginBlockPointerDrag(e, "palette"));
     }
-    const canvas = document.querySelector(".stScriptCanvas");
-    if (canvas) {
-      canvas.addEventListener("dragover", e => {
-        if (!blkDrag || e.target.closest(".blkStack")) return;
-        e.preventDefault();
-        const root = document.querySelector("#stScriptStack > .blkStack");
-        if (!root) return;
-        root.classList.add("dropOn");
-        dropLineAt(root, root.querySelectorAll(":scope > .blk").length);
-      });
-      canvas.addEventListener("dragleave", e => {
-        if (canvas.contains(e.relatedTarget)) return;
-        clearDropMarks();
-      });
-      canvas.addEventListener("drop", e => {
-        if (e.target.closest(".blkStack")) return;
-        e.preventDefault();
-        let payload = null;
-        try { payload = JSON.parse(e.dataTransfer.getData("text/plain") || "null"); } catch (_) {}
-        const root = document.querySelector("#stScriptStack > .blkStack");
-        const count = root ? root.querySelectorAll(":scope > .blk").length : 0;
-        clearDropMarks();
-        applyBlockDrop(payload, "root", count);
-      });
-    }
+    const stackBox = $("stScriptStack");
+    if (stackBox) stackBox.addEventListener("pointerdown", e => beginBlockPointerDrag(e, "script"));
+    document.addEventListener("pointermove", moveBlockPointerDrag);
+    document.addEventListener("pointerup", endBlockPointerDrag);
+    document.addEventListener("pointercancel", cancelBlockPointerDrag);
     document.addEventListener("keydown", e => {
       const panel = $("stScriptEditor");
       if (!panel || panel.hidden) return;
@@ -2594,8 +2656,8 @@ const StudioEditor = (function () {
     if (keys.has("s")) { camera.position.addScaledVector(tmpDir, -amount); moved = true; }
     if (keys.has("d")) { camera.position.addScaledVector(tmpRight, amount); moved = true; }
     if (keys.has("a")) { camera.position.addScaledVector(tmpRight, -amount); moved = true; }
-    if (keys.has("e") || keys.has(" ")) { camera.position.y += amount; moved = true; }
-    if (keys.has("q") || keys.has("control")) { camera.position.y -= amount; moved = true; }
+    if (keys.has("e")) { camera.position.y += amount; moved = true; }
+    if (keys.has("q")) { camera.position.y -= amount; moved = true; }
     if (moved) camera.position.y = Math.max(-40, camera.position.y);
   }
 

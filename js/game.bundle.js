@@ -447,6 +447,7 @@ function addWedgeCollision(sx, sy, sz, x, y, z, R, corner) {
    texture: Studs / Inlet / Smooth (blocks only) */
 const PART_MESHES = new Map();   // part name -> mesh, for block scripts
 const PART_SOLIDS = new Map();   // part name -> collision boxes, so moved parts still collide
+const PART_TOUCH = new Map();    // part name -> boxes for Touched, even when CanCollide is off
 function buildMapWorld(map) {
   SPAWN.set(map.spawn[0], map.spawn[1], map.spawn[2]);
   let half = 0;                                                         // camera stays above the ground only where there is a big ground part
@@ -454,6 +455,7 @@ function buildMapWorld(map) {
   BASEPLATE_HALF = half;
   PART_MESHES.clear();
   PART_SOLIDS.clear();
+  PART_TOUCH.clear();
   const texC = new Map(), matC = new Map(), geoC = new Map();
   const presetOf = name => MAT_PRESETS[name] || MAT_PRESETS.Plastic;
   const opacityOf = (preset, tr) => Math.max(0.02, Math.min(1, (preset.glass ? 0.55 : 1) * (1 - (tr || 0))));
@@ -515,14 +517,22 @@ function buildMapWorld(map) {
     m.receiveShadow = true;
     m.castShadow = tr === 0 && !preset.glass;
     scene.add(m);
-    if (typeof row[13] === "string" && row[13]) PART_MESHES.set(row[13], m);
-    if (!col) continue;
+    const partName = typeof row[13] === "string" && row[13] ? row[13] : "";
+    if (partName) PART_MESHES.set(partName, m);
+    // Build boxes for scripts even when the part is a trigger (CanCollide off).
+    if (!col && !partName) continue;
     const solidFrom = solids.length;
     if (shape === 0 && Math.min(sx, sy, sz) > Math.max(sx, sy, sz) * 0.95) {      // a round ball: exact sphere hitbox
       solids.push({ minX: x - sx / 2, maxX: x + sx / 2, minY: y - sy / 2, maxY: y + sy / 2, minZ: z - sz / 2, maxZ: z + sz / 2, ball: { cx: x, cy: y, cz: z, r: Math.min(sx, sy, sz) / 2 } });
     } else if (shape === 3 || shape === 4) addWedgeCollision(sx, sy, sz, x, y, z, R, shape === 4);
     else addRotatedCollision(sx, sy, sz, x, y, z, R);
-    if (typeof row[13] === "string" && row[13]) PART_SOLIDS.set(row[13], solids.slice(solidFrom));
+    const boxes = solids.slice(solidFrom);
+    if (partName) PART_TOUCH.set(partName, boxes);
+    if (col) {
+      if (partName) PART_SOLIDS.set(partName, boxes);
+    } else {
+      solids.length = solidFrom;                                                // a trigger doesn't block movement
+    }
   }
 }
 
@@ -719,9 +729,17 @@ function findRuntimeNode(map, name) {
   return hit;
 }
 
+const MISSING_UI_WARNED = new Set();
 function setRuntimeProp(map, target, prop, raw) {
   const node = findRuntimeNode(map, target);
-  if (!node || !node.props || !prop) return false;
+  if (!node || !node.props || !prop) {
+    const key = String(target || "");
+    if (key && !MISSING_UI_WARNED.has(key)) {
+      MISSING_UI_WARNED.add(key);
+      console.warn("[Triancle script] no UI object named \"" + key + "\".");
+    }
+    return false;
+  }
   const p = node.props;
   const text = String(raw == null ? "" : raw);
   switch (prop) {
@@ -812,7 +830,10 @@ function moveRuntimePart(name, dx, dy, dz) {
   const mesh = runtimePart(name);
   if (!mesh) return;
   const dxn = guiNum(dx), dyn = guiNum(dy), dzn = guiNum(dz);
-  const boxes = PART_SOLIDS.get(name) || [];
+  const boxes = [], seen = new Set();
+  for (const map of [PART_SOLIDS, PART_TOUCH]) {
+    for (const b of map.get(name) || []) if (!seen.has(b)) { seen.add(b); boxes.push(b); }
+  }
   let carry = false;
   for (const b of boxes) {
     if (Math.abs(player.pos.y - b.maxY) < 0.3 &&
@@ -836,6 +857,85 @@ function teleportPlayer(x, y, z) {
   player.prev.copy(player.pos);
   player.vel.set(0, 0, 0);
   player.onGround = false;
+}
+
+/* ---- part collision, anchoring and tweens (script blocks) ---- */
+const PART_TWEENS = new Map();       // name -> { fromX.., toX.., t, dur }
+const PART_DYNAMICS = new Map();     // name -> { vy } for unanchored parts
+
+function partRuntimeBoxes(name) { return PART_TOUCH.get(name) || PART_SOLIDS.get(name) || []; }
+
+function setPartCollide(name, on) {
+  const boxes = partRuntimeBoxes(name);
+  for (const box of boxes) {
+    const i = solids.indexOf(box);
+    if (on && i < 0) solids.push(box);
+    else if (!on && i >= 0) solids.splice(i, 1);
+  }
+}
+
+function setPartAnchored(name, on) {
+  if (on) { PART_DYNAMICS.delete(name); return; }
+  if (!partRuntimeBoxes(name).length) return;
+  PART_DYNAMICS.set(name, { vy: 0 });
+}
+
+function partBoxBounds(boxes) {
+  let minX = Infinity, minY = Infinity, minZ = Infinity, maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+  for (const b of boxes) {
+    minX = Math.min(minX, b.minX); minY = Math.min(minY, b.minY); minZ = Math.min(minZ, b.minZ);
+    maxX = Math.max(maxX, b.maxX); maxY = Math.max(maxY, b.maxY); maxZ = Math.max(maxZ, b.maxZ);
+  }
+  return { minX, minY, minZ, maxX, maxY, maxZ };
+}
+
+function updatePartDynamics(dt) {
+  for (const [name, dyn] of PART_DYNAMICS) {
+    const mesh = runtimePart(name);
+    const boxes = partRuntimeBoxes(name);
+    if (!mesh || !boxes.length) { PART_DYNAMICS.delete(name); continue; }
+    const own = new Set(boxes);
+    const b = partBoxBounds(boxes);
+    let support = null;
+    for (const other of solids) {
+      if (own.has(other)) continue;
+      if (other.maxX <= b.minX + 0.01 || other.minX >= b.maxX - 0.01) continue;
+      if (other.maxZ <= b.minZ + 0.01 || other.minZ >= b.maxZ - 0.01) continue;
+      if (other.maxY <= b.minY + 0.25) support = support === null ? other.maxY : Math.max(support, other.maxY);
+    }
+    dyn.vy = Math.min(200, dyn.vy + CFG.GRAVITY * dt);
+    let fall = dyn.vy * dt;
+    if (support !== null && b.minY - fall <= support + 0.02) fall = Math.max(0, b.minY - support);
+    if (fall > 0) moveRuntimePart(name, 0, -fall, 0);
+    if (fall <= 0.0001 && support !== null) PART_DYNAMICS.delete(name);
+    else if (mesh.position.y < -500) PART_DYNAMICS.delete(name);
+  }
+}
+
+function tweenRuntimePart(name, x, y, z, seconds) {
+  const mesh = runtimePart(name);
+  if (!mesh) return;
+  PART_DYNAMICS.delete(name);
+  PART_TWEENS.set(name, {
+    fromX: mesh.position.x, fromY: mesh.position.y, fromZ: mesh.position.z,
+    toX: guiNum(x), toY: guiNum(y), toZ: guiNum(z),
+    t: 0, dur: Math.max(0.05, Math.min(60, guiNum(seconds) || 1)),
+  });
+}
+
+function updateTweens(dt) {
+  for (const [name, tw] of PART_TWEENS) {
+    const mesh = runtimePart(name);
+    if (!mesh) { PART_TWEENS.delete(name); continue; }
+    tw.t += dt;
+    const k = Math.min(1, tw.t / tw.dur);
+    const e = k * k * (3 - 2 * k);
+    const tx = tw.fromX + (tw.toX - tw.fromX) * e;
+    const ty = tw.fromY + (tw.toY - tw.fromY) * e;
+    const tz = tw.fromZ + (tw.toZ - tw.fromZ) * e;
+    moveRuntimePart(name, tx - mesh.position.x, ty - mesh.position.y, tz - mesh.position.z);
+    if (k >= 1) PART_TWEENS.delete(name);
+  }
 }
 
 const HOVER_HANDLERS = [];
@@ -885,7 +985,7 @@ function checkTouchScripts() {
   const height = (typeof CFG !== "undefined" && CFG.CHAR_HEIGHT) || 5;
   const p = player.pos;
   for (const handler of TOUCH_HANDLERS) {
-    const boxes = PART_SOLIDS.get(handler.part) || [];
+    const boxes = PART_TOUCH.get(handler.part) || PART_SOLIDS.get(handler.part) || [];
     let hit = false;
     for (const b of boxes) {
       if (p.x + half > b.minX && p.x - half < b.maxX &&
@@ -939,6 +1039,12 @@ async function runScriptStack(blocks, map, ctl) {
       setPartVisible(block.args.part, true);
     } else if (block.type === "partHide") {
       setPartVisible(block.args.part, false);
+    } else if (block.type === "setCollide") {
+      setPartCollide(block.args.part, block.args.on !== "false");
+    } else if (block.type === "setAnchored") {
+      setPartAnchored(block.args.part, block.args.on !== "false");
+    } else if (block.type === "tweenPart") {
+      tweenRuntimePart(block.args.part, block.args.x, block.args.y, block.args.z, block.args.n);
     } else if (block.type === "movePart") {
       moveRuntimePart(block.args.part, block.args.x, block.args.y, block.args.z);
     } else if (block.type === "teleport") {
@@ -1004,11 +1110,16 @@ function runScripts(map) {
       continue;
     }
     if (hat === "onTouch") {
-      TOUCH_HANDLERS.push({ part: blocks[0].args && blocks[0].args.part, inside: false, fire });
+      const part = blocks[0].args && blocks[0].args.part;
+      if (part && !PART_TOUCH.has(part) && !PART_SOLIDS.has(part)) {
+        console.warn("[Triancle script] \"" + (script.name || "Script") + "\" listens for touches on \"" + part + "\", but no part with that name exists.");
+      }
+      TOUCH_HANDLERS.push({ part, inside: false, fire });
       continue;
     }
     if (hat === "onTouchSelf") {
       if (script.parentPart) TOUCH_HANDLERS.push({ part: script.parentPart, inside: false, fire });
+      else console.warn("[Triancle script] \"" + (script.name || "Script") + "\" uses \"when this part is touched\" but is not attached to a part.");
       continue;
     }
     if (hat === "every") {
@@ -1894,6 +2005,8 @@ function exitClimb(c, ex, bk) {     // leave a climb at the top; if you then sto
 function physicsStep(dt) {
   if (debris.length) stepDebris(dt);
   if (userParts.length) stepUserParts(dt);
+  if (PART_TWEENS.size) updateTweens(dt);
+  if (PART_DYNAMICS.size) updatePartDynamics(dt);
   if (!player.alive) {
     player.respawnTimer -= dt;
     if (player.respawnTimer <= 0) respawn();
@@ -4165,12 +4278,53 @@ async function renderSettings() {
       <div class="note sMsg" id="sUserMsg">You have <span class="sCost">${TRI_SVG}<span id="sBal">${esc(bal)}</span></span>.</div>
     </div>
     <div class="box sBox">
+      <h4>Password</h4>
+      <p class="muted">Enter your current password, then pick a new one. You'll stay signed in on this device.</p>
+      <div class="sRow sPassRow">
+        <input id="sPassCur" type="password" maxlength="72" placeholder="Current password" autocomplete="current-password">
+        <input id="sPassNew" type="password" maxlength="72" placeholder="New password" autocomplete="new-password">
+        <input id="sPassConfirm" type="password" maxlength="72" placeholder="Confirm new password" autocomplete="new-password">
+        <button class="btnP" id="sPassSave" type="button">Change password</button>
+      </div>
+      <div class="note sMsg" id="sPassMsg"></div>
+    </div>
+    <div class="box sBox">
       <h4>Previous usernames</h4>
       <div id="sOld">${old.length ? old.map(o => `<div class="sOldRow"><b>@${esc(o.old_username)}</b><span class="muted">${esc(new Date(o.changed_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }))}</span></div>`).join("") : '<span class="muted">You haven\'t changed your username.</span>'}</div>
     </div>`;
-  for (const id of ["sDisp", "sUser"]) $(id).addEventListener("keydown", e => e.stopPropagation());
+  for (const id of ["sDisp", "sUser", "sPassCur", "sPassNew", "sPassConfirm"]) $(id).addEventListener("keydown", e => e.stopPropagation());
   $("sDispSave").addEventListener("click", saveDisplayName);
   $("sUserSave").addEventListener("click", saveUsername);
+  $("sPassSave").addEventListener("click", savePassword);
+}
+
+async function savePassword() {
+  const msg = $("sPassMsg"), btn = $("sPassSave");
+  const current = $("sPassCur").value, next = $("sPassNew").value, confirm = $("sPassConfirm").value;
+  if (!current) { msg.textContent = "Enter your current password first."; return; }
+  if (next.length < 6) { msg.textContent = "Your new password needs at least 6 characters."; return; }
+  if (next === current) { msg.textContent = "Choose a password different from your current one."; return; }
+  if (next !== confirm) { msg.textContent = "The new passwords don't match."; return; }
+  const sb = getSB(), email = acct.user && acct.user.email;
+  if (!sb || !email) { msg.textContent = "Can't change the password right now. Try logging in again."; return; }
+  btn.disabled = true;
+  msg.textContent = "Checking your current password…";
+  try {
+    const check = await sb.auth.signInWithPassword({ email, password: current });
+    if (check.error) throw new Error("current");
+    msg.textContent = "Saving the new password…";
+    const r = await sb.auth.updateUser({ password: next });
+    if (r.error) throw new Error(r.error.message || "update failed");
+    $("sPassCur").value = ""; $("sPassNew").value = ""; $("sPassConfirm").value = "";
+    msg.textContent = "Password changed. Use the new one next time you log in.";
+  } catch (e) {
+    const m = String((e && e.message) || "");
+    msg.textContent = m === "current" || /invalid|credentials/i.test(m)
+      ? "That's not your current password."
+      : "Couldn't change the password: " + m;
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 async function saveDisplayName() {
