@@ -176,12 +176,23 @@ create index if not exists friendships_addressee_idx on friendships (addressee);
 -- ---------------------------------------------------------------------
 -- helpers (after the tables, so their bodies validate)
 -- ---------------------------------------------------------------------
+create or replace function public.is_owner()
+returns boolean language sql stable security definer set search_path = public as $$
+  select lower(coalesce(auth.jwt()->>'email','')) = lower('owen@players.bounded.app')
+      or exists (select 1 from badges where user_id = auth.uid() and badge = 'owner');
+$$;
+
+create or replace function public.can_edit_items()
+returns boolean language sql stable security definer set search_path = public as $$
+  select public.is_owner() or exists (
+    select 1 from badges b join badge_defs d on d.key = b.badge
+     where b.user_id = auth.uid() and d.can_edit_items
+  );
+$$;
+
 create or replace function public.is_staff()
 returns boolean language sql stable security definer set search_path = public as $$
-  select exists (
-    select 1 from badges
-     where user_id = auth.uid() and badge in ('owner', 'admin')
-  );
+  select public.is_owner();
 $$;
 
 create or replace function public.can_ugc()
@@ -270,13 +281,13 @@ drop policy if exists notif_delete_own on notifications;
 create policy notif_delete_own on notifications for delete to authenticated using (user_id = auth.uid());
 
 drop policy if exists ugc_read on ugc_items;
-create policy ugc_read on ugc_items for select using (published or creator = auth.uid() or is_staff());
+create policy ugc_read on ugc_items for select using (published or creator = auth.uid() or public.can_edit_items());
 drop policy if exists ugc_insert_own on ugc_items;
 create policy ugc_insert_own on ugc_items for insert to authenticated with check (creator = auth.uid());
 drop policy if exists ugc_update_own on ugc_items;
-create policy ugc_update_own on ugc_items for update to authenticated using (creator = auth.uid() or is_staff()) with check (creator = auth.uid() or is_staff());
+create policy ugc_update_own on ugc_items for update to authenticated using (creator = auth.uid() or public.can_edit_items()) with check (creator = auth.uid() or public.can_edit_items());
 drop policy if exists ugc_delete_own on ugc_items;
-create policy ugc_delete_own on ugc_items for delete to authenticated using (creator = auth.uid() or is_staff());
+create policy ugc_delete_own on ugc_items for delete to authenticated using (creator = auth.uid() or public.can_edit_items());
 
 drop policy if exists inv_read_own on ugc_inventory;
 create policy inv_read_own on ugc_inventory for select to authenticated using (user_id = auth.uid());
@@ -386,7 +397,7 @@ $$;
 create or replace function public.ugc_items_by_ids(p_ids text[])
 returns setof ugc_items language sql stable security definer set search_path = public as $$
   select * from ugc_items
-   where id = any(p_ids) and (published or creator = auth.uid() or is_staff());
+   where id = any(p_ids) and (published or creator = auth.uid() or public.can_edit_items());
 $$;
 
 create or replace function public.set_ugc_equipped(p_item text, p_on boolean)
@@ -506,7 +517,7 @@ declare v_creator uuid;
 begin
   select creator into v_creator from ugc_items where id = p_item;
   if v_creator is null then raise exception 'not_found'; end if;
-  if v_creator <> auth.uid() and not is_staff() then raise exception 'not_allowed'; end if;
+  if v_creator <> auth.uid() and not public.can_edit_items() then raise exception 'not_allowed'; end if;
   update ugc_items
      set name = coalesce(nullif(trim(p_name), ''), name),
          description = p_desc,
@@ -522,7 +533,7 @@ declare v_creator uuid;
 begin
   select creator into v_creator from ugc_items where id = p_item;
   if v_creator is null then return; end if;
-  if v_creator <> auth.uid() and not is_staff() then raise exception 'not_allowed'; end if;
+  if v_creator <> auth.uid() and not public.can_edit_items() then raise exception 'not_allowed'; end if;
   delete from ugc_items where id = p_item;
 end $$;
 
@@ -652,7 +663,7 @@ create trigger ugc_items_upload_fee before insert on ugc_items
 -- ---------------------------------------------------------------------
 insert into badge_defs (key, name, image, can_ugc, can_edit_items) values
   ('owner',     'Owner',          'assets/badges/owner.png',     true,  true),
-  ('admin',     'Admin',          'assets/badges/admin.png',     true,  true),
+  ('admin',     'Admin',          'assets/badges/admin.png',     true,  false),
   ('ugc',       'UGC Creator',    'assets/badges/ugc.png',       true,  false),
   ('alpha',     'Alpha Publisher','assets/badges/alpha.png',     false, false),
   ('mod',       'Moderator',      'assets/badges/mod.png',       false, false),
@@ -704,6 +715,8 @@ grant execute on function
   public.claim_play_session(text),
   public.release_play_session(text),
   public.change_username(text),
+  public.is_owner(),
+  public.can_edit_items(),
   public.is_staff()
 to authenticated;
 

@@ -222,10 +222,15 @@ Run `supabase_catalog.sql` once in the Supabase SQL editor, then log in as the O
 1. **Owner tab > Catalog faces > "Add faces to the Catalog"** puts every face from `FACE_BUILTIN` (js/game/character.js)
    in the Catalog and lets players who already wore an old face keep it. Press it again after adding a face there.
    To add a new face: drop a 256x256 transparent PNG in `assets/faces/`, add a line to `FACE_BUILTIN`, press the button.
-2. **Any Catalog item page** shows *Owner tools* to the Owner (or a badge with "Can edit and delete Catalog items"):
-   name, description, price, on/off sale, delete.
+2. **Any Catalog item page** shows *Owner tools* to an Owner (the Owen account or anyone with the **Owner** badge),
+   and *Staff tools* to a **chosen staff** badge with "Can edit and delete Catalog items" enabled:
+   name, description, price, on/off sale, delete. The **Admin** badge no longer gets this automatically.
 3. **Owner tab > Badges** makes new badges (picture + name + what they allow). Give them out from the player list above.
-   "Can upload and sell UGC" works like the Official UGC Creator badge; "Can edit and delete Catalog items" works like Owner for items.
+   "Can upload and sell UGC" works like the Official UGC Creator badge; "Can edit and delete Catalog items" is the
+   **chosen staff** permission for the Catalog item editor.
+4. Run **`supabase_owner_only.sql`** once in Supabase (after `supabase_schema.sql`) so the server enforces the same
+   rule: only Owners (Owen or the Owner badge) can use the Owner panel/staff tables, while chosen staff can edit items.
+   Remove the **Owner** badge from any test account that should not be an Owner.
 
 Faces are Catalog items (`ugc_items.attach = 'Face'`) with a number in `face_meta`; the number is what `body_colors.face` stores.
 
