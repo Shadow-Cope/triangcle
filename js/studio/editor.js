@@ -1056,6 +1056,10 @@ const StudioEditor = (function () {
       if (!parts.some(p => p.key === drag.id)) return false;
       return target.kind === "container" || (target.kind === "service" && target.key === "workspace");
     }
+    if (drag.kind === "parts") {
+      if (!Array.isArray(drag.ids) || !drag.ids.length) return false;
+      return target.kind === "container" || (target.kind === "service" && target.key === "workspace");
+    }
     if (drag.kind === "container") {
       const c = containerById(drag.id);
       if (!c) return false;
@@ -1078,6 +1082,21 @@ const StudioEditor = (function () {
       const id = target.kind === "container" ? target.node.id : "";
       part.parentId = id;
       writeRow(part);
+      if (id) expanded[id] = true;
+      renderTree(); markDirty();
+      return;
+    }
+    if (drag.kind === "parts") {
+      const id = target.kind === "container" ? target.node.id : "";
+      const moved = [];
+      for (const key of drag.ids || []) {
+        const part = parts.find(p => p.key === key);
+        if (!part) continue;
+        part.parentId = id;
+        writeRow(part);
+        moved.push(part);
+      }
+      if (!moved.length) return;
       if (id) expanded[id] = true;
       renderTree(); markDirty();
       return;
@@ -3537,11 +3556,16 @@ const StudioEditor = (function () {
         if (!hit) return;
         treeDrag = { kind: "gui", id: hit.node.id };
       } else if (partRow) {
-        treeDrag = { kind: "part", id: partRow.dataset.part };
+        const part = parts.find(p => p.key === partRow.dataset.part);
+        if (part && selectedPartSet.has(part) && selectedParts.length > 1) {
+          treeDrag = { kind: "parts", ids: selectedParts.map(p => p.key) };
+        } else {
+          treeDrag = { kind: "part", id: partRow.dataset.part };
+        }
       } else if (contRow) {
         treeDrag = { kind: "container", id: contRow.dataset.container };
       } else return;
-      try { e.dataTransfer.setData("text/plain", JSON.stringify({ tree: 1, kind: treeDrag.kind, id: treeDrag.id })); } catch (_) {}
+      try { e.dataTransfer.setData("text/plain", JSON.stringify({ tree: 1, kind: treeDrag.kind, id: treeDrag.id, ids: treeDrag.ids })); } catch (_) {}
       e.dataTransfer.effectAllowed = "move";
       (guiRow || partRow || contRow).classList.add("dragging");
       document.body.classList.add("treeDragging");
