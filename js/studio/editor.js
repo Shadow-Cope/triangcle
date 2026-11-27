@@ -1446,7 +1446,7 @@ const StudioEditor = (function () {
   function partRowHtml(p, depth) {
     const kids = (game.map.workspaceScripts || []).filter(s => s.parentPart === p.name);
     const isOpen = expanded[p.key] !== false;
-    let html = '<div class="rsTreeRow rsChild' + (selectedPartSet.has(p) ? " on" : "") + '" data-part="' + p.key + '" draggable="true" style="padding-left:' + (6 + depth * 12) + 'px">'
+    let html = '<div class="rsTreeRow rsChild' + (selectedPartSet.has(p) ? " on" : "") + '" data-part="' + p.key + '" draggable="true" role="treeitem" tabindex="-1" aria-label="Part ' + esc(p.name) + '" style="padding-left:' + (6 + depth * 12) + 'px">'
       + twisty(p.key, kids.length > 0)
       + PART_ICON + '<span class="rsTreeName">' + esc(p.name) + "</span>"
       + (kids.length ? '<span class="rsTreeClass">' + kids.length + ' script' + (kids.length === 1 ? "" : "s") + "</span>" : "")
@@ -1457,7 +1457,7 @@ const StudioEditor = (function () {
   function containerRowHtml(c, depth) {
     const kids = workspaceRows(c.id, depth + 1);
     const isOpen = expanded[c.id] !== false;
-    let html = '<div class="rsTreeRow rsChild' + (selContainer === c ? " on" : "") + '" data-container="' + esc(c.id) + '" draggable="true" style="padding-left:' + (6 + depth * 12) + 'px">'
+    let html = '<div class="rsTreeRow rsChild' + (selContainer === c ? " on" : "") + '" data-container="' + esc(c.id) + '" draggable="true" role="treeitem" tabindex="-1" aria-label="' + esc(c.class + " " + c.name) + '" style="padding-left:' + (6 + depth * 12) + 'px">'
       + twisty(c.id, kids.length > 0)
       + (GUI_ICON[c.class] || FOLDER_ICON)
       + '<span class="rsTreeName">' + esc(c.name) + "</span>"
@@ -1497,7 +1497,7 @@ const StudioEditor = (function () {
         if (!game.map.replicatedStorage.length) rows.push('<div class="rsTreeNote">Nothing in here yet</div>');
       }
       const active = selService === svc.key;
-      html += '<div class="rsTreeRow rsServiceRow' + (active ? " on" : "") + '" data-service="' + svc.key + '">'
+      html += '<div class="rsTreeRow rsServiceRow' + (active ? " on" : "") + '" data-service="' + svc.key + '" role="treeitem" tabindex="-1" aria-label="' + esc(svc.name) + '">'
         + twisty(svc.key, rows.length > 0)
         + FOLDER_ICON
         + '<span class="rsTreeName">' + svc.name + "</span>"
@@ -1511,7 +1511,7 @@ const StudioEditor = (function () {
   function guiRowHtml(node, depth) {
     const kids = guiChildren(node);
     const isOpen = expanded[node.id] !== false;
-    let html = '<div class="rsTreeRow rsChild' + (selGui === node ? " on" : "") + '" data-gui="' + esc(node.id) + '" draggable="true" style="padding-left:' + (6 + depth * 12) + 'px">'
+    let html = '<div class="rsTreeRow rsChild' + (selGui === node ? " on" : "") + '" data-gui="' + esc(node.id) + '" draggable="true" role="treeitem" tabindex="-1" aria-label="' + esc(node.class + " " + node.name) + '" style="padding-left:' + (6 + depth * 12) + 'px">'
       + twisty(node.id, kids.length > 0)
       + (GUI_ICON[node.class] || FOLDER_ICON)
       + '<span class="rsTreeName">' + esc(node.name) + "</span>"

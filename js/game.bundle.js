@@ -5706,7 +5706,7 @@ function ugSet(d, v) { v = ugClamp(+v || 0, d[3], d[4]); if (d[0] === "scale") U
   });
   $("ugTpl").addEventListener("click", e => {                        // template downloads: normal / transparent / labelled guide
     const b = e.target.closest("[data-tpl]"); if (!b || !isCloth(UG.attach)) return;
-    const a = document.createElement("a"); a.href = "assets/templates/" + UG.attach.toLowerCase() + "-" + b.dataset.tpl + ".png?v=1.9.6t";
+    const a = document.createElement("a"); a.href = "assets/templates/" + UG.attach.toLowerCase() + "-" + b.dataset.tpl + ".png?v=1.9.7t";
     a.download = UG.attach.toLowerCase() + "-" + b.dataset.tpl + ".png"; document.body.appendChild(a); a.click(); a.remove();
   });
   const sel = $("ugAttach");

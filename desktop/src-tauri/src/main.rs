@@ -439,6 +439,7 @@ fn main() {
                 .min_inner_size(900.0, 600.0)
                 .background_color(Color(18, 15, 9, 255))
                 .enable_clipboard_access()
+                .disable_drag_drop_handler()
                 .initialization_script(script)
                 .on_navigation(move |url| {
                     if url.scheme() == "triancle-internal" {
