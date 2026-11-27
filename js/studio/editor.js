@@ -2009,6 +2009,7 @@ const StudioEditor = (function () {
     randomDecimalVar: { cat: "var", label: "set {var} to random decimal {min} to {max}", args: { var: "", min: "0", max: "1" } },
     clampVar:  { cat: "var", label: "limit {var} between {min} and {max}", args: { var: "", min: "0", max: "100" } },
     ifVar:     { cat: "var", label: "if {var} {op} {value}", args: { var: "", op: "=", value: "0" }, body: true, elseBody: true },
+    ifVarVar:  { cat: "var", label: "if {var} {op} variable {var2}", args: { var: "", op: "=", var2: "" }, body: true, elseBody: true },
     ifVarBetween: { cat: "var", label: "if {var} is between {min} and {max}", args: { var: "", min: "0", max: "10" }, body: true, elseBody: true },
 
     setText:   { cat: "ui", label: "set text of {target} to {text}", args: { target: "", text: "Hello" } },

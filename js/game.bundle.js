@@ -1356,6 +1356,9 @@ async function runScriptStack(blocks, map, ctl) {
     } else if (block.type === "ifVar") {
       if (compareValues(scriptVar(map, block.args.var), block.args.value, block.args.op)) await runScriptStack(block.body, map, ctl);
       else await runScriptStack(block.elseBody, map, ctl);
+    } else if (block.type === "ifVarVar") {
+      if (compareValues(scriptVar(map, block.args.var), scriptVar(map, block.args.var2), block.args.op)) await runScriptStack(block.body, map, ctl);
+      else await runScriptStack(block.elseBody, map, ctl);
     } else if (block.type === "ifVarBetween") {
       const v = guiNum(scriptVar(map, block.args.var));
       const lo = Math.min(guiNum(block.args.min), guiNum(block.args.max));
