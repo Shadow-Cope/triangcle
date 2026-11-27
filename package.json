@@ -1,6 +1,6 @@
 {
   "name": "triancle",
-  "version": "1.9.5",
+  "version": "1.9.6",
   "private": true,
   "description": "Triancle - Roblox-style 3D game site (Three.js + Supabase)",
   "scripts": {

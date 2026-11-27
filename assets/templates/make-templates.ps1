@@ -1,8 +1,10 @@
 Add-Type -AssemblyName System.Drawing
 
-# Rebuilds shirt-guide.png / pants-guide.png in the original Triancle style:
-#   - the blank branded template is used as the base (tan art + logo + title)
+# Rebuilds pants-guide.png in the original Triancle style:
+#   - the blank branded pants template is used as the base (tan art + logo + title)
 #   - the labelled guide adds the two-tone tan cells, single letters and the footer legend
+# The shirt template is the newer high-res art supplied as shirt-template.png; it already has
+# the cells drawn, so this script leaves it (and shirt-guide.png) alone.
 # The cell rectangles come from CLOTH_CELLS (js/game/character.js). The torso cells were
 # wrong in the first guide (the top face was 86 x 54 and offset); they are now 104 x 52 and
 # line up with the front, which is what the rig actually is (2 wide x 2 tall x 1 deep).
@@ -125,5 +127,4 @@ function Make-Guide([string]$kind) {
   Write-Host "wrote $kind-guide.png"
 }
 
-Make-Guide 'shirt'
 Make-Guide 'pants'

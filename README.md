@@ -78,13 +78,14 @@ available as a temporary fallback; it is no longer the default.
 ## Clothing UGC (Shirts / Pants)
 
 UGC creators can make clothes as well as 3D accessories. In the UGC tab pick **Type: Shirt or Pants**, download a template
-(**Template** = the branded 512 × 512 canvas, **Transparent** = a clear 512 × 512 canvas, **Labeled guide** = the same canvas
-with the cell table), paint in the cells, and upload the PNG (any square from 256 to 2048; max 2 MB). Transparent pixels show
-the body colour.
+(**Template** = the branded canvas with the cell table; the shirt one is the newer high-resolution art, **Transparent** = a
+clear 512 × 512 canvas, **Labeled guide** = the cell guide), paint in the cells, and upload the PNG (any square from 256 to
+2048; max 2 MB). Transparent pixels show the body colour.
 
 - Templates live in `assets/templates/` (`shirt-*.png`, `pants-*.png`). The cell rectangles used by the game are `CLOTH_CELLS`
   in `js/game/character.js` (and the bundled `js/game.bundle.js`) - if you redraw the templates, update those numbers to match.
-  `assets/templates/make-templates.ps1` redraws both labelled guides from the current cell table and the branded template.
+  `assets/templates/make-templates.ps1` redraws the pants guide from the current cell table and the blank pants template; the
+  shirt template is supplied art and already has its cells drawn.
 - The layout matches the actual rig proportions: the torso front/back are square, its sides are half as wide and its top/bottom
   half as tall; arm and leg cells follow the 0.95 x 2.1 x 1 / 1 x 2 x 1 limbs. The torso cells are contiguous and the
   top/bottom line up with the front.
@@ -146,6 +147,16 @@ The first version has:
     **tween** smoothly to a new position over time. More complex games get **when key is pressed**, **when a variable
     crosses a value**, **repeat forever**, **wait until**, random/maths/clamp variable blocks, gravity and forcefield
     controls, teleport-to-part, and **tween a UI element** to a new screen position.
+    The variable palette now includes copy-between-variables, multiply, divide, percentages, min/max, rounding,
+    absolute values, toggles, random decimals and **if a variable is between two values**; hats include **when a
+    variable changes**, **when the player dies** and **when the player respawns**. Parts &amp; Player adds **spawn**
+    (make a new part at a position/size/colour and store its name in a variable), **clone**, material changes,
+    absolute rotation and variable-driven walk speed / jump power / gravity / damage / heal. UI blocks add size,
+    position, background/text colour, text size, rotation, transparency, flashing and show/hide from a variable.
+  - **Explorer groups and multi-select**: Workspace can hold **Folder** and **Model** objects (insert them from the
+    Workspace **+** menu); parts, folders and models can be dragged into each other and back onto Workspace.
+    **Ctrl-click** parts to select several (or **Shift-click** for a range); the move/scale/rotate gizmo then works on
+    the whole selection, and Delete / Ctrl+C / Ctrl+V act on all of them.
     In the Explorer you can **drag scripts and UI objects** between Workspace, ReplicatedStorage, StarterGUI, folders
     and parts. Scripts run in the playtest and in published games - server scripts first, then local ones.
     **Home &gt; Open a Template &gt; Relay Ascent** is a finished showcase using all of it (obby, sequence puzzle,

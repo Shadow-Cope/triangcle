@@ -17,7 +17,7 @@ const StudioEditor = (function () {
   let running = false, raf = 0, autoSave = 0, game = null, dirty = false;
   let yaw = 0, pitch = -0.36, speed = 36;
   let drag = null, down = null, studImg = null, inletImg = null, world = null;
-  let parts = [], selected = null, selBox = null, partSeq = 0;
+  let parts = [], selected = null, selectedParts = [], selectedPartSet = new Set(), selBoxes = [], lastPartKey = null, partSeq = 0;
   let tool = "select";
   let gizmo = null, gizmoModes = {}, gizmoDrag = null;
   let explorerOn = true, propsOn = true;
@@ -223,6 +223,7 @@ const StudioEditor = (function () {
       materialName: MATERIALS.includes(row[11]) ? row[11] : "Plastic",
       textureMode: TEXTURES.includes(row[12]) ? row[12] : "Studs",
       name: typeof row[13] === "string" && row[13].trim() ? row[13].trim().slice(0, 40) : defaultName(index),
+      parentId: typeof row[15] === "string" ? row[15] : "",
       texTop: null, texBot: null, texMode: null,
     };
     buildMesh(part);
@@ -273,10 +274,11 @@ const StudioEditor = (function () {
     part.mesh.quaternion.copy(part.quat);
     part.mesh.scale.copy(part.size);
     if (part.matTop) ensureTextures(part, false);
-    if (selected === part) {
+    if (selectedPartSet.has(part)) {
       part.mesh.updateMatrixWorld(true);
-      if (selBox) selBox.setFromObject(part.mesh);
-      syncPropValues(part);
+      const box = selBoxes[selectedParts.indexOf(part)];
+      if (box) box.setFromObject(part.mesh);
+      if (selected === part) syncPropValues(part);
     }
     updateGizmo();
   }
@@ -294,6 +296,7 @@ const StudioEditor = (function () {
     r[12] = part.textureMode;
     r[13] = part.name;
     r[14] = part.anchored ? 1 : 0;
+    r[15] = part.parentId || "";
     if (game && game.map && part.name === "SpawnLocation") {
       game.map.spawn = [round(part.pos.x, 1000), round(part.pos.y + part.size.y / 2 + 3, 1000), round(part.pos.z, 1000)];
     }
@@ -308,11 +311,30 @@ const StudioEditor = (function () {
     }
   }
 
+  function setPartSelection(list, primary) {
+    dropSelBox();
+    selectedParts = (list || []).slice();
+    selectedPartSet = new Set(selectedParts);
+    selected = primary && selectedPartSet.has(primary) ? primary : (selectedParts[selectedParts.length - 1] || null);
+    for (const p of selectedParts) {
+      const box = new THREE.BoxHelper(p.mesh, p === selected ? 0x0d99ff : 0x7fc4ff);
+      box.material.depthTest = false;
+      box.material.transparent = true;
+      box.renderOrder = 999;
+      scene.add(box);
+      selBoxes.push(box);
+    }
+  }
+
   function clearSelection() {
     dropSelBox();
     selected = null;
+    selectedParts = [];
+    selectedPartSet = new Set();
+    lastPartKey = null;
     selGui = null;
     selService = null;
+    selContainer = null;
     renderTree();
     renderProps();
     renderGui();
@@ -322,11 +344,13 @@ const StudioEditor = (function () {
 
   function buildWorld(map) {
     ensureGui();
-    if (selBox) {
-      scene.remove(selBox);
-      selBox.geometry.dispose(); selBox.material.dispose(); selBox = null;
-    }
+    ensureContainers();
+    dropSelBox();
     selected = null;
+    selectedParts = [];
+    selectedPartSet = new Set();
+    lastPartKey = null;
+    selContainer = null;
     while (world.children.length) {
       const c = world.children[0];
       world.remove(c);
@@ -342,30 +366,36 @@ const StudioEditor = (function () {
     updateGizmo();
   }
 
-  function selectPart(key) {
+  function selectPart(key, opts) {
+    opts = opts || {};
     const part = key ? parts.find(p => p.key === key) : null;
-    if (selBox) {
-      scene.remove(selBox);
-      selBox.geometry.dispose(); selBox.material.dispose(); selBox = null;
+    if (!part) { clearSelection(); return; }
+    let list;
+    if (opts.range && lastPartKey) {
+      const i0 = parts.findIndex(p => p.key === lastPartKey);
+      const i1 = parts.indexOf(part);
+      list = i0 < 0 ? [part] : parts.slice(Math.min(i0, i1), Math.max(i0, i1) + 1);
+    } else if (opts.additive) {
+      list = selectedParts.slice();
+      const i = list.indexOf(part);
+      if (i >= 0) list.splice(i, 1); else list.push(part);
+      if (!list.length) { clearSelection(); return; }
+    } else {
+      list = [part];
     }
-    selected = part || null;
+    setPartSelection(list, part);
+    lastPartKey = part.key;
     selGui = null;
     selService = null;
-    if (part) {
-      selBox = new THREE.BoxHelper(part.mesh, 0x0d99ff);
-      selBox.material.depthTest = false;
-      selBox.material.transparent = true;
-      selBox.renderOrder = 999;
-      scene.add(selBox);
-    }
-    for (const b of $("stTree").querySelectorAll("[data-part]")) b.classList.toggle("on", !!part && b.dataset.part === part.key);
+    selContainer = null;
+    renderTree();
     renderProps();
     renderGui();
     updateGizmo();
     syncEditMenu();
   }
 
-  function addPart(shapePick) {
+  function addPart(shapePick, parentId) {
     if (!game) return;
     camera.getWorldDirection(tmpDir);
     let x, z;
@@ -384,29 +414,53 @@ const StudioEditor = (function () {
     const base = ["Ball", "Part", "Cylinder", "Wedge", "Corner"][shape] || "Part";
     let name = base, n = 1;
     while (parts.some(p => p.name === name)) { n++; name = base + " " + n; }
-    const row = [4, 1, 2, x, 0.5, z, [1, 0, 0, 0, 1, 0, 0, 0, 1], 0xa3a2a5, 0, 1, shape, "Plastic", "Studs", name, 1];
+    const row = [4, 1, 2, x, 0.5, z, [1, 0, 0, 0, 1, 0, 0, 0, 1], 0xa3a2a5, 0, 1, shape, "Plastic", "Studs", name, 1, parentId || ""];
     game.map.parts.push(row);
     const part = makePartFromRow(row, parts.length);
     parts.push(part);
+    if (parentId) expanded[parentId] = true;
     renderTree();
     selectPart(part.key);
     setTool("move");
     markDirty();
   }
 
-  function deleteSelected() {
-    if (selGui) { removeGui(selGui); return; }
-    if (!selected) return;
-    const part = selected;
+  function removePart(part) {
     const i = parts.indexOf(part);
     if (i < 0) return;
     const rowIndex = game.map.parts.indexOf(part.row);
     if (rowIndex >= 0) game.map.parts.splice(rowIndex, 1);
+    if (Array.isArray(game.map.workspaceScripts)) {
+      game.map.workspaceScripts = game.map.workspaceScripts.filter(s => s.parentPart !== part.name);
+    }
     world.remove(part.mesh);
     disposePart(part);
     parts.splice(i, 1);
     if (part.name === "SpawnLocation" && game.map) game.map.spawn = [0, 3, 0];
+  }
+
+  function removeContainer(c) {
+    if (!c) return;
+    for (const kid of ensureContainers().filter(x => x.parent === c.id)) removeContainer(kid);
+    for (const p of parts.filter(p => p.parentId === c.id)) removePart(p);
+    const list = ensureContainers();
+    const i = list.indexOf(c);
+    if (i >= 0) list.splice(i, 1);
+  }
+
+  function deleteSelected() {
+    if (selGui) { removeGui(selGui); return; }
+    if (selContainer) {
+      removeContainer(selContainer);
+      clearSelection();
+      renderTree();
+      markDirty();
+      return;
+    }
+    if (!selectedParts.length) return;
+    for (const part of selectedParts.slice()) removePart(part);
     clearSelection();
+    renderTree();
     markDirty();
   }
 
@@ -424,6 +478,7 @@ const StudioEditor = (function () {
       gui: game.map.gui || [],
       replicatedStorage: game.map.replicatedStorage || [],
       workspaceScripts: game.map.workspaceScripts || [],
+      containers: game.map.containers || [],
       vars: game.map.vars || {},
     });
   }
@@ -464,6 +519,7 @@ const StudioEditor = (function () {
       game.map.gui = Array.isArray(data.gui) ? data.gui : [];
       game.map.replicatedStorage = Array.isArray(data.replicatedStorage) ? data.replicatedStorage : [];
       game.map.workspaceScripts = Array.isArray(data.workspaceScripts) ? data.workspaceScripts : [];
+      game.map.containers = Array.isArray(data.containers) ? data.containers : [];
       game.map.vars = data.vars && typeof data.vars === "object" && !Array.isArray(data.vars) ? data.vars : {};
       if (Array.isArray(data.spawn)) game.map.spawn = data.spawn;
       selGui = null; selService = null;
@@ -505,8 +561,9 @@ const StudioEditor = (function () {
       syncEditMenu();
       return true;
     }
-    if (!selected) return false;
-    clip = { kind: "part", row: JSON.parse(JSON.stringify(selected.row)) };
+    if (!selectedParts.length && !selected) return false;
+    const list = selectedParts.length ? selectedParts : [selected];
+    clip = { kind: "part", rows: list.map(p => JSON.parse(JSON.stringify(p.row))) };
     syncEditMenu();
     return true;
   }
@@ -519,10 +576,16 @@ const StudioEditor = (function () {
   function pasteClip(targetNode) {
     if (!clip || !game || playing) return;
     if (clip.kind === "gui") { pasteGuiClip(targetNode); return; }
-    pastePartRow(clip.row || clip);
+    const rows = clip.rows || (clip.row ? [clip.row] : []);
+    const made = rows.map(r => duplicatePartRow(r));
+    if (!made.length) return;
+    if (made.length === 1) selectPart(made[0].key);
+    else { setPartSelection(made, made[0]); lastPartKey = made[0].key; renderProps(); }
+    renderTree();
+    markDirty();
   }
 
-  function pastePartRow(row) {
+  function duplicatePartRow(row) {
     const copy = JSON.parse(JSON.stringify(row));
     copy[3] = round((+copy[3] || 0) + 3, 1000);                              // drop the copy beside the original
     const base = typeof copy[13] === "string" && copy[13].trim() ? copy[13].replace(/ \d+$/, "") : "Part";
@@ -532,6 +595,11 @@ const StudioEditor = (function () {
     game.map.parts.push(copy);
     const part = makePartFromRow(copy, parts.length);
     parts.push(part);
+    return part;
+  }
+
+  function pastePartRow(row) {
+    const part = duplicatePartRow(row);
     renderTree();
     selectPart(part.key);
     markDirty();
@@ -612,6 +680,13 @@ const StudioEditor = (function () {
       renderTree(); selectGui(copy.id); markDirty();
       return;
     }
+    if (selectedParts.length) {
+      const made = selectedParts.slice().map(p => duplicatePartRow(p.row));
+      setPartSelection(made, made[0] || null);
+      lastPartKey = made.length ? made[0].key : null;
+      renderTree(); renderProps(); markDirty();
+      return;
+    }
     if (selected) pastePartRow(selected.row);
   }
 
@@ -635,6 +710,26 @@ const StudioEditor = (function () {
     setTimeout(() => { const input = $("stRename"); if (input) { input.focus(); input.select(); } }, 30);
   }
 
+  function renameContainer(c) {
+    if (!c) return;
+    StudioUI.dialog({
+      title: "Rename " + c.class,
+      body: '<label class="rsField">Name<input id="stRenameC" type="text" maxlength="40" spellcheck="false" value="' + esc(c.name) + '"></label>',
+      buttons: [
+        { label: "Cancel" },
+        {
+          label: "Rename",
+          primary: true,
+          onClick: () => {
+            const value = String($("stRenameC").value || "").replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 40);
+            if (value) { c.name = value; renderTree(); renderProps(); markDirty(); }
+          },
+        },
+      ],
+    });
+    setTimeout(() => { const input = $("stRenameC"); if (input) { input.focus(); input.select(); } }, 30);
+  }
+
   /* ---- right-click context menu ---- */
   let ctxTarget = null;
 
@@ -645,6 +740,7 @@ const StudioEditor = (function () {
   }
 
   function canInsertInto(target) {
+    if (target.kind === "container") return true;
     if (target.kind === "part") return true;
     if (target.kind === "service") return target.key === "workspace" || target.key === "starterGui" || target.key === "replicatedStorage";
     return !!target.node && !isScript(target.node) && !isUIModifier(target.node);
@@ -658,14 +754,15 @@ const StudioEditor = (function () {
       '<button type="button" class="stCtxItem" data-cmd="' + cmd + '"' + (enabled ? "" : " disabled") + "><span class=\"stCtxLabel\">" + label + "</span>" +
       (hint ? "<kbd>" + hint + "</kbd>" : "") + "</button>";
     const editable = target.kind !== "service";
+    const isContainer = target.kind === "container";
     let html = "";
     if (canInsertInto(target)) html += item("Insert Object", "insert", true, "");
     if (html) html += '<div class="stCtxSep"></div>';
-    html += item("Copy", "copy", editable, "Ctrl+C");
-    html += item("Cut", "cut", editable, "Ctrl+X");
-    html += item("Paste Into", "paste", !!clip, "Ctrl+V");
-    html += item("Duplicate", "duplicate", editable, "Ctrl+D");
-    if (target.kind === "gui") html += item("Rename", "rename", true, "F2");
+    html += item("Copy", "copy", editable && !isContainer, "Ctrl+C");
+    html += item("Cut", "cut", editable && !isContainer, "Ctrl+X");
+    html += item("Paste Into", "paste", !!clip && !isContainer, "Ctrl+V");
+    html += item("Duplicate", "duplicate", editable && !isContainer, "Ctrl+D");
+    if (target.kind === "gui" || isContainer) html += item("Rename", "rename", true, "F2");
     html += '<div class="stCtxSep"></div>';
     html += item("Delete", "delete", editable, "Del");
     menu.innerHTML = html;
@@ -682,6 +779,10 @@ const StudioEditor = (function () {
         openInsertMenu(target.el || $("stTree"), { kind: "part", part: target.part });
         return;
       }
+      if (target.kind === "container") {
+        openInsertMenu(target.el || $("stTree"), { kind: "container", node: target.node });
+        return;
+      }
       const kind = target.kind === "service"
         ? (target.key === "workspace" ? "workspace" : target.key === "replicatedStorage" ? "replicatedStorage" : "starterGui")
         : "gui";
@@ -694,7 +795,11 @@ const StudioEditor = (function () {
     if (cmd === "cut") { cutSelected(); return; }
     if (cmd === "paste") { pasteClip(target.kind === "gui" ? target.node : null); return; }
     if (cmd === "duplicate") { duplicateSelected(); return; }
-    if (cmd === "rename" && target.node) { renameGui(target.node); return; }
+    if (cmd === "rename") {
+      if (target.kind === "container") renameContainer(target.node);
+      else if (target.node) renameGui(target.node);
+      return;
+    }
     if (cmd === "delete") { deleteSelected(); return; }
   }
 
@@ -704,8 +809,9 @@ const StudioEditor = (function () {
     const set = (act, on) => { const b = btn(act); if (b) b.disabled = !on; };
     set("undo", canEdit && undoStack.length > 0);
     set("redo", canEdit && redoStack.length > 0);
-    set("cut", canEdit && !!selected);
-    set("copy", canEdit && !!selected);
+    const canCopy = !!selected || (!!selContainer && selectedParts.length > 0);
+    set("cut", canEdit && canCopy);
+    set("copy", canEdit && canCopy);
     set("paste", canEdit && !!clip);
   }
 
@@ -735,11 +841,13 @@ const StudioEditor = (function () {
     UIListLayout: '<svg class="rsTreeIco" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
     UIGridLayout: '<svg class="rsTreeIco" viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>',
     Folder: '<svg class="rsTreeIco" viewBox="0 0 24 24"><path d="M3 6h7l2 2h9v11H3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
+    Model: '<svg class="rsTreeIco" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>',
     Script: '<svg class="rsTreeIco" viewBox="0 0 24 24"><path d="M6 4h9l4 4v12H6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 12l2 2-2 2M13 16h3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
     LocalScript: '<svg class="rsTreeIco" viewBox="0 0 24 24"><path d="M6 4h9l4 4v12H6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 11l-2 2 2 2M13 15l2-2-2-2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   };
 
   let selGui = null, selService = null, guiSeq = 0, guiDrag = null, insertTarget = null;
+  let selContainer = null, containerSeq = 0;
   const expanded = { workspace: true, replicatedStorage: true, starterGui: true };
 
   function ensureGui() {
@@ -747,6 +855,7 @@ const StudioEditor = (function () {
     if (!Array.isArray(game.map.gui)) game.map.gui = [];
     if (!Array.isArray(game.map.replicatedStorage)) game.map.replicatedStorage = [];
     if (!Array.isArray(game.map.workspaceScripts)) game.map.workspaceScripts = [];
+    if (!Array.isArray(game.map.containers)) game.map.containers = [];
     if (!game.map.vars || typeof game.map.vars !== "object" || Array.isArray(game.map.vars)) game.map.vars = {};
     for (const list of [game.map.gui, game.map.replicatedStorage, game.map.workspaceScripts]) migrateScriptVars(list);
   }
@@ -913,12 +1022,74 @@ const StudioEditor = (function () {
       const part = parts.find(p => p.key === row.dataset.part);
       return part ? { kind: "part", part, el: row } : null;
     }
+    if (row.dataset.container) {
+      const c = containerById(row.dataset.container);
+      return c ? { kind: "container", node: c, el: row } : null;
+    }
     if (row.dataset.gui) {
       const hit = findAnyNode(row.dataset.gui);
       return hit ? { kind: "gui", node: hit.node, el: row } : null;
     }
     if (row.dataset.service) return { kind: "service", key: row.dataset.service, el: row };
     return null;
+  }
+
+  function containerDescendant(ancestor, c) {
+    let cur = c && (c.parent || "");
+    const seen = new Set();
+    while (cur && !seen.has(cur)) {
+      if (cur === ancestor.id) return true;
+      seen.add(cur);
+      const p = containerById(cur);
+      cur = p ? (p.parent || "") : "";
+    }
+    return false;
+  }
+
+  function canDropDrag(drag, target) {
+    if (!drag || !target) return false;
+    if (drag.kind === "gui") {
+      const hit = findAnyNode(drag.id);
+      return !!hit && canTreeDrop(hit.node, target);
+    }
+    if (drag.kind === "part") {
+      if (!parts.some(p => p.key === drag.id)) return false;
+      return target.kind === "container" || (target.kind === "service" && target.key === "workspace");
+    }
+    if (drag.kind === "container") {
+      const c = containerById(drag.id);
+      if (!c) return false;
+      if (target.kind === "service" && target.key === "workspace") return true;
+      if (target.kind !== "container") return false;
+      return target.node !== c && !containerDescendant(c, target.node);
+    }
+    return false;
+  }
+
+  function applyDropDrag(drag, target) {
+    if (drag.kind === "gui") {
+      const hit = findAnyNode(drag.id);
+      if (hit && canTreeDrop(hit.node, target)) moveTreeNode(hit, target);
+      return;
+    }
+    if (drag.kind === "part") {
+      const part = parts.find(p => p.key === drag.id);
+      if (!part) return;
+      const id = target.kind === "container" ? target.node.id : "";
+      part.parentId = id;
+      writeRow(part);
+      if (id) expanded[id] = true;
+      renderTree(); markDirty();
+      return;
+    }
+    if (drag.kind === "container") {
+      const c = containerById(drag.id);
+      if (!c) return;
+      const parent = target.kind === "container" ? target.node.id : "";
+      c.parent = parent;
+      if (parent) expanded[parent] = true;
+      renderTree(); renderProps(); markDirty();
+    }
   }
 
   function canTreeDrop(node, target) {
@@ -1185,19 +1356,20 @@ const StudioEditor = (function () {
 
   /* ---- selection ---- */
   function dropSelBox() {
-    if (selBox) {
-      scene.remove(selBox);
-      selBox.geometry.dispose();
-      selBox.material.dispose();
-      selBox = null;
+    for (const box of selBoxes) {
+      scene.remove(box);
+      box.geometry.dispose();
+      box.material.dispose();
     }
+    selBoxes = [];
   }
 
   function selectGui(id) {
     const hit = findNode(id);
     selGui = hit ? hit.node : null;
     selService = null;
-    if (selGui) { selected = null; dropSelBox(); }
+    selContainer = null;
+    if (selGui) { setPartSelection([], null); lastPartKey = null; }
     renderTree();
     renderProps();
     renderGui();
@@ -1207,12 +1379,50 @@ const StudioEditor = (function () {
   function selectService(key) {
     selService = key;
     selGui = null;
-    selected = null;
-    dropSelBox();
+    selContainer = null;
+    setPartSelection([], null);
+    lastPartKey = null;
     renderTree();
     renderProps();
     renderGui();
     updateGizmo();
+  }
+
+  function selectContainer(id) {
+    const c = containerById(id);
+    if (!c) { clearSelection(); return; }
+    selContainer = c;
+    selGui = null;
+    selService = null;
+    if (c.class === "Model") {
+      const list = parts.filter(p => partInContainer(p, c.id));
+      setPartSelection(list, list[0] || null);
+      lastPartKey = list.length ? list[0].key : null;
+    } else {
+      setPartSelection([], null);
+      lastPartKey = null;
+    }
+    renderTree();
+    renderProps();
+    renderGui();
+    updateGizmo();
+    syncEditMenu();
+  }
+
+  function partInContainer(part, id) {
+    let cur = part.parentId || "";
+    const seen = new Set();
+    while (cur && !seen.has(cur)) {
+      if (cur === id) return true;
+      seen.add(cur);
+      const c = containerById(cur);
+      cur = c ? (c.parent || "") : "";
+    }
+    return false;
+  }
+
+  function containerParts(id) {
+    return parts.filter(p => partInContainer(p, id));
   }
 
   /* ---- explorer rendering ---- */
@@ -1226,6 +1436,50 @@ const StudioEditor = (function () {
     return '<button class="rsInsert" type="button" data-insert="' + esc(kind) + '"' + (id ? ' data-insert-id="' + esc(id) + '"' : "") + ' title="' + esc(title) + '">+</button>';
   }
 
+  function ensureContainers() {
+    if (!game || !game.map) return [];
+    if (!Array.isArray(game.map.containers)) game.map.containers = [];
+    return game.map.containers;
+  }
+  function containerById(id) { return ensureContainers().find(c => c.id === id) || null; }
+  function containerName(id) { const c = containerById(id); return c ? c.name : ""; }
+  function partRowHtml(p, depth) {
+    const kids = (game.map.workspaceScripts || []).filter(s => s.parentPart === p.name);
+    const isOpen = expanded[p.key] !== false;
+    let html = '<div class="rsTreeRow rsChild' + (selectedPartSet.has(p) ? " on" : "") + '" data-part="' + p.key + '" draggable="true" style="padding-left:' + (6 + depth * 12) + 'px">'
+      + twisty(p.key, kids.length > 0)
+      + PART_ICON + '<span class="rsTreeName">' + esc(p.name) + "</span>"
+      + (kids.length ? '<span class="rsTreeClass">' + kids.length + ' script' + (kids.length === 1 ? "" : "s") + "</span>" : "")
+      + insertBtn("part:" + p.key, "", "Insert a script into " + p.name) + "</div>";
+    if (isOpen && kids.length) html += '<div class="rsTreeKids">' + kids.map(n => guiRowHtml(n, depth + 1)).join("") + "</div>";
+    return html;
+  }
+  function containerRowHtml(c, depth) {
+    const kids = workspaceRows(c.id, depth + 1);
+    const isOpen = expanded[c.id] !== false;
+    let html = '<div class="rsTreeRow rsChild' + (selContainer === c ? " on" : "") + '" data-container="' + esc(c.id) + '" draggable="true" style="padding-left:' + (6 + depth * 12) + 'px">'
+      + twisty(c.id, kids.length > 0)
+      + (GUI_ICON[c.class] || FOLDER_ICON)
+      + '<span class="rsTreeName">' + esc(c.name) + "</span>"
+      + '<span class="rsTreeClass">' + esc(c.class) + "</span>"
+      + insertBtn("container:" + c.id, "", "Insert object into " + c.name)
+      + "</div>";
+    if (isOpen && kids.length) html += '<div class="rsTreeKids">' + kids.join("") + "</div>";
+    return html;
+  }
+  function workspaceRows(parentId, depth) {
+    const out = [];
+    const containers = ensureContainers();
+    for (const c of containers) if ((c.parent || "") === (parentId || "")) out.push(containerRowHtml(c, depth));
+    for (const p of parts) if ((p.parentId || "") === (parentId || "")) out.push(partRowHtml(p, depth));
+    if (!parentId) {
+      for (const node of game.map.workspaceScripts || []) {
+        if (node.parentPart && parts.some(p => p.name === node.parentPart)) continue;
+        out.push(guiRowHtml(node, depth));
+      }
+    }
+    return out;
+  }
   function renderTree() {
     const box = $("stTree");
     if (!box || !game) return;
@@ -1235,18 +1489,7 @@ const StudioEditor = (function () {
       const isOpen = expanded[svc.key] !== false;
       const rows = [];
       if (svc.key === "workspace") {
-        const partNames = new Set(parts.map(p => p.name));
-        for (const p of parts) {
-          const kids = (game.map.workspaceScripts || []).filter(s => s.parentPart === p.name);
-          rows.push('<div class="rsTreeRow rsChild' + (selected === p ? " on" : "") + '" data-part="' + p.key + '">' + PART_ICON + '<span class="rsTreeName">' + esc(p.name) + "</span>"
-            + (kids.length ? '<span class="rsTreeClass">' + kids.length + ' script' + (kids.length === 1 ? "" : "s") + "</span>" : "")
-            + insertBtn("part:" + p.key, "", "Insert a script into " + p.name) + "</div>");
-          for (const node of kids) rows.push(guiRowHtml(node, 2));
-        }
-        for (const node of game.map.workspaceScripts) {
-          if (node.parentPart && partNames.has(node.parentPart)) continue;
-          rows.push(guiRowHtml(node, 1));
-        }
+        rows.push(...workspaceRows("", 1));
       } else if (svc.key === "starterGui") {
         for (const node of game.map.gui) rows.push(guiRowHtml(node, 1));
       } else if (svc.key === "replicatedStorage") {
@@ -1284,7 +1527,11 @@ const StudioEditor = (function () {
     if (!target) return [];
     if (target.kind === "workspace") {
       return SHAPES.map((name, shape) => ({ label: name, shape }))
-        .concat([{ label: "Script", cls: "Script" }, { label: "LocalScript", cls: "LocalScript" }]);
+        .concat([{ label: "Folder", cls: "Folder" }, { label: "Model", cls: "Model" }, { label: "Script", cls: "Script" }, { label: "LocalScript", cls: "LocalScript" }]);
+    }
+    if (target.kind === "container") {
+      return SHAPES.map((name, shape) => ({ label: name, shape }))
+        .concat([{ label: "Folder", cls: "Folder" }, { label: "Model", cls: "Model" }]);
     }
     if (target.kind === "part") {
       return [{ label: "Script", cls: "Script" }, { label: "LocalScript", cls: "LocalScript" }];
@@ -1370,9 +1617,17 @@ const StudioEditor = (function () {
     if (!target) return;
     const cls = btn.dataset.cls;
     if (target.kind === "workspace") {
+      if (cls === "Folder" || cls === "Model") { addContainer(cls, ""); return; }
       if (cls) { insertNodeInto(game.map.workspaceScripts, cls); return; }
       const shape = btn.dataset.shape === "" ? 1 : +btn.dataset.shape;
       addPart(shape);
+      return;
+    }
+    if (target.kind === "container") {
+      if (cls === "Folder" || cls === "Model") { addContainer(cls, target.node.id); return; }
+      const shape = btn.dataset.shape === "" ? 1 : +btn.dataset.shape;
+      addPart(shape, target.node.id);
+      expanded[target.node.id] = true;
       return;
     }
     if (target.kind === "part") {
@@ -1399,6 +1654,21 @@ const StudioEditor = (function () {
     selectGui(node.id);
     markDirty();
     return node;
+  }
+
+  function addContainer(cls, parentId) {
+    ensureGui();
+    const kind = cls === "Model" ? "Model" : "Folder";
+    const taken = new Set(ensureContainers().filter(c => (c.parent || "") === (parentId || "")).map(c => c.name));
+    let name = kind, n = 1;
+    while (taken.has(name)) { n++; name = kind + " " + n; }
+    const c = { id: "c" + (++containerSeq) + Math.random().toString(36).slice(2, 5), name, class: kind, parent: parentId || "" };
+    ensureContainers().push(c);
+    if (parentId) expanded[parentId] = true;
+    renderTree();
+    selectContainer(c.id);
+    markDirty();
+    return c;
   }
 
   /* ---- GUI properties ---- */
@@ -1686,22 +1956,41 @@ const StudioEditor = (function () {
     onTouchSelf: { cat: "event", label: "when this part is touched", args: {}, hat: true },
     onKey:   { cat: "event", label: "when key {key} is pressed", args: { key: "space" }, hat: true },
     onVariable: { cat: "event", label: "when {var} {op} {value}", args: { var: "", op: "=", value: "0" }, hat: true },
+    onVarChanged: { cat: "event", label: "when {var} changes", args: { var: "" }, hat: true },
+    onDeath: { cat: "event", label: "when player dies", args: {}, hat: true },
+    onRespawn: { cat: "event", label: "when player respawns", args: {}, hat: true },
     every:   { cat: "event", label: "every {n} seconds", args: { n: "1" }, hat: true },
 
     wait:    { cat: "flow", label: "wait {n} seconds", args: { n: "1" } },
     waitUntil: { cat: "flow", label: "wait until {var} {op} {value}", args: { var: "", op: "=", value: "0" } },
     repeat:  { cat: "flow", label: "repeat {n} times", args: { n: "3" }, body: true },
+    repeatVar: { cat: "flow", label: "repeat {var} times", args: { var: "" }, body: true },
     repeatForever: { cat: "flow", label: "repeat forever (yields 0.03s)", args: {}, body: true },
     if:      { cat: "flow", label: "if {target} · {prop} {op} {value}", args: { target: "", prop: "Text", op: "=", value: "" }, body: true },
     stop:    { cat: "flow", label: "stop this script", args: {} },
 
     setVar:    { cat: "var", label: "set {var} to {value}", args: { var: "", value: "0" } },
     changeVar: { cat: "var", label: "change {var} by {n}", args: { var: "", n: "1" } },
+    setVarToVar: { cat: "var", label: "set {var} to variable {var2}", args: { var: "", var2: "" } },
+    changeVarByVar: { cat: "var", label: "change {var} by variable {var2}", args: { var: "", var2: "" } },
     setVarRandom: { cat: "var", label: "set {var} to random {min} to {max}", args: { var: "", min: "1", max: "10" } },
     changeVarRandom: { cat: "var", label: "change {var} by random {min} to {max}", args: { var: "", min: "1", max: "10" } },
     setVarOp:  { cat: "var", label: "set {var} to {var2} {mop} {n}", args: { var: "", var2: "", mop: "+", n: "1" } },
+    setVarVarOp: { cat: "var", label: "set {var} to variable {var2} {mop} variable {var3}", args: { var: "", var2: "", mop: "+", var3: "" } },
+    multiplyVar: { cat: "var", label: "set {var} to {var2} × {n}", args: { var: "", var2: "", n: "2" } },
+    divideVar: { cat: "var", label: "set {var} to {var2} ÷ {n}", args: { var: "", var2: "", n: "2" } },
+    percentVar: { cat: "var", label: "set {var} to {n}% of variable {var2}", args: { var: "", var2: "", n: "50" } },
+    setVarMax: { cat: "var", label: "set {var} to the larger of {var2} and {n}", args: { var: "", var2: "", n: "0" } },
+    setVarMin: { cat: "var", label: "set {var} to the smaller of {var2} and {n}", args: { var: "", var2: "", n: "0" } },
+    roundVar:  { cat: "var", label: "round {var} to {n} decimal places", args: { var: "", n: "0" } },
+    floorVar:  { cat: "var", label: "round {var} down", args: { var: "" } },
+    ceilVar:   { cat: "var", label: "round {var} up", args: { var: "" } },
+    absVar:    { cat: "var", label: "set {var} to its absolute value", args: { var: "" } },
+    toggleVar: { cat: "var", label: "set {var} to 1 if it is 0, else 0", args: { var: "" } },
+    randomDecimalVar: { cat: "var", label: "set {var} to random decimal {min} to {max}", args: { var: "", min: "0", max: "1" } },
     clampVar:  { cat: "var", label: "limit {var} between {min} and {max}", args: { var: "", min: "0", max: "100" } },
     ifVar:     { cat: "var", label: "if {var} {op} {value}", args: { var: "", op: "=", value: "0" }, body: true, elseBody: true },
+    ifVarBetween: { cat: "var", label: "if {var} is between {min} and {max}", args: { var: "", min: "0", max: "10" }, body: true, elseBody: true },
 
     setText:   { cat: "ui", label: "set text of {target} to {text}", args: { target: "", text: "Hello" } },
     setTextVar:{ cat: "ui", label: "set text of {target} to variable {var}", args: { target: "", var: "" } },
@@ -1709,31 +1998,58 @@ const StudioEditor = (function () {
     setPropVar:{ cat: "ui", label: "set {prop} of {target} to variable {var}", args: { target: "", prop: "Text", var: "" } },
     show:      { cat: "ui", label: "show {target}", args: { target: "" } },
     hide:      { cat: "ui", label: "hide {target}", args: { target: "" } },
+    flashGui:  { cat: "ui", label: "flash {target} for {n} seconds", args: { target: "", n: "0.5" } },
+    setGuiVisibleVar: { cat: "ui", label: "set {target} visible to variable {var}", args: { target: "", var: "" } },
+    setGuiSize:{ cat: "ui", label: "set size of {target} to x {x} y {y}", args: { target: "", x: "0.5", y: "0.1" } },
+    setGuiPos: { cat: "ui", label: "set position of {target} to x {x} y {y}", args: { target: "", x: "0.5", y: "0.5" } },
+    setGuiBg:  { cat: "ui", label: "set background color of {target} to {color}", args: { target: "", color: "#ffbf2f" } },
+    setGuiTextColor: { cat: "ui", label: "set text color of {target} to {color}", args: { target: "", color: "#ffffff" } },
+    setGuiTextSize:  { cat: "ui", label: "set text size of {target} to {n}", args: { target: "", n: "18" } },
+    setGuiRotation:  { cat: "ui", label: "set rotation of {target} to {n} degrees", args: { target: "", n: "0" } },
+    setGuiBgTransparency: { cat: "ui", label: "set background transparency of {target} to {n}", args: { target: "", n: "0" } },
+    setGuiTextTransparency: { cat: "ui", label: "set text transparency of {target} to {n}", args: { target: "", n: "0" } },
     tweenGui:  { cat: "ui", label: "tween {target} to x {x} y {y} in {n} seconds", args: { target: "", x: "0.5", y: "0.5", n: "1" } },
 
     partColor:  { cat: "part", label: "set colour of part {part} to {color}", args: { part: "", color: "#ff4444" } },
     partTrans:  { cat: "part", label: "set transparency of part {part} to {n}", args: { part: "", n: "0.5" } },
     partShow:   { cat: "part", label: "show part {part}", args: { part: "" } },
     partHide:   { cat: "part", label: "hide part {part}", args: { part: "" } },
+    setPartMaterial: { cat: "part", label: "set material of {part} to {material}", args: { part: "", material: "Plastic" } },
     setCollide: { cat: "part", label: "set {part} can collide {on}", args: { part: "", on: "true" } },
     setAnchored:{ cat: "part", label: "set {part} anchored {on}", args: { part: "", on: "true" } },
     movePart:   { cat: "part", label: "move part {part} by {x} {y} {z}", args: { part: "", x: "0", y: "1", z: "0" } },
     setPartPos: { cat: "part", label: "set part {part} position to {x} {y} {z}", args: { part: "", x: "0", y: "0", z: "0" } },
     setPartSize:{ cat: "part", label: "set part {part} size to {x} {y} {z}", args: { part: "", x: "4", y: "1", z: "4" } },
     rotatePart: { cat: "part", label: "rotate part {part} by {x} {y} {z} degrees", args: { part: "", x: "0", y: "90", z: "0" } },
+    rotatePartTo:{ cat: "part", label: "set rotation of {part} to {x} {y} {z} degrees", args: { part: "", x: "0", y: "0", z: "0" } },
     tweenPart:  { cat: "part", label: "tween part {part} to {x} {y} {z} in {n} seconds", args: { part: "", x: "0", y: "3", z: "0", n: "1" } },
+    clonePart:  { cat: "part", label: "clone {part} at offset {x} {y} {z} and store its name in {var}", args: { part: "", x: "2", y: "0", z: "0", var: "" } },
+    spawnPart:  { cat: "part", label: "spawn {shape} at {x} {y} {z} size {sx} {sy} {sz} colour {color} and store its name in {var}", args: { shape: "1", x: "0", y: "3", z: "0", sx: "4", sy: "1", sz: "4", color: "#a3a2a5", var: "" } },
+    movePartVar:   { cat: "part", label: "move part named by variable {partVar} by {x} {y} {z}", args: { partVar: "", x: "0", y: "1", z: "0" } },
+    setPartPosVar: { cat: "part", label: "set position of part named by variable {partVar} to {x} {y} {z}", args: { partVar: "", x: "0", y: "0", z: "0" } },
+    setPartSizeVar:{ cat: "part", label: "set size of part named by variable {partVar} to {x} {y} {z}", args: { partVar: "", x: "4", y: "1", z: "4" } },
+    partColorVar:  { cat: "part", label: "set colour of part named by variable {partVar} to {color}", args: { partVar: "", color: "#ff4444" } },
+    partTransVar:  { cat: "part", label: "set transparency of part named by variable {partVar} to {n}", args: { partVar: "", n: "0.5" } },
+    rotatePartVar: { cat: "part", label: "rotate part named by variable {partVar} by {x} {y} {z} degrees", args: { partVar: "", x: "0", y: "90", z: "0" } },
+    tweenPartVar:  { cat: "part", label: "tween part named by variable {partVar} to {x} {y} {z} in {n} seconds", args: { partVar: "", x: "0", y: "3", z: "0", n: "1" } },
+    destroyPartVar:{ cat: "part", label: "destroy part named by variable {partVar}", args: { partVar: "" } },
     destroyPart:{ cat: "part", label: "destroy part {part}", args: { part: "" } },
 
     teleport:   { cat: "world", label: "teleport player to {x} {y} {z}", args: { x: "0", y: "3", z: "0" } },
     teleportPart:{ cat: "world", label: "teleport player to part {part}", args: { part: "" } },
     setGravity: { cat: "world", label: "set gravity to {n}", args: { n: "196.2" } },
+    setGravityVar: { cat: "world", label: "set gravity to variable {var}", args: { var: "" } },
     forcefield: { cat: "world", label: "give player forcefield for {n} seconds", args: { n: "3" } },
     walkSpeed:  { cat: "world", label: "set walk speed to {n}", args: { n: "16" } },
+    walkSpeedVar: { cat: "world", label: "set walk speed to variable {var}", args: { var: "" } },
     jumpPower:  { cat: "world", label: "set jump power to {n}", args: { n: "50" } },
+    jumpPowerVar: { cat: "world", label: "set jump power to variable {var}", args: { var: "" } },
     setMaxHealth: { cat: "world", label: "set max health to {n}", args: { n: "100" } },
     setHealth:  { cat: "world", label: "set health to {n}", args: { n: "100" } },
     damage:     { cat: "world", label: "damage player by {n}", args: { n: "10" } },
+    damageVar:  { cat: "world", label: "damage player by variable {var}", args: { var: "" } },
     heal:       { cat: "world", label: "heal player by {n}", args: { n: "10" } },
+    healVar:    { cat: "world", label: "heal player by variable {var}", args: { var: "" } },
     kill:       { cat: "world", label: "kill player", args: {} },
     respawn:    { cat: "world", label: "respawn player", args: {} },
 
@@ -1743,7 +2059,7 @@ const StudioEditor = (function () {
   const BLOCK_CATS = { event: "Events", flow: "Flow", var: "Variables", ui: "UI", part: "Parts", world: "Player", debug: "Debug" };
   const BLOCK_COLORS = { event: "#8a6a2f", flow: "#7c5a2d", var: "#9a5a2c", ui: "#2f5d8a", part: "#35664a", world: "#4a5568", debug: "#5a4a7a" };
   const BLOCK_PROPS = ["Text", "TextColor3", "TextSize", "TextTransparency", "BackgroundColor3", "BackgroundTransparency", "BorderSizePixel", "Visible", "ZIndex", "Position", "Size", "Rotation", "Image", "ImageTransparency"];
-  const BLOCK_OPS = ["=", "≠", "<", ">"];
+  const BLOCK_OPS = ["=", "≠", "<", ">", "≥", "≤"];
 
   let scriptEdit = null, selectedBlock = null, blockSeq = 0;
   let blkDrag = null, blkDropLine = null, blkClickSuppress = 0;
@@ -1972,7 +2288,7 @@ const StudioEditor = (function () {
   }
 
   function blockSlotPlaceholder(key) {
-    return ({ target: "object", prop: "property", op: "=", n: "number", text: "text", value: "value", on: "yes / no", key: "key", var2: "variable", mop: "+", min: "number", max: "number" })[key] || key;
+    return ({ target: "object", prop: "property", op: "=", n: "number", text: "text", value: "value", on: "yes / no", key: "key", var2: "variable", var3: "variable", partVar: "variable", mop: "+", min: "number", max: "number", sx: "size", sy: "size", sz: "size", material: "material", shape: "shape" })[key] || key;
   }
 
   function blockInputHtml(key, block) {
@@ -1990,11 +2306,17 @@ const StudioEditor = (function () {
         + names.map(n => '<option value="' + esc(n) + '"' + (n === value ? " selected" : "") + ">" + esc(n) + "</option>").join("")
         + "</select>";
     }
-    if (key === "var") {
+    if (key === "var" || key === "var3" || key === "partVar") {
       const vars = (game && game.map && game.map.vars) ? Object.keys(game.map.vars) : [];
       return '<select class="blkInput"' + common + '><option value="">— variable —</option>'
         + vars.map(n => '<option value="' + esc(n) + '"' + (n === value ? " selected" : "") + ">" + esc(n) + "</option>").join("")
         + "</select>";
+    }
+    if (key === "material") {
+      return '<select class="blkInput"' + common + ">" + optionList(MATERIALS, value || "Plastic") + "</select>";
+    }
+    if (key === "shape") {
+      return '<select class="blkInput"' + common + ">" + SHAPES.map((name, i) => '<option value="' + i + '"' + (String(i) === String(value) ? " selected" : "") + ">" + esc(name) + "</option>").join("") + "</select>";
     }
     if (key === "prop") return '<select class="blkInput"' + common + ">" + optionList(BLOCK_PROPS, value || "Text") + "</select>";
     if (key === "op") return '<select class="blkInput"' + common + ">" + optionList(BLOCK_OPS, value || "=") + "</select>";
@@ -2018,7 +2340,7 @@ const StudioEditor = (function () {
     }
     if (key === "color") return '<input class="blkInput blkColor" type="color"' + common + ' value="' + esc(value || "#ff4444") + '">';
     if (key === "x" || key === "y" || key === "z") return '<input class="blkInput blkAxis" type="number" step="1"' + common + ' value="' + esc(value) + '">';
-    if (key === "n") return '<input class="blkInput blkNum" type="number" step="0.1"' + common + ' value="' + esc(value) + '">';
+    if (key === "n" || key === "sx" || key === "sy" || key === "sz") return '<input class="blkInput blkNum" type="number" step="0.1"' + common + ' value="' + esc(value) + '">';
     return '<input class="blkInput blkText" type="text"' + common + ' value="' + esc(value) + '">';
   }
 
@@ -2350,8 +2672,22 @@ const StudioEditor = (function () {
     const box = $("stProps");
     if (selGui) { renderGuiProps(box, selGui); return; }
     if (selService) { renderServiceProps(box, selService); return; }
+    if (selContainer) {
+      box.innerHTML =
+        `<div class="rsPropGroup">Data</div>`
+        + `<div class="rsPropRow"><span class="rsPropLabel">Name</span><input type="text" data-prop="name" maxlength="40" value="${esc(selContainer.name)}"></div>`
+        + `<div class="rsPropRow"><span class="rsPropLabel">Class</span><span class="rsPropVal">${esc(selContainer.class)}</span></div>`
+        + `<div class="rsPropRow"><span class="rsPropLabel">Parent</span><span class="rsPropVal">${esc(containerName(selContainer.parent) || "Workspace")}</span></div>`
+        + `<div class="rsPropRow"><span class="rsPropLabel">Contents</span><span class="rsPropVal">${containerParts(selContainer.id).length} parts</span></div>`;
+      return;
+    }
     if (!selected) {
       box.innerHTML = '<div class="rsPropsEmpty">Select an object in the Explorer or click it in the viewport.</div>';
+      return;
+    }
+    if (selectedParts.length > 1) {
+      box.innerHTML = `<div class="rsPropsEmpty">${selectedParts.length} parts selected</div>`
+        + `<div class="rsPropsEmpty">Drag the gizmo to move them together. Delete removes all of them; Ctrl+C / Ctrl+V copies them.</div>`;
       return;
     }
     const p = selected;
@@ -2362,7 +2698,7 @@ const StudioEditor = (function () {
       + `<div class="rsPropRow"><span class="rsPropLabel">Name</span><input type="text" data-prop="name" maxlength="40" value="${esc(p.name)}"></div>`
       + `<div class="rsPropRow"><span class="rsPropLabel">Class</span><span class="rsPropVal">${esc(p.className)}</span></div>`
       + `<div class="rsPropRow"><span class="rsPropLabel">Shape</span><select data-prop="shape">${SHAPES.map((n, i) => `<option value="${i}"${i === p.shape ? " selected" : ""}>${esc(n)}</option>`).join("")}</select></div>`
-      + `<div class="rsPropRow"><span class="rsPropLabel">Parent</span><span class="rsPropVal">Workspace</span></div>`
+      + `<div class="rsPropRow"><span class="rsPropLabel">Parent</span><span class="rsPropVal">${esc(containerName(p.parentId) || "Workspace")}</span></div>`
       + `<div class="rsPropGroup">Transform</div>`
       + vecRow("Position", "p", [round(p.pos.x, 1000), round(p.pos.y, 1000), round(p.pos.z, 1000)], 1)
       + vecRow("Size", "s", [round(p.size.x, 1000), round(p.size.y, 1000), round(p.size.z, 1000)], 0.5)
@@ -2406,12 +2742,21 @@ const StudioEditor = (function () {
     const input = e.target;
     if (input.dataset && (input.dataset.gp || input.dataset.gpvec || input.dataset.gpudim || input.dataset.gpanchor)) { onGuiProp(input); return; }
     const prop = input.dataset ? input.dataset.prop : null;
+    if (selContainer && prop === "name") {
+      selContainer.name = String(input.value || "").replace(/[\u0000-\u001f<>]/g, "").slice(0, 40);
+      renderTree(); markDirty();
+      return;
+    }
     if (!prop || !selected) return;
     const part = selected;
     const num = (v, fallback) => { const n = parseFloat(v); return Number.isFinite(n) ? n : fallback; };
     if (prop === "name") {
+      const oldName = part.name;
       part.name = String(input.value || "").replace(/[\u0000-\u001f<>]/g, "").slice(0, 40);
       part.className = part.name === "SpawnLocation" ? "SpawnLocation" : "Part";
+      if (oldName && oldName !== part.name) {
+        for (const s of game.map.workspaceScripts || []) if (s.parentPart === oldName) s.parentPart = part.name;
+      }
       renderTree();
     } else if (prop[0] === "p" && prop.length === 2) {
       const axis = "xyz".indexOf(prop[1]);
@@ -2668,57 +3013,72 @@ const StudioEditor = (function () {
     return Math.atan2(d.dot(basis.v), d.dot(basis.u));
   }
   function startGizmoDrag(handle, e) {
-    if (!selected) return false;
-    const part = selected;
+    const list = selectedParts.length ? selectedParts.slice() : (selected ? [selected] : []);
+    if (!list.length) return false;
+    const part = selected || list[0];
     const axis = new THREE.Vector3();
     axis.setComponent(handle.userData.axis, 1);
     axis.applyQuaternion(part.quat).normalize();
     setRay(e);
+    const starts = list.map(p => ({ p, pos: p.pos.clone(), size: p.size.clone(), quat: p.quat.clone() }));
     if (tool === "rotate") {
       const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(axis, part.pos);
       const hit = ray.ray.intersectPlane(plane, new THREE.Vector3());
       if (!hit) return false;
       const basis = axisBasis(axis);
-      gizmoDrag = { kind: "rotate", part, axis, axisIndex: handle.userData.axis, plane, basis, startAngle: angleAround(hit, part.pos, basis), startQuat: part.quat.clone() };
+      gizmoDrag = { kind: "rotate", part, pivot: part.pos.clone(), starts, axis, axisIndex: handle.userData.axis, plane, basis, startAngle: angleAround(hit, part.pos, basis), startQuat: part.quat.clone() };
     } else {
       const s0 = axisParam(part.pos.clone(), axis);
       if (s0 === null) return false;
-      gizmoDrag = { kind: tool, part, axis, axisIndex: handle.userData.axis, startPos: part.pos.clone(), startSize: part.size.clone(), s0 };
+      gizmoDrag = { kind: tool, part, pivot: part.pos.clone(), starts, axis, axisIndex: handle.userData.axis, startPos: part.pos.clone(), startSize: part.size.clone(), s0 };
     }
     return true;
   }
   function updateGizmoDrag(e) {
     const g = gizmoDrag;
     if (!g) return;
-    const part = g.part;
     setRay(e);
     if (g.kind === "rotate") {
       const hit = ray.ray.intersectPlane(g.plane, new THREE.Vector3());
       if (!hit) return;
-      let delta = angleAround(hit, part.pos, g.basis) - g.startAngle;
+      let delta = angleAround(hit, g.pivot, g.basis) - g.startAngle;
       while (delta > Math.PI) delta -= Math.PI * 2;
       while (delta < -Math.PI) delta += Math.PI * 2;
       const snap = (e.shiftKey ? 1 : 5) * Math.PI / 180;
       delta = Math.round(delta / snap) * snap;
       const q = new THREE.Quaternion().setFromAxisAngle(g.axis, delta);
-      part.quat.copy(q).multiply(g.startQuat).normalize();
+      for (const s of g.starts) {
+        const offset = s.pos.clone().sub(g.pivot).applyQuaternion(q);
+        s.p.pos.copy(g.pivot).add(offset);
+        s.p.quat.copy(q).multiply(s.quat).normalize();
+        refreshTransform(s.p); writeRow(s.p);
+      }
     } else {
-      const s = axisParam(g.kind === "move" ? g.startPos : part.pos, g.axis);
+      const s = axisParam(g.kind === "move" ? g.startPos : g.pivot, g.axis);
       if (s === null) return;
       let d = s - g.s0;
       if (g.kind === "move") {
         const step = e.shiftKey ? 0.1 : 1;
         d = Math.round(d / step) * step;
-        part.pos.copy(g.startPos).addScaledVector(g.axis, d);
+        for (const st of g.starts) {
+          st.p.pos.copy(st.pos).addScaledVector(g.axis, d);
+          refreshTransform(st.p); writeRow(st.p);
+        }
       } else {
         const step = e.shiftKey ? 0.1 : 0.5;
-        let n = g.startSize.getComponent(g.axisIndex) + d;
-        n = Math.max(0.1, Math.round(n / step) * step);
-        part.size.setComponent(g.axisIndex, n);
+        const single = g.starts.length === 1;
+        for (const st of g.starts) {
+          let n = st.size.getComponent(g.axisIndex) + d;
+          n = Math.max(0.1, Math.round(n / step) * step);
+          st.p.size.setComponent(g.axisIndex, n);
+          if (!single) {
+            const shift = (n - st.size.getComponent(g.axisIndex)) / 2;
+            st.p.pos.copy(st.pos).addScaledVector(g.axis, shift);
+          }
+          refreshTransform(st.p); writeRow(st.p);
+        }
       }
     }
-    refreshTransform(part);
-    writeRow(part);
     markDirty();
   }
 
@@ -2730,12 +3090,12 @@ const StudioEditor = (function () {
     camera.position.set(0, 26, 42);
     camera.rotation.set(pitch, yaw, 0);
   }
-  function pickAt(clientX, clientY) {
+  function pickAt(clientX, clientY, opts) {
     const rect = $("stCanvas").getBoundingClientRect();
     ndc.set((clientX - rect.left) / rect.width * 2 - 1, -(clientY - rect.top) / rect.height * 2 + 1);
     ray.setFromCamera(ndc, camera);
     const hits = ray.intersectObjects(world.children.filter(m => m.isMesh), false);
-    selectPart(hits.length ? hits[0].object.userData.part.key : null);
+    selectPart(hits.length ? hits[0].object.userData.part.key : null, opts);
   }
   function bindInput() {
     const canvas = $("stCanvas");
@@ -2790,7 +3150,7 @@ const StudioEditor = (function () {
       canvas.style.cursor = "";
       try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
       if (wasGizmo) return;
-      if (wasClick && running) pickAt(e.clientX, e.clientY);
+      if (wasClick && running) pickAt(e.clientX, e.clientY, { additive: e.ctrlKey || e.metaKey, range: e.shiftKey });
     };
     canvas.addEventListener("pointerup", stop);
     canvas.addEventListener("pointercancel", stop);
@@ -2816,6 +3176,7 @@ const StudioEditor = (function () {
       }
       if (typing || playing) return;
       if (e.key === "F2" && selGui) { e.preventDefault(); renameGui(selGui); return; }
+      if (e.key === "F2" && selContainer) { e.preventDefault(); renameContainer(selContainer); return; }
       if (e.ctrlKey || e.metaKey) {                       // Edit menu shortcuts
         const k = e.key.toLowerCase();
         if (k === "z") { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
@@ -2826,7 +3187,7 @@ const StudioEditor = (function () {
         if (k === "d") { e.preventDefault(); duplicateSelected(); return; }
       }
       if (e.key === "F5") { e.preventDefault(); startPlay(e.shiftKey); return; }
-      if ((e.key === "Delete" || e.key === "Backspace") && (selected || selGui)) { e.preventDefault(); deleteSelected(); return; }
+      if ((e.key === "Delete" || e.key === "Backspace") && (selected || selGui || selContainer)) { e.preventDefault(); deleteSelected(); return; }
       const k = e.key.toLowerCase();
       if (["w", "a", "s", "d", "q", "e", " ", "shift", "control"].includes(k)) e.preventDefault();
       keys.add(k);
@@ -3150,11 +3511,17 @@ const StudioEditor = (function () {
           const part = parts.find(p => p.key === kind.slice(5));
           if (part) target = { kind: "part", part };
         }
+        else if (kind.indexOf("container:") === 0) {
+          const c = containerById(kind.slice(10));
+          if (c) target = { kind: "container", node: c };
+        }
         if (target) openInsertMenu(ins, target);
         return;
       }
       const part = e.target.closest("[data-part]");
-      if (part) { selectPart(part.dataset.part); return; }
+      if (part) { selectPart(part.dataset.part, { additive: e.ctrlKey || e.metaKey, range: e.shiftKey }); return; }
+      const cont = e.target.closest("[data-container]");
+      if (cont) { selectContainer(cont.dataset.container); return; }
       const gui = e.target.closest("[data-gui]");
       if (gui) { selectGui(gui.dataset.gui); return; }
       const svc = e.target.closest("[data-service]");
@@ -3162,24 +3529,30 @@ const StudioEditor = (function () {
     });
     const treeBox = $("stTree");
     treeBox.addEventListener("dragstart", e => {
-      const row = e.target.closest("[data-gui]");
-      if (!row) return;
-      const hit = findAnyNode(row.dataset.gui);
-      if (!hit) return;
-      treeDrag = { id: hit.node.id };
-      try { e.dataTransfer.setData("text/plain", JSON.stringify({ tree: 1, id: hit.node.id })); } catch (_) {}
+      const guiRow = e.target.closest("[data-gui]");
+      const partRow = e.target.closest("[data-part]");
+      const contRow = e.target.closest("[data-container]");
+      if (guiRow) {
+        const hit = findAnyNode(guiRow.dataset.gui);
+        if (!hit) return;
+        treeDrag = { kind: "gui", id: hit.node.id };
+      } else if (partRow) {
+        treeDrag = { kind: "part", id: partRow.dataset.part };
+      } else if (contRow) {
+        treeDrag = { kind: "container", id: contRow.dataset.container };
+      } else return;
+      try { e.dataTransfer.setData("text/plain", JSON.stringify({ tree: 1, kind: treeDrag.kind, id: treeDrag.id })); } catch (_) {}
       e.dataTransfer.effectAllowed = "move";
-      row.classList.add("dragging");
+      (guiRow || partRow || contRow).classList.add("dragging");
       document.body.classList.add("treeDragging");
     });
     treeBox.addEventListener("dragend", endTreeDrag);
     treeBox.addEventListener("dragover", e => {
       if (!treeDrag) return;
-      const row = e.target.closest("[data-gui], [data-part], [data-service]");
+      const row = e.target.closest("[data-gui], [data-part], [data-container], [data-service]");
       if (!row) return;
-      const hit = findAnyNode(treeDrag.id);
       const target = treeDropTarget(row);
-      if (!hit || !canTreeDrop(hit.node, target)) return;
+      if (!canDropDrag(treeDrag, target)) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
       for (const el of treeBox.querySelectorAll(".dropInto")) el.classList.remove("dropInto");
@@ -3191,12 +3564,11 @@ const StudioEditor = (function () {
     });
     treeBox.addEventListener("drop", e => {
       if (!treeDrag) return;
-      const row = e.target.closest("[data-gui], [data-part], [data-service]");
-      const hit = findAnyNode(treeDrag.id);
+      const row = e.target.closest("[data-gui], [data-part], [data-container], [data-service]");
       const target = treeDropTarget(row);
-      if (hit && target && canTreeDrop(hit.node, target)) {
+      if (canDropDrag(treeDrag, target)) {
         e.preventDefault();
-        moveTreeNode(hit, target);
+        applyDropDrag(treeDrag, target);
       }
       endTreeDrag();
     });
@@ -3205,7 +3577,7 @@ const StudioEditor = (function () {
       if (b) insertFromMenu(b);
     });
     $("stTree").addEventListener("contextmenu", e => {
-      const row = e.target.closest("[data-gui], [data-part], [data-service]");
+      const row = e.target.closest("[data-gui], [data-part], [data-container], [data-service]");
       if (!row) return;
       e.preventDefault();
       let target;
@@ -3217,6 +3589,9 @@ const StudioEditor = (function () {
       } else if (row.dataset.part) {
         selectPart(row.dataset.part);
         target = { kind: "part", part: selected, el: row };
+      } else if (row.dataset.container) {
+        selectContainer(row.dataset.container);
+        target = { kind: "container", node: selContainer, el: row };
       } else {
         selectService(row.dataset.service);
         target = { kind: "service", key: row.dataset.service };
@@ -3232,6 +3607,8 @@ const StudioEditor = (function () {
       runContextCommand(cmd, target);
     });
     $("stTree").addEventListener("dblclick", e => {
+      const cont = e.target.closest("[data-container]");
+      if (cont) { const c = containerById(cont.dataset.container); if (c) renameContainer(c); return; }
       const row = e.target.closest("[data-gui]");
       if (!row) return;
       const hit = findNode(row.dataset.gui);
@@ -3277,7 +3654,7 @@ const StudioEditor = (function () {
     keys.clear();
     drag = null; down = null; gizmoDrag = null;
     playCam = { pos: camera.position.clone(), yaw, pitch };
-    if (selBox) selBox.visible = false;
+    if (selBoxes.length) for (const b of selBoxes) b.visible = false;
     if (gizmo) gizmo.visible = false;
 
     let spawn = null;
@@ -3307,7 +3684,7 @@ const StudioEditor = (function () {
     if (!ok) {
       playing = false;
       playCam = null;
-      if (selBox) selBox.visible = true;
+      if (selBoxes.length) for (const b of selBoxes) b.visible = true;
       if (gizmo) gizmo.visible = true;
       return;
     }
@@ -3327,7 +3704,7 @@ const StudioEditor = (function () {
       camera.rotation.set(pitch, yaw, 0);
       playCam = null;
     }
-    if (selBox) selBox.visible = true;
+    if (selBoxes.length) for (const b of selBoxes) b.visible = true;
     if (gizmo) gizmo.visible = true;
     $("stEditor").classList.remove("isPlaying");
     keys.clear();
@@ -3429,12 +3806,12 @@ const StudioEditor = (function () {
     if (!renderer) return "";
     try {
       const prevVisible = gizmo ? gizmo.visible : false;
-      const prevSel = selBox ? selBox.visible : false;
+      const prevSel = selBoxes.map(b => b.visible);
       if (gizmo) gizmo.visible = false;
-      if (selBox) selBox.visible = false;
+      for (const b of selBoxes) b.visible = false;
       renderer.render(scene, camera);
       if (gizmo) gizmo.visible = prevVisible;
-      if (selBox) selBox.visible = prevSel;
+      selBoxes.forEach((b, i) => { b.visible = prevSel[i]; });
       const src = renderer.domElement;
       const out = document.createElement("canvas");
       out.width = 480; out.height = 270;

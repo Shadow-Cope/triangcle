@@ -75,17 +75,23 @@ const StudioUI = (function () {
       script straight to it - then double-click it to open the block editor.
       Drag blocks from the left palette into the stack: a blue line shows where they will land, so you can reorder,
       nest into <b>repeat</b>/<b>if</b> bodies, or drop on the canvas to add at the end. Drop a block on <b>Delete</b>
-      (bottom of the palette) to remove it. Start with a hat: <b>when game starts</b>, <b>when an object is clicked</b>,
+      (bottom of the palette) to remove it. Hats: <b>when game starts</b>, <b>when an object is clicked</b>,
       <b>when an object is hovered</b>, <b>when the player touches a part</b>, <b>when this part is touched</b>
-      (scripts on a part) or <b>every N seconds</b>. <b>Make a Variable</b> in the palette for score/health; variables
-      are shared by every script. <b>Parts &amp; Player</b> blocks recolour, hide/show or move parts (collision follows),
-      teleport the player, change walk speed / jump power, toggle <b>CanCollide</b>, <b>anchor</b> parts (unanchored
-      parts fall), <b>tween</b> a part to a position over time, and set <b>health</b> (max health, set, damage, heal, kill,
-      respawn) - <b>when this part is touched &rarr; kill player</b> makes a killbrick. More advanced blocks: <b>when key
-      is pressed</b>, <b>when a variable crosses a value</b>, <b>repeat forever</b>, <b>wait until</b>, random/maths/clamp
-      variables, part <b>size / rotation / destroy / position</b>, <b>gravity</b> and <b>forcefield</b>,
-      teleport-to-part, and <b>tween a UI element</b> to a new screen position. You can also drag scripts and
-      UI objects in the Explorer to move them between services, folders and parts. Try
+      (scripts on a part), <b>when a variable changes</b>, <b>when the player dies</b>, <b>when the player respawns</b>
+      or <b>every N seconds</b>. <b>Make a Variable</b> in the palette for score/health; variables are shared by every
+      script. Variable blocks cover set/change, copy one variable into another, add/subtract, multiply, divide,
+      percentages, min/max, rounding up/down, absolute values, toggles, random numbers and <b>if a variable is between</b>.
+      <b>Parts &amp; Player</b> blocks recolour, hide/show, move, resize, rotate, retint with a material, or
+      <b>spawn / clone</b> parts (the new part's name is stored in a variable so another block can move or destroy it),
+      teleport the player, change walk speed / jump power / gravity from plain numbers or variables, toggle
+      <b>CanCollide</b>, <b>anchor</b> parts (unanchored parts fall), <b>tween</b> a part to a position over time,
+      and set <b>health</b> (max health, set, damage, heal, kill, respawn) - <b>when this part is touched &rarr;
+      kill player</b> makes a killbrick. UI blocks set text, size, position, colours, text size, rotation and
+      transparency, flash a label, show/hide from a variable, or tween a UI element to a new screen position.
+      <b>Folders and Models</b> in Workspace group parts: press <b>+</b> on Workspace or a folder to add them, drag parts
+      or folders onto a folder/model to move them in, and drag them back onto Workspace to take them out. Ctrl-click
+      parts (or Shift-click for a range) to select several at once; the gizmo moves, rotates or scales them together.
+      You can also drag scripts and UI objects in the Explorer to move them between services, folders and parts. Try
       <b>Home &gt; Open a Template &gt; Relay Ascent</b> for a finished example.</div>`,
     });
   }

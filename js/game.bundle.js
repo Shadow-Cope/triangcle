@@ -897,6 +897,8 @@ function compareValues(a, b, op) {
   if (op === "≠") return left.toLowerCase() !== right.toLowerCase();
   const na = parseFloat(left), nb = parseFloat(right);
   if (!Number.isFinite(na) || !Number.isFinite(nb)) return false;
+  if (op === "≥" || op === ">=") return na >= nb;
+  if (op === "≤" || op === "<=") return na <= nb;
   return op === "<" ? na < nb : op === ">" ? na > nb : false;
 }
 
@@ -1119,6 +1121,71 @@ function rotateRuntimePart(name, rx, ry, rz) {
   rebuildPartBoxes(name);
 }
 
+function setRuntimePartMaterial(name, materialName) {
+  const mesh = runtimePart(name);
+  if (!mesh) return;
+  const preset = MAT_PRESETS[materialName] || MAT_PRESETS.Plastic;
+  ownPartMaterials(mesh);
+  eachPartMaterial(mesh, m => {
+    m.roughness = preset.roughness;
+    m.metalness = preset.metalness;
+    if (m.emissive) {
+      if (preset.emissive && m.color) { m.emissive.copy(m.color); m.emissiveIntensity = 0.8; }
+      else { m.emissive.setHex(0); m.emissiveIntensity = 0; }
+    }
+    if (preset.glass) { m.transparent = true; m.opacity = Math.min(m.opacity, 0.55); m.depthWrite = false; }
+    m.needsUpdate = true;
+  });
+}
+
+function setPartRotation(name, rx, ry, rz) {
+  const mesh = runtimePart(name);
+  if (!mesh) return;
+  mesh.quaternion.setFromEuler(new THREE.Euler(guiNum(rx) * Math.PI / 180, guiNum(ry) * Math.PI / 180, guiNum(rz) * Math.PI / 180));
+  rebuildPartBoxes(name);
+}
+
+function cloneRuntimePart(name, dx, dy, dz) {
+  const src = PART_MESHES.get(name);
+  if (!src) return "";
+  let seq = 1, newName;
+  do { newName = name + " copy" + (seq === 1 ? "" : " " + seq); seq++; } while (PART_MESHES.has(newName));
+  const mesh = src.clone(true);
+  mesh.userData = {};
+  mesh.material = Array.isArray(src.material) ? src.material.map(m => m.clone()) : src.material.clone();
+  mesh.position.set(src.position.x + guiNum(dx), src.position.y + guiNum(dy), src.position.z + guiNum(dz));
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+  const info = PART_INFO.get(name);
+  if (info) PART_INFO.set(newName, { size: info.size.slice(), base: info.base.slice(), scale0: [mesh.scale.x, mesh.scale.y, mesh.scale.z], shape: info.shape });
+  PART_MESHES.set(newName, mesh);
+  if (PART_COLLIDE.has(name)) PART_COLLIDE.add(newName);
+  rebuildPartBoxes(newName);
+  return newName;
+}
+
+function spawnRuntimePart(args) {
+  const sx = Math.max(0.05, Math.min(512, guiNum(args.sx, 4)));
+  const sy = Math.max(0.05, Math.min(512, guiNum(args.sy, 1)));
+  const sz = Math.max(0.05, Math.min(512, guiNum(args.sz, 4)));
+  const shape = [0, 1, 2, 3, 4].includes(+args.shape) ? +args.shape : 1;
+  const value = parseInt(String(args.color || "#a3a2a5").replace("#", ""), 16);
+  const geo = shape === 1 ? new THREE.BoxGeometry(1, 1, 1) : shapeGeometry(shape);
+  const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: Number.isFinite(value) ? value : 0xa3a2a5, roughness: 0.62, metalness: 0 }));
+  mesh.scale.set(sx, sy, sz);
+  mesh.position.set(guiNum(args.x), guiNum(args.y), guiNum(args.z));
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+  let seq = 1, name;
+  do { name = "Spawned" + seq++; } while (PART_MESHES.has(name));
+  PART_MESHES.set(name, mesh);
+  PART_INFO.set(name, { size: [sx, sy, sz], base: [sx, sy, sz], scale0: [1, 1, 1], shape });
+  PART_COLLIDE.add(name);
+  rebuildPartBoxes(name);
+  return name;
+}
+
 function destroyRuntimePart(name) {
   const mesh = PART_MESHES.get(name);
   if (mesh && mesh.parent) mesh.parent.remove(mesh);
@@ -1162,6 +1229,9 @@ const HOVER_HANDLERS = [];
 const TOUCH_HANDLERS = [];
 const KEY_HANDLERS = [];
 const VAR_WATCHERS = [];
+const VAR_CHANGE_HANDLERS = [];
+const DEATH_HANDLERS = [];
+const RESPAWN_HANDLERS = [];
 
 function scriptVar(map, name) {
   return map && map.vars && Object.prototype.hasOwnProperty.call(map.vars, name) ? map.vars[name] : "";
@@ -1170,7 +1240,16 @@ function scriptVar(map, name) {
 function setScriptVar(map, name, value) {
   if (!map || !name) return;
   if (!map.vars || typeof map.vars !== "object" || Array.isArray(map.vars)) map.vars = {};
+  const before = map.vars[name];
   map.vars[name] = String(value == null ? "" : value);
+  if (String(before == null ? "" : before) !== map.vars[name]) fireVarChange(map, name);
+}
+function fireVarChange(map, name) {
+  for (const h of VAR_CHANGE_HANDLERS) {
+    if (h.map !== map || h.var !== name) continue;
+    if (h.timer) clearTimeout(h.timer);
+    h.timer = setTimeout(() => { h.timer = 0; h.fire(); }, 0);
+  }
 }
 
 function scriptElements(target) {
@@ -1257,6 +1336,9 @@ async function runScriptStack(blocks, map, ctl) {
     } else if (block.type === "repeat") {
       const times = Math.max(0, Math.min(100, Math.round(guiNum(block.args.n))));
       for (let i = 0; i < times; i++) await runScriptStack(block.body, map, ctl);
+    } else if (block.type === "repeatVar") {
+      const times = Math.max(0, Math.min(1000, Math.round(guiNum(scriptVar(map, block.args.var)))));
+      for (let i = 0; i < times; i++) await runScriptStack(block.body, map, ctl);
     } else if (block.type === "repeatForever") {
       while (!(ctl && ctl.stop)) {
         await runScriptStack(block.body, map, ctl);
@@ -1273,6 +1355,12 @@ async function runScriptStack(blocks, map, ctl) {
       if (testScriptCondition(map, block.args || {})) await runScriptStack(block.body, map, ctl);
     } else if (block.type === "ifVar") {
       if (compareValues(scriptVar(map, block.args.var), block.args.value, block.args.op)) await runScriptStack(block.body, map, ctl);
+      else await runScriptStack(block.elseBody, map, ctl);
+    } else if (block.type === "ifVarBetween") {
+      const v = guiNum(scriptVar(map, block.args.var));
+      const lo = Math.min(guiNum(block.args.min), guiNum(block.args.max));
+      const hi = Math.max(guiNum(block.args.min), guiNum(block.args.max));
+      if (v >= lo && v <= hi) await runScriptStack(block.body, map, ctl);
       else await runScriptStack(block.elseBody, map, ctl);
     } else if (block.type === "setVar") {
       setScriptVar(map, block.args.var, block.args.value);
@@ -1299,6 +1387,49 @@ async function runScriptStack(blocks, map, ctl) {
       const lo = Math.min(guiNum(block.args.min), guiNum(block.args.max));
       const hi = Math.max(guiNum(block.args.min), guiNum(block.args.max));
       setScriptVar(map, block.args.var, String(Math.max(lo, Math.min(hi, guiNum(scriptVar(map, block.args.var))))));
+    } else if (block.type === "setVarToVar") {
+      setScriptVar(map, block.args.var, scriptVar(map, block.args.var2));
+    } else if (block.type === "changeVarByVar") {
+      const v = guiNum(scriptVar(map, block.args.var)) + guiNum(scriptVar(map, block.args.var2));
+      setScriptVar(map, block.args.var, String(Math.round(v * 1000) / 1000));
+    } else if (block.type === "setVarVarOp") {
+      let v = guiNum(scriptVar(map, block.args.var2));
+      const n = guiNum(scriptVar(map, block.args.var3)), mop = block.args.mop;
+      if (mop === "-") v -= n;
+      else if (mop === "×" || mop === "*") v *= n;
+      else if (mop === "÷" || mop === "/") v = n === 0 ? 0 : v / n;
+      else v += n;
+      setScriptVar(map, block.args.var, String(Math.round(v * 1000) / 1000));
+    } else if (block.type === "multiplyVar") {
+      const v = guiNum(scriptVar(map, block.args.var2)) * guiNum(block.args.n);
+      setScriptVar(map, block.args.var, String(Math.round(v * 1000) / 1000));
+    } else if (block.type === "divideVar") {
+      const n = guiNum(block.args.n);
+      const v = n === 0 ? 0 : guiNum(scriptVar(map, block.args.var2)) / n;
+      setScriptVar(map, block.args.var, String(Math.round(v * 1000) / 1000));
+    } else if (block.type === "percentVar") {
+      const v = guiNum(scriptVar(map, block.args.var2)) * guiNum(block.args.n) / 100;
+      setScriptVar(map, block.args.var, String(Math.round(v * 1000) / 1000));
+    } else if (block.type === "setVarMax") {
+      setScriptVar(map, block.args.var, String(Math.max(guiNum(scriptVar(map, block.args.var2)), guiNum(block.args.n))));
+    } else if (block.type === "setVarMin") {
+      setScriptVar(map, block.args.var, String(Math.min(guiNum(scriptVar(map, block.args.var2)), guiNum(block.args.n))));
+    } else if (block.type === "roundVar") {
+      const n = Math.max(0, Math.min(6, Math.round(guiNum(block.args.n))));
+      const f = Math.pow(10, n);
+      setScriptVar(map, block.args.var, String(Math.round(guiNum(scriptVar(map, block.args.var)) * f) / f));
+    } else if (block.type === "floorVar") {
+      setScriptVar(map, block.args.var, String(Math.floor(guiNum(scriptVar(map, block.args.var)))));
+    } else if (block.type === "ceilVar") {
+      setScriptVar(map, block.args.var, String(Math.ceil(guiNum(scriptVar(map, block.args.var)))));
+    } else if (block.type === "absVar") {
+      setScriptVar(map, block.args.var, String(Math.abs(guiNum(scriptVar(map, block.args.var)))));
+    } else if (block.type === "toggleVar") {
+      setScriptVar(map, block.args.var, guiNum(scriptVar(map, block.args.var)) === 0 ? "1" : "0");
+    } else if (block.type === "randomDecimalVar") {
+      const a = guiNum(block.args.min), b = guiNum(block.args.max);
+      const lo = Math.min(a, b), hi = Math.max(a, b);
+      setScriptVar(map, block.args.var, String(Math.round((lo + Math.random() * (hi - lo)) * 1000) / 1000));
     } else if (block.type === "printVar") {
       console.log("[Triancle script]", block.args.var, "=", scriptVar(map, block.args.var));
     } else if (block.type === "stop") {
@@ -1316,6 +1447,29 @@ async function runScriptStack(blocks, map, ctl) {
       setRuntimeProp(map, block.args.target, "Visible", "true");
     } else if (block.type === "hide") {
       setRuntimeProp(map, block.args.target, "Visible", "false");
+    } else if (block.type === "flashGui") {
+      setRuntimeProp(map, block.args.target, "Visible", "true");
+      await new Promise(resolve => setTimeout(resolve, Math.max(0.05, Math.min(30, guiNum(block.args.n))) * 1000));
+      setRuntimeProp(map, block.args.target, "Visible", "false");
+    } else if (block.type === "setGuiVisibleVar") {
+      const v = scriptVar(map, block.args.var);
+      setRuntimeProp(map, block.args.target, "Visible", /^(false|0|no|off|)$/i.test(String(v || "")) ? "false" : "true");
+    } else if (block.type === "setGuiSize") {
+      setRuntimeProp(map, block.args.target, "Size", guiNum(block.args.x) + "," + guiNum(block.args.y));
+    } else if (block.type === "setGuiPos") {
+      setRuntimeProp(map, block.args.target, "Position", guiNum(block.args.x) + "," + guiNum(block.args.y));
+    } else if (block.type === "setGuiBg") {
+      setRuntimeProp(map, block.args.target, "BackgroundColor3", block.args.color);
+    } else if (block.type === "setGuiTextColor") {
+      setRuntimeProp(map, block.args.target, "TextColor3", block.args.color);
+    } else if (block.type === "setGuiTextSize") {
+      setRuntimeProp(map, block.args.target, "TextSize", String(guiNum(block.args.n)));
+    } else if (block.type === "setGuiRotation") {
+      setRuntimeProp(map, block.args.target, "Rotation", String(guiNum(block.args.n)));
+    } else if (block.type === "setGuiBgTransparency") {
+      setRuntimeProp(map, block.args.target, "BackgroundTransparency", String(guiNum(block.args.n)));
+    } else if (block.type === "setGuiTextTransparency") {
+      setRuntimeProp(map, block.args.target, "TextTransparency", String(guiNum(block.args.n)));
     } else if (block.type === "partColor") {
       setPartColour(block.args.part, block.args.color);
     } else if (block.type === "partTrans") {
@@ -1338,10 +1492,38 @@ async function runScriptStack(blocks, map, ctl) {
       rotateRuntimePart(block.args.part, block.args.x, block.args.y, block.args.z);
     } else if (block.type === "destroyPart") {
       destroyRuntimePart(block.args.part);
+    } else if (block.type === "setPartMaterial") {
+      setRuntimePartMaterial(block.args.part, block.args.material);
+    } else if (block.type === "rotatePartTo") {
+      setPartRotation(block.args.part, block.args.x, block.args.y, block.args.z);
+    } else if (block.type === "clonePart") {
+      const name = cloneRuntimePart(block.args.part, block.args.x, block.args.y, block.args.z);
+      if (name) setScriptVar(map, block.args.var, name);
+    } else if (block.type === "spawnPart") {
+      const name = spawnRuntimePart(block.args);
+      if (name) setScriptVar(map, block.args.var, name);
+    } else if (block.type === "movePartVar") {
+      moveRuntimePart(scriptVar(map, block.args.partVar), block.args.x, block.args.y, block.args.z);
+    } else if (block.type === "setPartPosVar") {
+      setPartPosition(scriptVar(map, block.args.partVar), block.args.x, block.args.y, block.args.z);
+    } else if (block.type === "setPartSizeVar") {
+      setPartSize(scriptVar(map, block.args.partVar), block.args.x, block.args.y, block.args.z);
+    } else if (block.type === "partColorVar") {
+      setPartColour(scriptVar(map, block.args.partVar), block.args.color);
+    } else if (block.type === "partTransVar") {
+      setPartTransparency(scriptVar(map, block.args.partVar), block.args.n);
+    } else if (block.type === "rotatePartVar") {
+      rotateRuntimePart(scriptVar(map, block.args.partVar), block.args.x, block.args.y, block.args.z);
+    } else if (block.type === "tweenPartVar") {
+      tweenRuntimePart(scriptVar(map, block.args.partVar), block.args.x, block.args.y, block.args.z, block.args.n);
+    } else if (block.type === "destroyPartVar") {
+      destroyRuntimePart(scriptVar(map, block.args.partVar));
     } else if (block.type === "teleportPart") {
       teleportPlayerToPart(block.args.part);
     } else if (block.type === "setGravity") {
       setGameGravity(block.args.n);
+    } else if (block.type === "setGravityVar") {
+      setGameGravity(scriptVar(map, block.args.var));
     } else if (block.type === "forcefield") {
       giveForcefield(block.args.n);
     } else if (block.type === "tweenGui") {
@@ -1352,16 +1534,24 @@ async function runScriptStack(blocks, map, ctl) {
       teleportPlayer(block.args.x, block.args.y, block.args.z);
     } else if (block.type === "walkSpeed") {
       CFG.WALK_SPEED = Math.max(1, Math.min(200, guiNum(block.args.n)));
+    } else if (block.type === "walkSpeedVar") {
+      CFG.WALK_SPEED = Math.max(1, Math.min(200, guiNum(scriptVar(map, block.args.var))));
     } else if (block.type === "jumpPower") {
       CFG.JUMP_POWER = Math.max(0, Math.min(500, guiNum(block.args.n)));
+    } else if (block.type === "jumpPowerVar") {
+      CFG.JUMP_POWER = Math.max(0, Math.min(500, guiNum(scriptVar(map, block.args.var))));
     } else if (block.type === "setHealth") {
       setPlayerHealth(guiNum(block.args.n));
     } else if (block.type === "setMaxHealth") {
       setPlayerMaxHealth(guiNum(block.args.n));
     } else if (block.type === "damage") {
       damagePlayer(guiNum(block.args.n));
+    } else if (block.type === "damageVar") {
+      damagePlayer(guiNum(scriptVar(map, block.args.var)));
     } else if (block.type === "heal") {
       healPlayer(guiNum(block.args.n));
+    } else if (block.type === "healVar") {
+      healPlayer(guiNum(scriptVar(map, block.args.var)));
     } else if (block.type === "kill") {
       killPlayer();
     } else if (block.type === "respawn") {
@@ -1381,6 +1571,9 @@ function runScripts(map) {
   TOUCH_HANDLERS.length = 0;
   KEY_HANDLERS.length = 0;
   VAR_WATCHERS.length = 0;
+  VAR_CHANGE_HANDLERS.length = 0;
+  DEATH_HANDLERS.length = 0;
+  RESPAWN_HANDLERS.length = 0;
   if (!map.vars || typeof map.vars !== "object" || Array.isArray(map.vars)) map.vars = {};
   const scripts = [];
   (function walk(list) {
@@ -1425,6 +1618,12 @@ function runScripts(map) {
       });
       continue;
     }
+    if (hat === "onVarChanged") {
+      VAR_CHANGE_HANDLERS.push({ map, var: blocks[0].args && blocks[0].args.var, timer: 0, fire });
+      continue;
+    }
+    if (hat === "onDeath") { DEATH_HANDLERS.push({ fire }); continue; }
+    if (hat === "onRespawn") { RESPAWN_HANDLERS.push({ fire }); continue; }
     if (hat === "onTouch") {
       const part = blocks[0].args && blocks[0].args.part;
       if (part && !PART_TOUCH.has(part) && !PART_SOLIDS.has(part)) {
@@ -2517,6 +2716,7 @@ function killPlayer() {
   player.vel.set(0, 0, 0);
   paintVitals();
   showVitals();
+  for (const h of DEATH_HANDLERS) h.fire();
 }
 
 function respawn() {
@@ -2533,6 +2733,7 @@ function respawn() {
   facing = Math.PI / 2;   // face -Z like Roblox spawns
   paintVitals();
   hideVitals();
+  for (const h of RESPAWN_HANDLERS) h.fire();
 }
 
 ;
@@ -5505,7 +5706,7 @@ function ugSet(d, v) { v = ugClamp(+v || 0, d[3], d[4]); if (d[0] === "scale") U
   });
   $("ugTpl").addEventListener("click", e => {                        // template downloads: normal / transparent / labelled guide
     const b = e.target.closest("[data-tpl]"); if (!b || !isCloth(UG.attach)) return;
-    const a = document.createElement("a"); a.href = "assets/templates/" + UG.attach.toLowerCase() + "-" + b.dataset.tpl + ".png?v=1.9.5t2";
+    const a = document.createElement("a"); a.href = "assets/templates/" + UG.attach.toLowerCase() + "-" + b.dataset.tpl + ".png?v=1.9.6t";
     a.download = UG.attach.toLowerCase() + "-" + b.dataset.tpl + ".png"; document.body.appendChild(a); a.click(); a.remove();
   });
   const sel = $("ugAttach");
@@ -6340,7 +6541,7 @@ const NOTIF = { rows: [], fresh: new Set(), freshPatch: new Set(), timer: 0 };
    Each one shows up as its own numbered notification. sections: New / Changed / Fixed / Removed. */
 const PATCHES = [
   { v: "1.9.5", date: "2026-11-26", title: "More UI objects, more scripting and accurate clothing templates", sections: [
-    ["New", ["UI objects: UICorner, UIStroke, UIGradient, UIPadding, UIListLayout, UIGridLayout, UIAspectRatioConstraint, UIScale and ImageButton", "Every page has its own link (#/games, #/shop, #/profile/...), so a refresh stays on the page and Back / Forward work", "More blocks: when key is pressed, when a variable crosses a value, repeat forever, wait until, random/maths/clamp variables, part position/size/rotation/destroy, teleport-to-part, gravity, forcefield and UI position tweening", "Change your password from Settings (current, new, confirm)", "Restored the original tan shirt and pants templates and fixed the torso cells (the top and bottom now line up with the front)"]],
+    ["New", ["UI objects: UICorner, UIStroke, UIGradient, UIPadding, UIListLayout, UIGridLayout, UIAspectRatioConstraint, UIScale and ImageButton", "Every page has its own link (#/games, #/shop, #/profile/...), so a refresh stays on the page and Back / Forward work", "More blocks: when key is pressed, when a variable crosses a value, repeat forever, wait until, random/maths/clamp variables, part position/size/rotation/destroy, teleport-to-part, gravity, forcefield and UI position tweening", "Change your password from Settings (current, new, confirm)", "New high-resolution shirt template; the torso cells line up with the front and the pants keep the original tan template"]],
     ["Changed", ["The block palette is split into Parts and Player", "Walk speed, jump power and health can all be changed by script blocks", "Only Owners and chosen staff badges can edit Catalog items now; the Admin badge no longer gets that automatically (run supabase_owner_only.sql)"]],
     ["Fixed", ["Part textures now appear on the first Studio playtest instead of waiting for a restart", "Studio camera is E/Q only; Ctrl and Space no longer move it", "Trigger parts (CanCollide off) now fire Touched events", "Delete confirmations in the Owner panel were invisible, so games could not be deleted", "UI buttons could stop responding when a ticking script rebuilt the GUI"]]
   ] },
